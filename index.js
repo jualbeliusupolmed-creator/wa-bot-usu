@@ -83,28 +83,37 @@ async function startBot() {
         auth: state,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: ['Jual Beli USU Bot', 'Chrome', '1.0.0']
+        browser: ['Ubuntu', 'Chrome', '20.0.04']
     });
     
     waSocket = sock;
 
+    if (!sock.authState.creds.registered) {
+        setTimeout(async () => {
+            try {
+                let code = await sock.requestPairingCode("62895429126232");
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
+                console.log('\n===================================================');
+                console.log('🔥 KODE PAIRING ANDA: ' + code + ' 🔥');
+                console.log('Buka WA di HP > Tautkan Perangkat > Tautkan dgn Nomor Telepon');
+                console.log('Masukkan 8 kode huruf di atas untuk terhubung!');
+                console.log('===================================================\n');
+            } catch (err) {
+                console.log('Gagal meminta pairing code:', err.message);
+            }
+        }, 3000);
+    }
+
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        if (qr) {
-            currentQR = qr; // Simpan QR untuk web
-            console.log('=============== QR CODE TERSEDIA ===============');
-            console.log('Buka URL aplikasi ini di browser untuk scan QR Code!');
-            qrcodeTerm.generate(qr, { small: true });
-        }
+        const { connection, lastDisconnect } = update;
+        
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== 401;
             console.log('Koneksi terputus. Reconnecting:', shouldReconnect);
-            currentQR = '';
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
-            currentQR = '';
             console.log('Berhasil terhubung ke WhatsApp!');
         }
     });
