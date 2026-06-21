@@ -2,7 +2,8 @@ const { default: makeWASocket, useMultiFileAuthState, downloadMediaMessage } = r
 const pino = require('pino');
 const axios = require('axios');
 const express = require('express');
-const qrcode = require('qrcode-terminal');
+const qrcodeTerm = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const FormData = require('form-data');
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
@@ -13,6 +14,38 @@ const app = express();
 app.use(express.json());
 
 let waSocket = null;
+let currentQR = '';
+
+// Halaman utama untuk melihat QR Code
+app.get('/', async (req, res) => {
+    if (!currentQR) {
+        return res.send(`
+            <body style="font-family: sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; background:#f0f2f5;">
+                <div style="text-align:center; background:white; padding:40px; border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                    <h2>WhatsApp Bot Status</h2>
+                    <p style="color: green; font-weight: bold;">Bot sudah terhubung ke WhatsApp!</p>
+                    <p>Tidak perlu scan QR lagi.</p>
+                </div>
+            </body>
+        `);
+    }
+
+    try {
+        const qrImage = await QRCode.toDataURL(currentQR);
+        res.send(`
+            <body style="font-family: sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; background:#f0f2f5;">
+                <div style="text-align:center; background:white; padding:40px; border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+                    <h2>Scan QR Code WhatsApp</h2>
+                    <p>Buka WA di HP Admin > Tautkan Perangkat</p>
+                    <img src="${qrImage}" style="width: 300px; height: 300px; border: 1px solid #ccc; padding: 10px; border-radius: 10px;" />
+                    <p style="color: #666; font-size: 14px;">Refresh halaman ini jika QR kedaluwarsa</p>
+                </div>
+            </body>
+        `);
+    } catch (err) {
+        res.status(500).send('Error generating QR');
+    }
+});
 
 // API untuk mengirim pesan (sebagai pengganti API Fonnte)
 app.post('/send', async (req, res) => {
@@ -20,7 +53,6 @@ app.post('/send', async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     
-    // Sesuaikan format body dengan format yang biasa dipakai Fonnte
     const target = req.body.target; 
     const message = req.body.message || '';
     const url = req.body.url;
@@ -29,7 +61,6 @@ app.post('/send', async (req, res) => {
         return res.status(400).json({ error: 'Target or WA not ready' });
     }
 
-    // Format WA number (e.g., 6281234567890 -> 6281234567890@s.whatsapp.net)
     const jid = target.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
 
     try {
@@ -51,7 +82,7 @@ async function startBot() {
     const sock = makeWASocket({
         auth: state,
         logger: pino({ level: 'silent' }),
-        printQRInTerminal: true,
+        printQRInTerminal: false,
         browser: ['Jual Beli USU Bot', 'Chrome', '1.0.0']
     });
     
@@ -62,14 +93,18 @@ async function startBot() {
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
-            console.log('=============== SCAN QR CODE INI ===============');
-            qrcode.generate(qr, { small: true });
+            currentQR = qr; // Simpan QR untuk web
+            console.log('=============== QR CODE TERSEDIA ===============');
+            console.log('Buka URL aplikasi ini di browser untuk scan QR Code!');
+            qrcodeTerm.generate(qr, { small: true });
         }
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== 401;
             console.log('Koneksi terputus. Reconnecting:', shouldReconnect);
+            currentQR = '';
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
+            currentQR = '';
             console.log('Berhasil terhubung ke WhatsApp!');
         }
     });
@@ -82,7 +117,6 @@ async function startBot() {
 
             const sender = msg.key.remoteJid;
             
-            // Abaikan dari grup atau status
             if (!sender || sender.includes('@g.us') || sender === 'status@broadcast') continue;
 
             try {
@@ -107,12 +141,10 @@ async function startBot() {
                         reuploadRequest: sock.updateMediaMessage
                     });
                 } else {
-                    continue; // Abaikan stiker, vn, dll
+                    continue; 
                 }
 
-                // Format sender number
                 const cleanSender = sender.split('@')[0];
-
                 console.log(`Menerima pesan dari ${cleanSender}`);
                 
                 const form = new FormData();
@@ -126,13 +158,9 @@ async function startBot() {
                     });
                 }
 
-                // Tembak Webhook Jual Beli USU
                 const response = await axios.post(WEBHOOK_URL, form, {
-                    headers: {
-                        ...form.getHeaders()
-                    }
+                    headers: { ...form.getHeaders() }
                 });
-
                 console.log('Webhook Response OK');
 
             } catch (err) {
