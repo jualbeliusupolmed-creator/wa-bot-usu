@@ -31,14 +31,13 @@ app.get('/reset', (req, res) => {
 
 app.post('/send', async (req, res) => {
     if (req.headers.authorization !== API_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
-    
+
     const { target, message, url } = req.body;
     if (!target || !waSocket) return res.status(400).json({ error: 'Target or WA not ready' });
 
     let jid = String(target);
     if (!jid.includes('@')) {
         let num = jid.replace(/[^0-9]/g, '');
-        // Ubah awalan 0 menjadi 62 agar valid di WhatsApp
         if (num.startsWith('0')) {
             num = '62' + num.substring(1);
         }
@@ -46,10 +45,9 @@ app.post('/send', async (req, res) => {
     }
 
     try {
-        // FITUR BARU: Memancing koneksi WA dengan status "Sedang Mengetik..."
         await waSocket.presenceSubscribe(jid);
         await waSocket.sendPresenceUpdate('composing', jid);
-        
+
         let result;
         if (url) {
             result = await waSocket.sendMessage(jid, { image: { url: url }, caption: message });
@@ -62,6 +60,27 @@ app.post('/send', async (req, res) => {
         res.status(500).json({ status: false, reason: err.message });
     }
 });
+
+// Ambil isi pesan aktual — skip metadata wrapper seperti messageContextInfo
+function extractMessage(rawMessage) {
+    if (!rawMessage) return { type: '', content: null, rawForMedia: rawMessage };
+
+    // Unwrap ephemeral / view-once
+    const inner = rawMessage.ephemeralMessage?.message
+        || rawMessage.viewOnceMessage?.message
+        || rawMessage.viewOnceMessageV2?.message?.viewOnceMessage?.message
+        || rawMessage;
+
+    // Keys yang bukan isi pesan
+    const META_KEYS = new Set([
+        'messageContextInfo',
+        'senderKeyDistributionMessage',
+        'deviceSentMessage',
+    ]);
+
+    const type = Object.keys(inner).find(k => !META_KEYS.has(k)) || '';
+    return { type, content: inner[type], rawForMedia: rawMessage };
+}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -91,38 +110,52 @@ async function startBot() {
 
     sock.ev.on('messages.upsert', async (m) => {
         if (m.type !== 'notify') return;
-        
+
         for (const msg of m.messages) {
             if (!msg.message || msg.key.fromMe) continue;
             const sender = msg.key.remoteJid;
-            
+
             if (!sender || sender.includes('@g.us') || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
 
             try {
-                const messageType = Object.keys(msg.message)[0];
+                const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
+                console.log(`Pesan dari ${sender.split('@')[0]} | type: ${messageType}`);
+
                 let text = '', hasMedia = false, buffer = null, mimeType = '', filename = '';
 
-                if (messageType === 'conversation') text = msg.message.conversation;
-                else if (messageType === 'extendedTextMessage') text = msg.message.extendedTextMessage.text;
-                else if (messageType === 'imageMessage') {
+                if (messageType === 'conversation') {
+                    text = content;
+                } else if (messageType === 'extendedTextMessage') {
+                    text = content?.text || '';
+                } else if (messageType === 'imageMessage') {
                     hasMedia = true;
-                    text = msg.message.imageMessage.caption || '';
-                    mimeType = msg.message.imageMessage.mimetype || 'image/jpeg';
+                    text = content?.caption || '';
+                    mimeType = content?.mimetype || 'image/jpeg';
                     filename = 'image.jpg';
-                    buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
-                } else continue; 
+                    buffer = await downloadMediaMessage(
+                        { ...msg, message: rawForMedia },
+                        'buffer', {},
+                        { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
+                    );
+                } else {
+                    // Tipe lain (stiker, audio, video, dokumen, dll) — balas dengan petunjuk
+                    text = 'non-text message';
+                }
 
                 const cleanSender = sender.split('@')[0].split(':')[0];
-                console.log(`Menerima pesan dari ${cleanSender}`);
-                
+
                 const form = new FormData();
                 form.append('sender', cleanSender);
                 form.append('message', text);
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
                 const response = await fetch(WEBHOOK_URL, { method: 'POST', body: form });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                console.log('Webhook Response OK');
+                const responseText = await response.text();
+                if (!response.ok) {
+                    console.error(`Webhook error ${response.status}: ${responseText}`);
+                } else {
+                    console.log(`Webhook OK: ${responseText}`);
+                }
             } catch (err) {
                 console.error('Error memproses pesan:', err.message);
             }
