@@ -119,7 +119,7 @@ async function startBot() {
 
             try {
                 const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
-                console.log(`Pesan dari ${sender.split('@')[0]} | type: ${messageType}`);
+                console.log(`Pesan dari ${sender} | type: ${messageType}`);
 
                 let text = '', hasMedia = false, buffer = null, mimeType = '', filename = '';
 
@@ -142,9 +142,12 @@ async function startBot() {
                     text = 'non-text message';
                 }
 
-                const cleanSender = sender.split('@')[0].split(':')[0];
+                // Kirim full JID ke Vercel (strip device suffix :N saja, pertahankan @domain)
+                // Contoh: "6281234567890:15@s.whatsapp.net" → "6281234567890@s.whatsapp.net"
+                //         "18318723407966@lid" → "18318723407966@lid"
+                const cleanSender = sender.replace(/:(\d+)(?=@)/, '');
                 // Strip BOM dan invisible chars agar FormData tidak gagal encode
-                const cleanText = text.replace(/[﻿​-‍⁠]/g, '').trim();
+                const cleanText = text.replace(/[​-‍﻿⁠]/g, '').trim();
 
                 const form = new FormData();
                 form.append('sender', cleanSender);
