@@ -143,10 +143,12 @@ async function startBot() {
                 }
 
                 const cleanSender = sender.split('@')[0].split(':')[0];
+                // Strip BOM dan invisible chars agar FormData tidak gagal encode
+                const cleanText = text.replace(/[﻿​-‍⁠]/g, '').trim();
 
                 const form = new FormData();
                 form.append('sender', cleanSender);
-                form.append('message', text);
+                form.append('message', cleanText);
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
                 const response = await fetch(WEBHOOK_URL, { method: 'POST', body: form });
