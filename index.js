@@ -141,7 +141,7 @@ async function startBot() {
 
             const sender = msg.key.remoteJid;
             
-            if (!sender || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
+            if (!sender || sender.includes('@g.us') || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
 
             try {
                 const messageType = Object.keys(msg.message)[0];
@@ -168,7 +168,7 @@ async function startBot() {
                     continue; 
                 }
 
-                const cleanSender = sender.includes('@g.us') ? sender : sender.split('@')[0];
+                const cleanSender = sender.split('@')[0];
                 console.log(`Menerima pesan dari ${cleanSender}`);
                 
                 const form = new FormData();
