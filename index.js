@@ -65,19 +65,53 @@ app.get('/groups', requireAuth, async (req, res) => {
 });
 
 // ── Newsletters / Channels endpoint ──────────────────────────────────────────
+const NEWSLETTER_FILE = 'newsletters.json';
+function getSavedNewsletters() {
+    const fs = require('fs');
+    if (fs.existsSync(NEWSLETTER_FILE)) {
+        try { return JSON.parse(fs.readFileSync(NEWSLETTER_FILE, 'utf-8')); } catch(e) {}
+    }
+    return [];
+}
+function saveNewsletter(data) {
+    const fs = require('fs');
+    const list = getSavedNewsletters();
+    if (!list.find(n => n.jid === data.jid)) {
+        list.push(data);
+        fs.writeFileSync(NEWSLETTER_FILE, JSON.stringify(list));
+    }
+}
+
 app.get('/newsletters', requireAuth, async (req, res) => {
     if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    res.json({ newsletters: getSavedNewsletters() });
+});
+
+app.post('/newsletters/add', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const { invite } = req.body;
+    if (!invite) return res.status(400).json({ error: 'Invite link required' });
+    
     try {
-        const newsletters = await waSocket.newsletterSubscribed();
-        const list = (newsletters || []).map(n => ({
-            jid: n.id,
-            name: n.name || 'Tanpa Nama',
-            description: n.description || '',
-            subscribers: n.subscriberCount || 0,
-        }));
-        res.json({ newsletters: list });
+        let code = invite;
+        if (invite.includes('whatsapp.com/channel/')) {
+            code = invite.split('whatsapp.com/channel/')[1].split('?')[0].split('/')[0];
+        }
+        
+        const meta = await waSocket.newsletterMetadata('invite', code);
+        if (!meta || !meta.id) throw new Error('Saluran tidak ditemukan atau bot tidak memiliki akses.');
+        
+        const data = {
+            jid: meta.id,
+            name: meta.name || 'Tanpa Nama',
+            description: meta.description?.text || meta.description || '',
+            subscribers: meta.subscribers || 0,
+            addedAt: new Date().toISOString()
+        };
+        saveNewsletter(data);
+        res.json({ success: true, data });
     } catch (err) {
-        res.json({ newsletters: [], note: 'Fitur newsletter belum tersedia di versi Baileys ini.' });
+        res.status(500).json({ error: err.message });
     }
 });
 
