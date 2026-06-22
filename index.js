@@ -4,7 +4,6 @@ const axios = require('axios');
 const express = require('express');
 const qrcodeTerm = require('qrcode-terminal');
 const QRCode = require('qrcode');
-const FormData = require('form-data');
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
@@ -161,15 +160,19 @@ async function startBot() {
                 form.append('message', text);
 
                 if (hasMedia && buffer) {
-                    form.append('file', buffer, {
-                        filename: filename,
-                        contentType: mimeType
-                    });
+                    const blob = new Blob([buffer], { type: mimeType });
+                    form.append('file', blob, filename);
                 }
 
-                const response = await axios.post(WEBHOOK_URL, form, {
-                    headers: { ...form.getHeaders() }
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    body: form
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`Request failed with status code ${response.status}`);
+                }
+                
                 console.log('Webhook Response OK');
 
             } catch (err) {
