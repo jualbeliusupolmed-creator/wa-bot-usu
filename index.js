@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, downloadMediaMessage, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, downloadMediaMessage, Browsers, makeInMemoryStore } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const QRCode = require('qrcode');
@@ -7,6 +7,13 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.we
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
 const AUTH_DIR = process.env.AUTH_DIR || 'auth_info_baileys';
+
+// Setup in-memory store
+const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
+store.readFromFile('./baileys_store_multi.json');
+setInterval(() => {
+    store.writeToFile('./baileys_store_multi.json');
+}, 10_000);
 
 const app = express();
 app.use(express.json());
@@ -59,6 +66,37 @@ app.get('/groups', requireAuth, async (req, res) => {
             ) || false,
         }));
         res.json({ groups });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Chats endpoint ────────────────────────────────────────────────────────────
+app.get('/chats', requireAuth, (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    try {
+        const allChats = store.chats.all() || [];
+        const contacts = store.contacts || {};
+        
+        const privateChats = allChats.filter(c => c.id && c.id.endsWith('@s.whatsapp.net'));
+        
+        const list = privateChats.map(c => {
+            const contact = contacts[c.id];
+            return {
+                jid: c.id,
+                name: contact?.name || contact?.notify || contact?.verifiedName || 'Tanpa Nama',
+                unreadCount: c.unreadCount || 0,
+                lastMessageTime: c.conversationTimestamp ? new Date(c.conversationTimestamp * 1000).toISOString() : null
+            };
+        });
+
+        list.sort((a, b) => {
+            const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+            const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+            return timeB - timeA;
+        });
+
+        res.json({ chats: list });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -180,6 +218,7 @@ async function startBot() {
         browser: Browsers.macOS('Desktop')
     });
     waSocket = sock;
+    store.bind(sock.ev);
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
