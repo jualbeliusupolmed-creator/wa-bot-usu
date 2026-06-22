@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, downloadMediaMessage, Browsers, makeInMemoryStore } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, downloadMediaMessage, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const QRCode = require('qrcode');
@@ -7,13 +7,6 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.we
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
 const AUTH_DIR = process.env.AUTH_DIR || 'auth_info_baileys';
-
-// Setup in-memory store
-const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
-store.readFromFile('./baileys_store_multi.json');
-setInterval(() => {
-    store.writeToFile('./baileys_store_multi.json');
-}, 10_000);
 
 const app = express();
 app.use(express.json());
@@ -71,37 +64,6 @@ app.get('/groups', requireAuth, async (req, res) => {
     }
 });
 
-// ── Chats endpoint ────────────────────────────────────────────────────────────
-app.get('/chats', requireAuth, (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
-    try {
-        const allChats = store.chats.all() || [];
-        const contacts = store.contacts || {};
-        
-        const privateChats = allChats.filter(c => c.id && c.id.endsWith('@s.whatsapp.net'));
-        
-        const list = privateChats.map(c => {
-            const contact = contacts[c.id];
-            return {
-                jid: c.id,
-                name: contact?.name || contact?.notify || contact?.verifiedName || 'Tanpa Nama',
-                unreadCount: c.unreadCount || 0,
-                lastMessageTime: c.conversationTimestamp ? new Date(c.conversationTimestamp * 1000).toISOString() : null
-            };
-        });
-
-        list.sort((a, b) => {
-            const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
-            const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
-            return timeB - timeA;
-        });
-
-        res.json({ chats: list });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 // ── Newsletters / Channels endpoint ──────────────────────────────────────────
 const NEWSLETTER_FILE = 'newsletters.json';
 function getSavedNewsletters() {
@@ -129,16 +91,13 @@ app.post('/newsletters/add', requireAuth, async (req, res) => {
     if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
     const { invite } = req.body;
     if (!invite) return res.status(400).json({ error: 'Invite link required' });
-    
     try {
         let code = invite;
         if (invite.includes('whatsapp.com/channel/')) {
             code = invite.split('whatsapp.com/channel/')[1].split('?')[0].split('/')[0];
         }
-        
         const meta = await waSocket.newsletterMetadata('invite', code);
         if (!meta || !meta.id) throw new Error('Saluran tidak ditemukan atau bot tidak memiliki akses.');
-        
         const data = {
             jid: meta.id,
             name: meta.name || 'Tanpa Nama',
@@ -164,7 +123,7 @@ app.post('/restart', requireAuth, (req, res) => {
     setTimeout(() => process.exit(0), 1000);
 });
 
-// ── Reset / Hapus sesi (GET untuk browser, POST untuk API) ───────────────────
+// ── Reset / Hapus sesi ────────────────────────────────────────────────────────
 app.get('/reset', (req, res) => {
     const fs = require('fs');
     if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
@@ -208,6 +167,26 @@ app.post('/send', requireAuth, async (req, res) => {
     }
 });
 
+// ── Ekstrak isi pesan — skip metadata wrapper (messageContextInfo, dll) ───────
+function extractMessage(rawMessage) {
+    if (!rawMessage) return { type: '', content: null, rawForMedia: rawMessage };
+
+    // Unwrap ephemeral / view-once
+    const inner = rawMessage.ephemeralMessage?.message
+        || rawMessage.viewOnceMessage?.message
+        || rawMessage.viewOnceMessageV2?.message?.viewOnceMessage?.message
+        || rawMessage;
+
+    const META_KEYS = new Set([
+        'messageContextInfo',
+        'senderKeyDistributionMessage',
+        'deviceSentMessage',
+    ]);
+
+    const type = Object.keys(inner).find(k => !META_KEYS.has(k)) || '';
+    return { type, content: inner[type], rawForMedia: rawMessage };
+}
+
 // ── Bot core ──────────────────────────────────────────────────────────────────
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -218,7 +197,6 @@ async function startBot() {
         browser: Browsers.macOS('Desktop')
     });
     waSocket = sock;
-    store.bind(sock.ev);
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
@@ -250,34 +228,51 @@ async function startBot() {
             if (!sender || sender.includes('@g.us') || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
 
             try {
-                const messageType = Object.keys(msg.message)[0];
-                let text = '', hasMedia = false, buffer = null, mimeType = '', filename = '';
+                const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
 
-                if (messageType === 'conversation') text = msg.message.conversation;
-                else if (messageType === 'extendedTextMessage') text = msg.message.extendedTextMessage.text;
-                else if (messageType === 'imageMessage') {
-                    hasMedia = true;
-                    text = msg.message.imageMessage.caption || '';
-                    mimeType = msg.message.imageMessage.mimetype || 'image/jpeg';
-                    filename = 'image.jpg';
-                    buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
-                } else continue;
+                // Kirim full JID ke Vercel (strip device suffix :N saja, pertahankan @domain)
+                // "628xxx:15@s.whatsapp.net" → "628xxx@s.whatsapp.net"
+                // "18318xxx@lid" → "18318xxx@lid"
+                const cleanSender = sender.replace(/:(\d+)(?=@)/, '');
 
-                const cleanSender = sender.split('@')[0].split(':')[0];
                 console.log(`Pesan dari ${cleanSender} | type: ${messageType}`);
 
                 // Simpan ke in-memory log (max 100)
                 messageLog.unshift({
                     sender: cleanSender,
                     type: messageType,
-                    preview: text?.slice(0, 100) || '[media]',
+                    preview: (typeof content === 'string' ? content : content?.text || '[media]')?.slice(0, 100),
                     time: new Date().toISOString(),
                 });
                 if (messageLog.length > 100) messageLog.pop();
 
+                let text = '', hasMedia = false, buffer = null, mimeType = '', filename = '';
+
+                if (messageType === 'conversation') {
+                    text = content;
+                } else if (messageType === 'extendedTextMessage') {
+                    text = content?.text || '';
+                } else if (messageType === 'imageMessage') {
+                    hasMedia = true;
+                    text = content?.caption || '';
+                    mimeType = content?.mimetype || 'image/jpeg';
+                    filename = 'image.jpg';
+                    buffer = await downloadMediaMessage(
+                        { ...msg, message: rawForMedia },
+                        'buffer', {},
+                        { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
+                    );
+                } else {
+                    // Stiker, audio, video, dokumen → balas dengan petunjuk
+                    text = 'non-text message';
+                }
+
+                // Strip BOM dan invisible chars agar FormData tidak gagal encode
+                const cleanText = (text || '').replace(/[﻿​-‍⁠­]/g, '').trim();
+
                 const form = new FormData();
                 form.append('sender', cleanSender);
-                form.append('message', text);
+                form.append('message', cleanText);
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
                 const response = await fetch(WEBHOOK_URL, { method: 'POST', body: form });
