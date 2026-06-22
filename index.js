@@ -88,26 +88,15 @@ async function startBot() {
     
     waSocket = sock;
 
-    if (!sock.authState.creds.registered) {
-        setTimeout(async () => {
-            try {
-                let code = await sock.requestPairingCode("62895429126232");
-                code = code?.match(/.{1,4}/g)?.join("-") || code;
-                console.log('\n===================================================');
-                console.log('🔥 KODE PAIRING ANDA: ' + code + ' 🔥');
-                console.log('Buka WA di HP > Tautkan Perangkat > Tautkan dgn Nomor Telepon');
-                console.log('Masukkan 8 kode huruf di atas untuk terhubung!');
-                console.log('===================================================\n');
-            } catch (err) {
-                console.log('Gagal meminta pairing code:', err.message);
-            }
-        }, 3000);
-    }
-
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+        
+        if (qr) {
+            currentQR = qr;
+            console.log('QR Code baru telah di-generate. Silakan buka web aplikasi untuk scan.');
+        }
         
         if (connection === 'close') {
             const statusCode = lastDisconnect.error?.output?.statusCode;
@@ -121,9 +110,10 @@ async function startBot() {
                 if (fs.existsSync(AUTH_DIR)) {
                     fs.rmSync(AUTH_DIR, { recursive: true, force: true });
                 }
-                process.exit(1); // Paksa Railway merestart container
+                process.exit(1);
             }
         } else if (connection === 'open') {
+            currentQR = '';
             console.log('Berhasil terhubung ke WhatsApp!');
         }
     });
