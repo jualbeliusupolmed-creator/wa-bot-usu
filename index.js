@@ -16,6 +16,8 @@ let currentQR = '';
 let connectedPhone = '';
 let connectedAt = null;
 let messageLog = []; // in-memory log (max 100 entries)
+let contactMap = new Map(); // jid → { jid, name }
+let chatMap = new Map();    // jid → { jid, name, lastTime, preview }
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
@@ -62,6 +64,15 @@ app.get('/groups', requireAuth, async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// ── Chats / Kontak endpoint ───────────────────────────────────────────────────
+app.get('/chats', requireAuth, (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const list = Array.from(chatMap.values())
+        .filter(c => c.jid.endsWith('@s.whatsapp.net') || c.jid.endsWith('@lid'))
+        .sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
+    res.json({ chats: list });
 });
 
 // ── Newsletters / Channels endpoint ──────────────────────────────────────────
@@ -199,6 +210,42 @@ async function startBot() {
     waSocket = sock;
     sock.ev.on('creds.update', saveCreds);
 
+    // Bangun daftar kontak & chat dari event Baileys (pengganti makeInMemoryStore)
+    sock.ev.on('contacts.upsert', (contacts) => {
+        for (const c of contacts) {
+            if (c.id) contactMap.set(c.id, { jid: c.id, name: c.name || c.notify || c.verifiedName || '' });
+        }
+    });
+    sock.ev.on('contacts.update', (updates) => {
+        for (const u of updates) {
+            if (!u.id) continue;
+            const existing = contactMap.get(u.id) || { jid: u.id, name: '' };
+            contactMap.set(u.id, { ...existing, name: u.name || u.notify || u.verifiedName || existing.name });
+        }
+    });
+    sock.ev.on('chats.upsert', (chats) => {
+        for (const c of chats) {
+            if (!c.id) continue;
+            const contact = contactMap.get(c.id);
+            chatMap.set(c.id, {
+                jid: c.id,
+                name: contact?.name || c.name || '',
+                lastTime: c.conversationTimestamp ? Number(c.conversationTimestamp) * 1000 : Date.now(),
+                preview: '',
+            });
+        }
+    });
+    sock.ev.on('chats.update', (updates) => {
+        for (const u of updates) {
+            if (!u.id) continue;
+            const existing = chatMap.get(u.id) || { jid: u.id, name: '', lastTime: 0, preview: '' };
+            chatMap.set(u.id, {
+                ...existing,
+                lastTime: u.conversationTimestamp ? Number(u.conversationTimestamp) * 1000 : existing.lastTime,
+            });
+        }
+    });
+
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) currentQR = qr;
@@ -236,6 +283,17 @@ async function startBot() {
                 const cleanSender = sender.replace(/:(\d+)(?=@)/, '');
 
                 console.log(`Pesan dari ${cleanSender} | type: ${messageType}`);
+
+                // Update chatMap dari pesan masuk (pastikan selalu ada entry)
+                const existingChat = chatMap.get(cleanSender) || { jid: cleanSender, name: '', lastTime: 0, preview: '' };
+                const contactName = contactMap.get(cleanSender)?.name || contactMap.get(sender)?.name || '';
+                chatMap.set(cleanSender, {
+                    ...existingChat,
+                    jid: cleanSender,
+                    name: contactName || existingChat.name,
+                    lastTime: Date.now(),
+                    preview: (typeof content === 'string' ? content : content?.text || '[media]')?.slice(0, 60) || '',
+                });
 
                 // Simpan ke in-memory log (max 100)
                 messageLog.unshift({
