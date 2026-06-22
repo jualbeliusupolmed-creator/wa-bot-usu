@@ -47,6 +47,18 @@ app.get('/', async (req, res) => {
     }
 });
 
+// API untuk menghapus sesi dan merestart
+app.get('/reset', (req, res) => {
+    const fs = require('fs');
+    if (fs.existsSync(AUTH_DIR)) {
+        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+    }
+    res.send('Sesi berhasil dihapus! Mesin akan merestart otomatis dalam beberapa detik. Silakan kembali ke halaman utama untuk scan QR baru.');
+    setTimeout(() => {
+        process.exit(1);
+    }, 1000);
+});
+
 // API untuk mengirim pesan (sebagai pengganti API Fonnte)
 app.post('/send', async (req, res) => {
     if (req.headers.authorization !== API_TOKEN) {
