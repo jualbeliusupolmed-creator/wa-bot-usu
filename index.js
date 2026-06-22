@@ -168,7 +168,8 @@ async function startBot() {
                     continue; 
                 }
 
-                const cleanSender = sender.split('@')[0];
+                // INI BAGIAN PALING PENTING YANG DIPERBAIKI:
+                const cleanSender = sender.split('@')[0].split(':')[0];
                 console.log(`Menerima pesan dari ${cleanSender}`);
                 
                 const form = new FormData();
