@@ -110,9 +110,19 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
         
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== 401;
+            const statusCode = lastDisconnect.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== 401;
             console.log('Koneksi terputus. Reconnecting:', shouldReconnect);
-            if (shouldReconnect) startBot();
+            if (shouldReconnect) {
+                startBot();
+            } else {
+                console.log('Sesi tertolak (401). Menghapus auth_info dan merestart mesin...');
+                const fs = require('fs');
+                if (fs.existsSync(AUTH_DIR)) {
+                    fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+                }
+                process.exit(1); // Paksa Railway merestart container
+            }
         } else if (connection === 'open') {
             console.log('Berhasil terhubung ke WhatsApp!');
         }
