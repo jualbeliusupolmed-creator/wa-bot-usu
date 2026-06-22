@@ -5,7 +5,7 @@ const express = require('express');
 const qrcodeTerm = require('qrcode-terminal');
 const QRCode = require('qrcode');
 
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://jualbeliusupolmed.vercel.app/api/wa/baileys';
+const WEBHOOK_URL = 'https://jualbeliusupolmed.vercel.app/api/wa/baileys';
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
 const AUTH_DIR = process.env.AUTH_DIR || 'auth_info_baileys';
