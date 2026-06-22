@@ -35,19 +35,28 @@ app.post('/send', async (req, res) => {
     const { target, message, url } = req.body;
     if (!target || !waSocket) return res.status(400).json({ error: 'Target or WA not ready' });
 
-    let jid = target;
-    if (!jid.includes('@')) jid = target.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+    let jid = String(target);
+    if (!jid.includes('@')) {
+        let num = jid.replace(/[^0-9]/g, '');
+        // Ubah awalan 0 menjadi 62 agar valid di WhatsApp
+        if (num.startsWith('0')) {
+            num = '62' + num.substring(1);
+        }
+        jid = num + '@s.whatsapp.net';
+    }
 
     try {
         // FITUR BARU: Memancing koneksi WA dengan status "Sedang Mengetik..."
         await waSocket.presenceSubscribe(jid);
         await waSocket.sendPresenceUpdate('composing', jid);
         
+        let result;
         if (url) {
-            await waSocket.sendMessage(jid, { image: { url: url }, caption: message });
+            result = await waSocket.sendMessage(jid, { image: { url: url }, caption: message });
         } else {
-            await waSocket.sendMessage(jid, { text: message });
+            result = await waSocket.sendMessage(jid, { text: message });
         }
+        console.log("Send Result for " + jid + ":", result?.key?.id);
         res.json({ status: true, detail: 'Message sent successfully' });
     } catch (err) {
         res.status(500).json({ status: false, reason: err.message });
