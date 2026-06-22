@@ -3,7 +3,7 @@ const pino = require('pino');
 const express = require('express');
 const QRCode = require('qrcode');
 
-const WEBHOOK_URL = 'https://jualbeliusupolmed.vercel.app/api/wa/baileys';
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
 const AUTH_DIR = process.env.AUTH_DIR || 'auth_info_baileys';
@@ -13,7 +13,17 @@ app.use(express.json());
 
 let waSocket = null;
 let currentQR = '';
+let connectedPhone = '';
+let connectedAt = null;
+let messageLog = []; // in-memory log (max 100 entries)
 
+// ── Auth middleware ───────────────────────────────────────────────────────────
+function requireAuth(req, res, next) {
+    if (req.headers.authorization !== API_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
+    next();
+}
+
+// ── QR Page (public) ─────────────────────────────────────────────────────────
 app.get('/', async (req, res) => {
     if (!currentQR) return res.send('<p>Bot terhubung!</p>');
     try {
@@ -22,6 +32,67 @@ app.get('/', async (req, res) => {
     } catch (err) { res.status(500).send('Error'); }
 });
 
+// ── Status endpoint ───────────────────────────────────────────────────────────
+app.get('/status', requireAuth, (req, res) => {
+    const isConnected = waSocket && !currentQR;
+    res.json({
+        connected: isConnected,
+        phone: connectedPhone || null,
+        connectedAt: connectedAt || null,
+        hasQR: !!currentQR,
+        uptime: Math.floor(process.uptime()),
+        webhookUrl: WEBHOOK_URL,
+    });
+});
+
+// ── Groups endpoint ───────────────────────────────────────────────────────────
+app.get('/groups', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    try {
+        const chats = await waSocket.groupFetchAllParticipating();
+        const groups = Object.entries(chats).map(([jid, meta]) => ({
+            jid,
+            name: meta.subject || 'Tanpa Nama',
+            participants: meta.participants?.length || 0,
+            isAdmin: meta.participants?.some(p =>
+                p.id === waSocket.user?.id && (p.admin === 'admin' || p.admin === 'superadmin')
+            ) || false,
+        }));
+        res.json({ groups });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Newsletters / Channels endpoint ──────────────────────────────────────────
+app.get('/newsletters', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    try {
+        const newsletters = await waSocket.newsletterSubscribed();
+        const list = (newsletters || []).map(n => ({
+            jid: n.id,
+            name: n.name || 'Tanpa Nama',
+            description: n.description || '',
+            subscribers: n.subscriberCount || 0,
+        }));
+        res.json({ newsletters: list });
+    } catch (err) {
+        res.json({ newsletters: [], note: 'Fitur newsletter belum tersedia di versi Baileys ini.' });
+    }
+});
+
+// ── Logs endpoint ─────────────────────────────────────────────────────────────
+app.get('/logs', requireAuth, (req, res) => {
+    res.json({ logs: messageLog });
+});
+
+// ── Restart endpoint ──────────────────────────────────────────────────────────
+app.post('/restart', requireAuth, (req, res) => {
+    res.json({ ok: true, message: 'Bot akan restart dalam 1 detik...' });
+    setTimeout(() => process.exit(0), 1000);
+});
+
+// ── Reset / Hapus sesi (GET untuk browser, POST untuk API) ───────────────────
 app.get('/reset', (req, res) => {
     const fs = require('fs');
     if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
@@ -29,18 +100,22 @@ app.get('/reset', (req, res) => {
     setTimeout(() => process.exit(1), 1000);
 });
 
-app.post('/send', async (req, res) => {
-    if (req.headers.authorization !== API_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
+app.post('/reset', requireAuth, (req, res) => {
+    const fs = require('fs');
+    if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+    res.json({ ok: true, message: 'Sesi dihapus. Bot akan restart...' });
+    setTimeout(() => process.exit(1), 1000);
+});
 
+// ── Send message endpoint ─────────────────────────────────────────────────────
+app.post('/send', requireAuth, async (req, res) => {
     const { target, message, url } = req.body;
     if (!target || !waSocket) return res.status(400).json({ error: 'Target or WA not ready' });
 
     let jid = String(target);
     if (!jid.includes('@')) {
         let num = jid.replace(/[^0-9]/g, '');
-        if (num.startsWith('0')) {
-            num = '62' + num.substring(1);
-        }
+        if (num.startsWith('0')) num = '62' + num.substring(1);
         jid = num + '@s.whatsapp.net';
     }
 
@@ -61,27 +136,7 @@ app.post('/send', async (req, res) => {
     }
 });
 
-// Ambil isi pesan aktual — skip metadata wrapper seperti messageContextInfo
-function extractMessage(rawMessage) {
-    if (!rawMessage) return { type: '', content: null, rawForMedia: rawMessage };
-
-    // Unwrap ephemeral / view-once
-    const inner = rawMessage.ephemeralMessage?.message
-        || rawMessage.viewOnceMessage?.message
-        || rawMessage.viewOnceMessageV2?.message?.viewOnceMessage?.message
-        || rawMessage;
-
-    // Keys yang bukan isi pesan
-    const META_KEYS = new Set([
-        'messageContextInfo',
-        'senderKeyDistributionMessage',
-        'deviceSentMessage',
-    ]);
-
-    const type = Object.keys(inner).find(k => !META_KEYS.has(k)) || '';
-    return { type, content: inner[type], rawForMedia: rawMessage };
-}
-
+// ── Bot core ──────────────────────────────────────────────────────────────────
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
     const sock = makeWASocket({
@@ -97,6 +152,8 @@ async function startBot() {
         const { connection, lastDisconnect, qr } = update;
         if (qr) currentQR = qr;
         if (connection === 'close') {
+            connectedPhone = '';
+            connectedAt = null;
             if (lastDisconnect.error?.output?.statusCode !== 401) startBot();
             else {
                 require('fs').rmSync(AUTH_DIR, { recursive: true, force: true });
@@ -104,7 +161,9 @@ async function startBot() {
             }
         } else if (connection === 'open') {
             currentQR = '';
-            console.log('Berhasil terhubung ke WhatsApp!');
+            connectedPhone = sock.user?.id?.split(':')[0] || '';
+            connectedAt = new Date().toISOString();
+            console.log('Berhasil terhubung ke WhatsApp! Nomor:', connectedPhone);
         }
     });
 
@@ -118,40 +177,34 @@ async function startBot() {
             if (!sender || sender.includes('@g.us') || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
 
             try {
-                const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
-                console.log(`Pesan dari ${sender} | type: ${messageType}`);
-
+                const messageType = Object.keys(msg.message)[0];
                 let text = '', hasMedia = false, buffer = null, mimeType = '', filename = '';
 
-                if (messageType === 'conversation') {
-                    text = content;
-                } else if (messageType === 'extendedTextMessage') {
-                    text = content?.text || '';
-                } else if (messageType === 'imageMessage') {
+                if (messageType === 'conversation') text = msg.message.conversation;
+                else if (messageType === 'extendedTextMessage') text = msg.message.extendedTextMessage.text;
+                else if (messageType === 'imageMessage') {
                     hasMedia = true;
-                    text = content?.caption || '';
-                    mimeType = content?.mimetype || 'image/jpeg';
+                    text = msg.message.imageMessage.caption || '';
+                    mimeType = msg.message.imageMessage.mimetype || 'image/jpeg';
                     filename = 'image.jpg';
-                    buffer = await downloadMediaMessage(
-                        { ...msg, message: rawForMedia },
-                        'buffer', {},
-                        { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
-                    );
-                } else {
-                    // Tipe lain (stiker, audio, video, dokumen, dll) — balas dengan petunjuk
-                    text = 'non-text message';
-                }
+                    buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
+                } else continue;
 
-                // Kirim full JID ke Vercel (strip device suffix :N saja, pertahankan @domain)
-                // Contoh: "6281234567890:15@s.whatsapp.net" → "6281234567890@s.whatsapp.net"
-                //         "18318723407966@lid" → "18318723407966@lid"
-                const cleanSender = sender.replace(/:(\d+)(?=@)/, '');
-                // Strip BOM dan invisible chars agar FormData tidak gagal encode
-                const cleanText = text.replace(/[​-‍﻿⁠]/g, '').trim();
+                const cleanSender = sender.split('@')[0].split(':')[0];
+                console.log(`Pesan dari ${cleanSender} | type: ${messageType}`);
+
+                // Simpan ke in-memory log (max 100)
+                messageLog.unshift({
+                    sender: cleanSender,
+                    type: messageType,
+                    preview: text?.slice(0, 100) || '[media]',
+                    time: new Date().toISOString(),
+                });
+                if (messageLog.length > 100) messageLog.pop();
 
                 const form = new FormData();
                 form.append('sender', cleanSender);
-                form.append('message', cleanText);
+                form.append('message', text);
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
                 const response = await fetch(WEBHOOK_URL, { method: 'POST', body: form });
@@ -167,4 +220,5 @@ async function startBot() {
         }
     });
 }
+
 app.listen(PORT, () => { console.log(`Bot Server listening on port ${PORT}`); startBot(); });
