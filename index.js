@@ -8,6 +8,7 @@ const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
 const AUTH_DIR = process.env.AUTH_DIR || 'auth_info_baileys';
 
+
 const app = express();
 app.use(express.json());
 
@@ -252,8 +253,10 @@ async function startBot() {
         if (connection === 'close') {
             connectedPhone = '';
             connectedAt = null;
-            if (lastDisconnect.error?.output?.statusCode !== 401) startBot();
-            else {
+            if (lastDisconnect.error?.output?.statusCode !== 401) {
+                console.log('Koneksi terputus. Exiting process agar di-restart oleh PM2/Docker...');
+                process.exit(1);
+            } else {
                 require('fs').rmSync(AUTH_DIR, { recursive: true, force: true });
                 process.exit(1);
             }
@@ -333,7 +336,11 @@ async function startBot() {
                 form.append('message', cleanText);
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
-                const response = await fetch(WEBHOOK_URL, { method: 'POST', body: form });
+                const response = await fetch(WEBHOOK_URL, { 
+                    method: 'POST', 
+                    body: form,
+                    headers: { 'Authorization': API_TOKEN }
+                });
                 const responseText = await response.text();
                 if (!response.ok) {
                     console.error(`Webhook error ${response.status}: ${responseText}`);
