@@ -266,13 +266,15 @@ async function startBot() {
         if (connection === 'close') {
             connectedPhone = '';
             connectedAt = null;
-            if (lastDisconnect.error?.output?.statusCode !== 401) {
-                console.log('Koneksi terputus. Exiting process agar di-restart oleh PM2/Docker...');
-                process.exit(1);
+            waSocket = null;
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            if (statusCode === 401) {
+                console.log('Sesi WA logout/expired. Menghapus sesi, menampilkan QR baru...');
+                try { require('fs').rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
             } else {
-                require('fs').rmSync(AUTH_DIR, { recursive: true, force: true });
-                process.exit(1);
+                console.log(`Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect dalam 5 detik...`);
             }
+            setTimeout(() => startBot(), 5000);
         } else if (connection === 'open') {
             currentQR = '';
             connectedPhone = sock.user?.id?.split(':')[0] || '';
