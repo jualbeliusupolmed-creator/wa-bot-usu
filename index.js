@@ -19,6 +19,19 @@ let connectedAt = null;
 let messageLog = []; // in-memory log (max 100 entries)
 let contactMap = new Map(); // jid → { jid, name }
 let chatMap = new Map();    // jid → { jid, name, lastTime, preview }
+let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 entries, expire 30 min
+
+// Tambah entri context percakapan per-user
+function addToContext(jid, role, text) {
+    const now = Date.now();
+    const EXPIRE_MS = 30 * 60 * 1000; // 30 menit
+    let history = (conversationContext.get(jid) || [])
+        .filter(e => now - e.time < EXPIRE_MS); // buang yang sudah expire
+    history.push({ role, text: (text || '').slice(0, 300), time: now });
+    if (history.length > 5) history = history.slice(-5);
+    conversationContext.set(jid, history);
+    return history;
+}
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
@@ -323,21 +336,55 @@ async function startBot() {
                         'buffer', {},
                         { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
                     );
+                } else if (messageType === 'videoMessage') {
+                    hasMedia = true;
+                    text = content?.caption || '';
+                    mimeType = content?.mimetype || 'video/mp4';
+                    filename = 'video.mp4';
+                    buffer = await downloadMediaMessage(
+                        { ...msg, message: rawForMedia },
+                        'buffer', {},
+                        { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
+                    );
+                } else if (messageType === 'documentMessage') {
+                    hasMedia = true;
+                    text = content?.caption || content?.fileName || '';
+                    mimeType = content?.mimetype || 'application/octet-stream';
+                    filename = content?.fileName || 'document';
+                    buffer = await downloadMediaMessage(
+                        { ...msg, message: rawForMedia },
+                        'buffer', {},
+                        { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
+                    );
+                } else if (messageType === 'audioMessage') {
+                    hasMedia = true;
+                    text = '';
+                    mimeType = content?.mimetype || 'audio/ogg; codecs=opus';
+                    filename = 'audio.ogg';
+                    buffer = await downloadMediaMessage(
+                        { ...msg, message: rawForMedia },
+                        'buffer', {},
+                        { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
+                    );
                 } else {
-                    // Stiker, audio, video, dokumen → balas dengan petunjuk
+                    // Stiker dan tipe lain yang tidak didukung
                     text = 'non-text message';
                 }
 
                 // Strip BOM dan invisible chars agar FormData tidak gagal encode
                 const cleanText = (text || '').replace(/[﻿​-‍⁠­]/g, '').trim();
 
+                // Bangun context percakapan (kirim sebagai JSON ke webhook)
+                const contextHistory = addToContext(cleanSender, 'user', cleanText || `[${messageType}]`);
+
                 const form = new FormData();
                 form.append('sender', cleanSender);
                 form.append('message', cleanText);
+                form.append('context', JSON.stringify(contextHistory.slice(0, -1))); // kirim history sebelum pesan ini
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
-                const response = await fetch(WEBHOOK_URL, { 
-                    method: 'POST', 
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
                     body: form,
                     headers: { 'Authorization': API_TOKEN }
                 });
@@ -346,6 +393,11 @@ async function startBot() {
                     console.error(`Webhook error ${response.status}: ${responseText}`);
                 } else {
                     console.log(`Webhook OK: ${responseText}`);
+                    // Simpan balasan bot ke context
+                    try {
+                        const parsed = JSON.parse(responseText);
+                        if (parsed.bot_reply) addToContext(cleanSender, 'bot', parsed.bot_reply);
+                    } catch (_) {}
                 }
             } catch (err) {
                 console.error('Error memproses pesan:', err.message);
