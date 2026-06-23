@@ -7,6 +7,7 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.we
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
 const AUTH_DIR = process.env.AUTH_DIR || 'auth_info_baileys';
+const MARKETPLACE_GROUP_JID = process.env.GROUP_JID || '';
 
 
 const app = express();
@@ -290,7 +291,35 @@ async function startBot() {
             if (!msg.message || msg.key.fromMe) continue;
             const sender = msg.key.remoteJid;
 
-            if (!sender || sender.includes('@g.us') || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
+            if (!sender || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
+
+            // ── Pesan dari grup marketplace → kirim ke webhook untuk diindeks ──
+            if (sender.includes('@g.us')) {
+                if (!MARKETPLACE_GROUP_JID || sender !== MARKETPLACE_GROUP_JID) continue;
+                try {
+                    const { type: msgType, content: msgContent, rawForMedia: rawFM } = extractMessage(msg.message);
+                    const text = msgType === 'conversation' ? msgContent
+                        : msgType === 'extendedTextMessage' ? msgContent?.text || ''
+                        : msgContent?.caption || '';
+                    if (!text && msgType !== 'imageMessage') continue; // skip stiker/audio grup
+
+                    let buf = null, mime = '', fname = '';
+                    if (msgType === 'imageMessage') {
+                        mime = msgContent?.mimetype || 'image/jpeg'; fname = 'image.jpg';
+                        buf = await downloadMediaMessage({ ...msg, message: rawFM }, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
+                    }
+
+                    const senderInGroup = (msg.key.participant || sender).replace(/:(\d+)(?=@)/, '');
+                    const gForm = new FormData();
+                    gForm.append('sender', senderInGroup);
+                    gForm.append('message', (text || '').replace(/[﻿​-‍⁠­]/g, '').trim());
+                    gForm.append('source', 'group');
+                    gForm.append('group_jid', sender);
+                    if (buf) gForm.append('file', new Blob([buf], { type: mime }), fname);
+                    await fetch(WEBHOOK_URL, { method: 'POST', body: gForm, headers: { 'Authorization': API_TOKEN } }).catch(() => {});
+                } catch (e) { console.error('[grup] error:', e.message); }
+                continue;
+            }
 
             try {
                 const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
