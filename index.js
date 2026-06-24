@@ -22,6 +22,8 @@ let contactMap = new Map(); // jid → { jid, name }
 let chatMap = new Map();    // jid → { jid, name, lastTime, preview }
 let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 entries, expire 30 min
 let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
+// Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
+let lidMap = new Map();
 
 // Tambah entri context percakapan per-user
 function addToContext(jid, role, text) {
@@ -229,7 +231,16 @@ async function startBot() {
     // Bangun daftar kontak & chat dari event Baileys (pengganti makeInMemoryStore)
     sock.ev.on('contacts.upsert', (contacts) => {
         for (const c of contacts) {
-            if (c.id) contactMap.set(c.id, { jid: c.id, name: c.name || c.notify || c.verifiedName || '' });
+            if (!c.id) continue;
+            contactMap.set(c.id, { jid: c.id, name: c.name || c.notify || c.verifiedName || '' });
+            // Simpan mapping @lid → phone JID agar nomor user konsisten
+            if (c.lid && c.id.endsWith('@s.whatsapp.net')) {
+                lidMap.set(c.lid, c.id);
+            }
+            // Beberapa versi Baileys: c.id bisa @lid, c.jid adalah phone JID
+            if (c.id.endsWith('@lid') && c.jid && c.jid.endsWith('@s.whatsapp.net')) {
+                lidMap.set(c.id, c.jid);
+            }
         }
     });
     sock.ev.on('contacts.update', (updates) => {
@@ -237,6 +248,9 @@ async function startBot() {
             if (!u.id) continue;
             const existing = contactMap.get(u.id) || { jid: u.id, name: '' };
             contactMap.set(u.id, { ...existing, name: u.name || u.notify || u.verifiedName || existing.name });
+            if (u.lid && u.id.endsWith('@s.whatsapp.net')) {
+                lidMap.set(u.lid, u.id);
+            }
         }
     });
     sock.ev.on('chats.upsert', (chats) => {
@@ -325,10 +339,21 @@ async function startBot() {
             try {
                 const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
 
-                // Kirim full JID ke Vercel (strip device suffix :N saja, pertahankan @domain)
+                // Resolve @lid JID ke phone JID agar nomor konsisten dengan website
                 // "628xxx:15@s.whatsapp.net" → "628xxx@s.whatsapp.net"
-                // "18318xxx@lid" → "18318xxx@lid"
-                const cleanSender = sender.replace(/:(\d+)(?=@)/, '');
+                // "18318xxx@lid" → cek lidMap → "628xxx@s.whatsapp.net" (jika ada)
+                let resolvedSender = sender;
+                if (sender.endsWith('@lid')) {
+                    const phoneJid = lidMap.get(sender);
+                    if (phoneJid) {
+                        resolvedSender = phoneJid;
+                        console.log(`[lid-resolve] ${sender} → ${phoneJid}`);
+                    } else {
+                        console.warn(`[lid-resolve] Tidak bisa resolve @lid: ${sender} — abaikan pesan`);
+                        continue; // Skip, tidak bisa tentukan nomor user
+                    }
+                }
+                const cleanSender = resolvedSender.replace(/:(\d+)(?=@)/, '');
 
                 console.log(`Pesan dari ${cleanSender} | type: ${messageType}`);
 
