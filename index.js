@@ -21,6 +21,7 @@ let messageLog = []; // in-memory log (max 100 entries)
 let contactMap = new Map(); // jid → { jid, name }
 let chatMap = new Map();    // jid → { jid, name, lastTime, preview }
 let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 entries, expire 30 min
+let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
 
 // Tambah entri context percakapan per-user
 function addToContext(jid, role, text) {
@@ -367,6 +368,42 @@ async function startBot() {
                         'buffer', {},
                         { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage }
                     );
+
+                    // ── Multi-foto: buffer 4 detik sebelum kirim ke webhook ──
+                    {
+                        const existing = photoBuffer.get(cleanSender);
+                        if (existing) clearTimeout(existing.timer);
+                        const entry = existing || { images: [], caption: '' };
+                        entry.images.push({ buf: buffer, mime: mimeType });
+                        if (text && !entry.caption) entry.caption = text;
+
+                        entry.timer = setTimeout(async () => {
+                            photoBuffer.delete(cleanSender);
+                            const cleanCap = (entry.caption || '').replace(/[﻿​-‍­]/g, '').trim();
+                            const ctx = addToContext(cleanSender, 'user', cleanCap || '[foto]');
+                            const pForm = new FormData();
+                            pForm.append('sender', cleanSender);
+                            pForm.append('message', cleanCap);
+                            pForm.append('context', JSON.stringify(ctx.slice(0, -1)));
+                            entry.images.forEach((img, i) => {
+                                pForm.append('file', new Blob([img.buf], { type: img.mime }), `image${i + 1}.jpg`);
+                            });
+                            try {
+                                const pResp = await fetch(WEBHOOK_URL, { method: 'POST', body: pForm, headers: { 'Authorization': API_TOKEN } });
+                                const pText = await pResp.text();
+                                if (!pResp.ok) { console.error(`Webhook error ${pResp.status}: ${pText}`); }
+                                else {
+                                    console.log(`Webhook OK (${entry.images.length} foto): ${pText}`);
+                                    try { const p = JSON.parse(pText); if (p.bot_reply) addToContext(cleanSender, 'bot', p.bot_reply); } catch (_) {}
+                                }
+                            } catch (e) { console.error('Error kirim foto buffer:', e.message); }
+                        }, 4000);
+
+                        photoBuffer.set(cleanSender, entry);
+                        messageLog.unshift({ sender: cleanSender, type: messageType, preview: `[${entry.images.length} foto] ${text || ''}`.trim().slice(0, 100), time: new Date().toISOString() });
+                        if (messageLog.length > 100) messageLog.pop();
+                        continue; // skip webhook send di bawah, sudah ditangani timer
+                    }
                 } else if (messageType === 'videoMessage') {
                     hasMedia = true;
                     text = content?.caption || '';
