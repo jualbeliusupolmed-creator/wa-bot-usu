@@ -24,6 +24,8 @@ let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 ent
 let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
 // Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
 let lidMap = new Map();
+// Map @lid JID → phone JID yang dikonfirmasi manual oleh user (persisten dalam sesi)
+let lidResolutionMap = new Map();
 
 // Tambah entri context percakapan per-user
 function addToContext(jid, role, text) {
@@ -340,17 +342,42 @@ async function startBot() {
                 const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
 
                 // Resolve @lid JID ke phone JID agar nomor konsisten dengan website
-                // "628xxx:15@s.whatsapp.net" → "628xxx@s.whatsapp.net"
-                // "18318xxx@lid" → cek lidMap → "628xxx@s.whatsapp.net" (jika ada)
+                // Urutan prioritas: lidMap (dari contacts sync) > lidResolutionMap (konfirmasi manual)
                 let resolvedSender = sender;
                 if (sender.endsWith('@lid')) {
-                    const phoneJid = lidMap.get(sender);
-                    if (phoneJid) {
-                        resolvedSender = phoneJid;
-                        console.log(`[lid-resolve] ${sender} → ${phoneJid}`);
+                    const fromContacts = lidMap.get(sender);
+                    const fromManual = lidResolutionMap.get(sender);
+                    if (fromContacts) {
+                        resolvedSender = fromContacts;
+                        console.log(`[lid-resolve] ${sender} → ${fromContacts} (contacts)`);
+                    } else if (fromManual) {
+                        resolvedSender = fromManual;
+                        console.log(`[lid-resolve] ${sender} → ${fromManual} (manual)`);
                     } else {
-                        console.warn(`[lid-resolve] Tidak bisa resolve @lid: ${sender} — abaikan pesan`);
-                        continue; // Skip, tidak bisa tentukan nomor user
+                        // Cek apakah user sedang konfirmasi nomor
+                        const { type: mType, content: mContent } = extractMessage(msg.message);
+                        const rawText = (mType === 'conversation' ? mContent : mContent?.text || '').trim();
+                        const digits = rawText.replace(/\D/g, '');
+                        const normalized = digits.startsWith('62') ? '0' + digits.slice(2)
+                            : digits.startsWith('8') ? '0' + digits
+                            : digits.startsWith('0') ? digits : '';
+
+                        if (normalized.length >= 10 && normalized.length <= 13) {
+                            // User mengirim nomor → simpan resolusi dan lanjutkan
+                            const phoneJid = normalized.replace(/^0/, '62') + '@s.whatsapp.net';
+                            lidResolutionMap.set(sender, phoneJid);
+                            resolvedSender = phoneJid;
+                            console.log(`[lid-resolve] ${sender} → ${phoneJid} (manual baru)`);
+                            await sock.sendMessage(sender, { text: `✅ Nomor *${normalized}* berhasil terdaftar!\n\nSekarang kamu bisa menggunakan semua fitur bot. Silakan kirim pesan lagi.` });
+                            continue;
+                        }
+
+                        // Belum punya nomor → minta konfirmasi
+                        console.warn(`[lid-resolve] Tidak bisa resolve @lid: ${sender} — minta nomor`);
+                        await sock.sendMessage(sender, {
+                            text: `👋 Halo!\n\nSistem tidak dapat mengenali nomor WA-mu secara otomatis karena akun WhatsApp-mu menggunakan format baru.\n\n📱 *Balas pesan ini dengan nomor WA-mu* (format: 08xxx atau 628xxx) untuk melanjutkan.\n\nContoh: 08123456789`
+                        });
+                        continue;
                     }
                 }
                 const cleanSender = resolvedSender.replace(/:(\d+)(?=@)/, '');
