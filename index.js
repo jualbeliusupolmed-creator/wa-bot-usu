@@ -65,6 +65,16 @@ function requireAuth(req, res, next) {
     next();
 }
 
+// ── Health check (public, untuk Railway health check) ────────────────────────
+app.get('/health', (req, res) => {
+    const isConnected = !!(waSocket && !currentQR);
+    res.status(isConnected ? 200 : 503).json({
+        ok: isConnected,
+        uptime: Math.floor(process.uptime()),
+        phone: connectedPhone || null,
+    });
+});
+
 // ── QR Page (public) ─────────────────────────────────────────────────────────
 app.get('/', async (req, res) => {
     if (!currentQR) return res.send('<p>Bot terhubung!</p>');
