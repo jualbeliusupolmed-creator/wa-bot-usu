@@ -20,9 +20,59 @@ let waSocket = null;
 let currentQR = '';
 let connectedPhone = '';
 let connectedAt = null;
+let reconnectAttempts = 0;
+const messageQueue = [];
+
+// Start queue processor
+setInterval(async () => {
+    if (messageQueue.length === 0 || !waSocket) return;
+    const task = messageQueue.shift();
+    try {
+        await waSocket.presenceSubscribe(task.jid);
+        await waSocket.sendPresenceUpdate('composing', task.jid);
+        if (task.url) {
+            await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
+        } else if (task.poll) {
+            await waSocket.sendMessage(task.jid, { poll: task.poll });
+        } else {
+            await waSocket.sendMessage(task.jid, { text: task.message });
+        }
+        console.log(`[Queue] Pesan terkirim ke ${task.jid}`);
+    } catch (err) {
+        console.error(`[Queue] Gagal kirim ke ${task.jid}:`, err.message);
+    }
+}, 1500);
+
+const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
+const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
+
+function loadMapFromFile(filePath) {
+    if (fs.existsSync(filePath)) {
+        try {
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            return new Map(Object.entries(data));
+        } catch (_) {}
+    }
+    return new Map();
+}
+
+function saveMapToFile(mapData, filePath) {
+    try { fs.writeFileSync(filePath, JSON.stringify(Object.fromEntries(mapData))); } catch (_) {}
+}
+
+let contactMap = loadMapFromFile(CONTACTS_FILE);
+let chatMap = loadMapFromFile(CHATS_FILE);
+let isStateDirty = false;
+
+setInterval(() => {
+    if (isStateDirty) {
+        saveMapToFile(contactMap, CONTACTS_FILE);
+        saveMapToFile(chatMap, CHATS_FILE);
+        isStateDirty = false;
+    }
+}, 10000);
+
 let messageLog = []; // in-memory log (max 100 entries)
-let contactMap = new Map(); // jid → { jid, name }
-let chatMap = new Map();    // jid → { jid, name, lastTime, preview }
 let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 entries, expire 30 min
 let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
 // Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
@@ -227,7 +277,7 @@ app.post('/reset', requireAuth, (req, res) => {
 // ── Send message endpoint ─────────────────────────────────────────────────────
 app.post('/send', requireAuth, async (req, res) => {
     const { target, message, url } = req.body;
-    if (!target || !waSocket) return res.status(400).json({ error: 'Target or WA not ready' });
+    if (!target) return res.status(400).json({ error: 'Target required' });
 
     let jid = String(target);
     if (!jid.includes('@')) {
@@ -236,21 +286,8 @@ app.post('/send', requireAuth, async (req, res) => {
         jid = num + '@s.whatsapp.net';
     }
 
-    try {
-        await waSocket.presenceSubscribe(jid);
-        await waSocket.sendPresenceUpdate('composing', jid);
-
-        let result;
-        if (url) {
-            result = await waSocket.sendMessage(jid, { image: { url: url }, caption: message });
-        } else {
-            result = await waSocket.sendMessage(jid, { text: message });
-        }
-        console.log("Send Result for " + jid + ":", result?.key?.id);
-        res.json({ status: true, detail: 'Message sent successfully' });
-    } catch (err) {
-        res.status(500).json({ status: false, reason: err.message });
-    }
+    messageQueue.push({ jid, message, url });
+    res.json({ status: true, detail: 'Pesan ditambahkan ke antrean (Queue)' });
 });
 
 // ── Profile Bot endpoint ──────────────────────────────────────────────────────
@@ -360,8 +397,9 @@ app.post('/story', requireAuth, async (req, res) => {
     const { text, url } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: 'text required' });
     try {
-        const jids = Array.from(new Set([...chatMap.keys(), ...contactMap.keys()]))
-            .filter(jid => jid.endsWith('@s.whatsapp.net'));
+        const jidsSet = new Set([...chatMap.keys(), ...contactMap.keys()]);
+        if (connectedPhone) jidsSet.add(connectedPhone + '@s.whatsapp.net');
+        const jids = Array.from(jidsSet).filter(jid => jid.endsWith('@s.whatsapp.net'));
             
         let result;
         if (url) {
@@ -431,21 +469,20 @@ app.post('/groups/:jid/participants', requireAuth, async (req, res) => {
 
 // ── Send Poll endpoint ────────────────────────────────────────────────────────
 app.post('/send-poll', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
     const { target, name, options } = req.body;
     if (!target || !name?.trim() || !options?.length) {
         return res.status(400).json({ error: 'target, name, options required' });
     }
-    try {
-        let jid = String(target);
-        if (!jid.includes('@')) {
-            let num = jid.replace(/[^0-9]/g, '');
-            if (num.startsWith('0')) num = '62' + num.slice(1);
-            jid = num + '@s.whatsapp.net';
-        }
-        await waSocket.sendMessage(jid, { poll: { name: name.trim(), values: options, selectableCount: 1 } });
-        res.json({ ok: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    
+    let jid = String(target);
+    if (!jid.includes('@')) {
+        let num = jid.replace(/[^0-9]/g, '');
+        if (num.startsWith('0')) num = '62' + num.slice(1);
+        jid = num + '@s.whatsapp.net';
+    }
+    
+    messageQueue.push({ jid, poll: { name: name.trim(), values: options, selectableCount: 1 } });
+    res.json({ ok: true, detail: 'Poll ditambahkan ke antrean' });
 });
 
 // ── Ekstrak isi pesan — skip metadata wrapper (messageContextInfo, dll) ───────
@@ -486,6 +523,7 @@ async function startBot() {
         for (const c of contacts) {
             if (!c.id) continue;
             contactMap.set(c.id, { jid: c.id, name: c.name || c.notify || c.verifiedName || '' });
+            isStateDirty = true;
             if (c.lid && c.id.endsWith('@s.whatsapp.net')) {
                 lidMap.set(c.lid, c.id);
                 if (!lidResolutionMap.has(c.lid)) { lidResolutionMap.set(c.lid, c.id); changed = true; }
@@ -503,6 +541,7 @@ async function startBot() {
             if (!u.id) continue;
             const existing = contactMap.get(u.id) || { jid: u.id, name: '' };
             contactMap.set(u.id, { ...existing, name: u.name || u.notify || u.verifiedName || existing.name });
+            isStateDirty = true;
             if (u.lid && u.id.endsWith('@s.whatsapp.net')) {
                 lidMap.set(u.lid, u.id);
                 if (!lidResolutionMap.has(u.lid)) { lidResolutionMap.set(u.lid, u.id); changed = true; }
@@ -520,6 +559,7 @@ async function startBot() {
                 lastTime: c.conversationTimestamp ? Number(c.conversationTimestamp) * 1000 : Date.now(),
                 preview: '',
             });
+            isStateDirty = true;
         }
     });
     sock.ev.on('chats.update', (updates) => {
@@ -530,6 +570,7 @@ async function startBot() {
                 ...existing,
                 lastTime: u.conversationTimestamp ? Number(u.conversationTimestamp) * 1000 : existing.lastTime,
             });
+            isStateDirty = true;
         }
     });
 
@@ -546,20 +587,23 @@ async function startBot() {
             }
             photoBuffer.clear();
             conversationContext.clear();
-            chatMap.clear();
-            contactMap.clear();
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             if (statusCode === 401) {
                 console.log('Sesi WA logout/expired. Menghapus sesi, menampilkan QR baru...');
                 try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
+                reconnectAttempts = 0;
+                setTimeout(() => startBot(), 5000);
             } else {
-                console.log(`Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect dalam 5 detik...`);
+                reconnectAttempts++;
+                const backoff = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), 300000);
+                console.log(`Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect ke-${reconnectAttempts} dalam ${backoff/1000} detik...`);
+                setTimeout(() => startBot(), backoff);
             }
-            setTimeout(() => startBot(), 5000);
         } else if (connection === 'open') {
             currentQR = '';
             connectedPhone = sock.user?.id?.split(':')[0] || '';
             connectedAt = new Date().toISOString();
+            reconnectAttempts = 0;
             console.log('Berhasil terhubung ke WhatsApp! Nomor:', connectedPhone);
         }
     });
@@ -572,33 +616,35 @@ async function startBot() {
             const sender = msg.key.remoteJid;
 
             // ── Tangkap Status WA dari HP Sendiri (Manual Post) ──
-            if (sender === 'status@broadcast' && msg.key.fromMe) {
-                try {
-                    const { type: msgType, content: msgContent, rawForMedia } = extractMessage(msg.message);
-                    const isImage = msgType === 'imageMessage';
-                    const isVideo = msgType === 'videoMessage';
-                    const text = msgType === 'extendedTextMessage' ? msgContent?.text || '' : msgContent?.caption || '';
-                    
-                    let url = null;
-                    if (isImage) {
-                        try {
-                            const buf = await downloadMediaMessage({ ...msg, message: rawForMedia }, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
-                            url = 'data:image/jpeg;base64,' + buf.toString('base64');
-                        } catch (e) { console.error('[status] Gagal download gambar status manual:', e.message); }
-                    }
+            if (sender === 'status@broadcast') {
+                const isMyStatus = msg.key.fromMe || (msg.key.participant && msg.key.participant === connectedPhone + '@s.whatsapp.net');
+                if (isMyStatus) {
+                    try {
+                        const { type: msgType, content: msgContent, rawForMedia } = extractMessage(msg.message);
+                        const isVideo = msgType === 'videoMessage';
+                        const text = msgType === 'extendedTextMessage' ? msgContent?.text || '' : msgContent?.caption || '';
+                        
+                        let url = null;
+                        if (isImage) {
+                            try {
+                                const buf = await downloadMediaMessage({ ...msg, message: rawForMedia }, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
+                                url = 'data:image/jpeg;base64,' + buf.toString('base64');
+                            } catch (e) { console.error('[status] Gagal download gambar status manual:', e.message); }
+                        }
 
-                    const typeLabel = isImage ? 'image' : isVideo ? 'video' : 'text';
-                    const now = Date.now();
-                    saveStatus({
-                        id: msg.key.id,
-                        type: typeLabel,
-                        text: text,
-                        url: url,
-                        timestamp: now,
-                        expiresAt: now + 24 * 60 * 60 * 1000
-                    });
-                } catch(e) { console.error('[status] Error:', e.message); }
-                continue; // Jangan proses ini sebagai chat biasa
+                        const typeLabel = isImage ? 'image' : isVideo ? 'video' : 'text';
+                        const now = Date.now();
+                        saveStatus({
+                            id: msg.key.id,
+                            type: typeLabel,
+                            text: text,
+                            url: url,
+                            timestamp: now,
+                            expiresAt: now + 24 * 60 * 60 * 1000
+                        });
+                    } catch(e) { console.error('[status] Error:', e.message); }
+                }
+                continue; // Jangan proses status orang lain atau diri sendiri sebagai chat biasa
             }
 
             if (msg.key.fromMe) continue;
@@ -692,6 +738,7 @@ async function startBot() {
                     lastTime: Date.now(),
                     preview: (typeof content === 'string' ? content : content?.text || '[media]')?.slice(0, 60) || '',
                 });
+                isStateDirty = true;
                 // Batas ukuran chatMap: hapus entry terlama jika melebihi 2000
                 if (chatMap.size > 2000) {
                     const oldest = [...chatMap.entries()].sort((a, b) => a[1].lastTime - b[1].lastTime)[0];
