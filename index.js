@@ -696,6 +696,19 @@ async function startBot() {
                 if (sender.endsWith('@lid')) {
                     const fromContacts = lidMap.get(sender);
                     const fromManual = lidResolutionMap.get(sender);
+
+                    // Fitur Reset Nomor (bisa dipanggil kapan saja)
+                    const { type: mType, content: mContent } = extractMessage(msg.message);
+                    const rawText = (mType === 'conversation' ? mContent : mContent?.text || '').trim();
+
+                    if (rawText.toLowerCase() === 'reset nomor') {
+                        lidResolutionMap.delete(sender);
+                        saveLidResolutionMap();
+                        otpMap.delete(sender);
+                        await sock.sendMessage(sender, { text: "🔄 Data nomor lamamu telah dihapus. Silakan mulai pendaftaran dari awal.\n\nBalas pesan ini dengan *nomor WA* dan *nama kamu* (contoh: *08123456789 Budi*)" });
+                        continue;
+                    }
+
                     if (fromContacts) {
                         resolvedSender = fromContacts;
                         console.log(`[lid-resolve] ${sender} → ${fromContacts} (contacts)`);
@@ -704,17 +717,6 @@ async function startBot() {
                         console.log(`[lid-resolve] ${sender} → ${fromManual} (manual)`);
                     } else {
                         // Cek apakah user sedang konfirmasi nomor (+nama opsional)
-                        const { type: mType, content: mContent } = extractMessage(msg.message);
-                        const rawText = (mType === 'conversation' ? mContent : mContent?.text || '').trim();
-
-                        // Fitur Reset Nomor
-                        if (rawText.toLowerCase() === 'reset nomor') {
-                            lidResolutionMap.delete(sender);
-                            saveLidResolutionMap();
-                            otpMap.delete(sender);
-                            await sock.sendMessage(sender, { text: "🔄 Data nomor lamamu telah dihapus. Silakan mulai pendaftaran dari awal.\n\nBalas pesan ini dengan *nomor WA* dan *nama kamu* (contoh: *08123456789 Budi*)" });
-                            continue;
-                        }
 
                         // Cek apakah sedang dalam proses verifikasi OTP
                         if (otpMap.has(sender)) {
