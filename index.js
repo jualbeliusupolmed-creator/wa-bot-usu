@@ -2,11 +2,14 @@ const { default: makeWASocket, useMultiFileAuthState, downloadMediaMessage, Brow
 const pino = require('pino');
 const express = require('express');
 const QRCode = require('qrcode');
+const fs = require('fs');
+const path = require('path');
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
-const AUTH_DIR = process.env.AUTH_DIR || 'auth_info_baileys';
+const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Railway Volume agar file persisten
+const AUTH_DIR = process.env.AUTH_DIR || path.join(DATA_DIR, 'auth_info_baileys');
 const MARKETPLACE_GROUP_JID = process.env.GROUP_JID || '';
 
 
@@ -25,12 +28,12 @@ let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:s
 // Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
 let lidMap = new Map();
 // Map @lid JID → phone JID yang dikonfirmasi manual oleh user (persisten ke file)
-const LID_MAP_FILE = 'lid_resolution_map.json';
+const LID_MAP_FILE = path.join(DATA_DIR, 'lid_resolution_map.json');
 let lidResolutionMap = (() => {
     try {
-        const fs = require('fs');
         if (fs.existsSync(LID_MAP_FILE)) {
             const data = JSON.parse(fs.readFileSync(LID_MAP_FILE, 'utf-8'));
+            console.log(`[lid-resolve] Dimuat ${Object.keys(data).length} entri dari ${LID_MAP_FILE}`);
             return new Map(Object.entries(data));
         }
     } catch (_) {}
@@ -38,10 +41,9 @@ let lidResolutionMap = (() => {
 })();
 function saveLidResolutionMap() {
     try {
-        const fs = require('fs');
         fs.writeFileSync(LID_MAP_FILE, JSON.stringify(Object.fromEntries(lidResolutionMap)));
     } catch (e) {
-        console.error('[lid-resolve] Gagal simpan lid_resolution_map.json:', e.message);
+        console.error('[lid-resolve] Gagal simpan:', e.message);
     }
 }
 
@@ -114,16 +116,14 @@ app.get('/chats', requireAuth, (req, res) => {
 });
 
 // ── Newsletters / Channels endpoint ──────────────────────────────────────────
-const NEWSLETTER_FILE = 'newsletters.json';
+const NEWSLETTER_FILE = path.join(DATA_DIR, 'newsletters.json');
 function getSavedNewsletters() {
-    const fs = require('fs');
     if (fs.existsSync(NEWSLETTER_FILE)) {
         try { return JSON.parse(fs.readFileSync(NEWSLETTER_FILE, 'utf-8')); } catch(e) {}
     }
     return [];
 }
 function saveNewsletter(data) {
-    const fs = require('fs');
     const list = getSavedNewsletters();
     if (!list.find(n => n.jid === data.jid)) {
         list.push(data);
@@ -174,14 +174,12 @@ app.post('/restart', requireAuth, (req, res) => {
 
 // ── Reset / Hapus sesi ────────────────────────────────────────────────────────
 app.get('/reset', (req, res) => {
-    const fs = require('fs');
     if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
     res.send('Sesi dihapus. Restarting...');
     setTimeout(() => process.exit(1), 1000);
 });
 
 app.post('/reset', requireAuth, (req, res) => {
-    const fs = require('fs');
     if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
     res.json({ ok: true, message: 'Sesi dihapus. Bot akan restart...' });
     setTimeout(() => process.exit(1), 1000);
@@ -250,31 +248,33 @@ async function startBot() {
 
     // Bangun daftar kontak & chat dari event Baileys (pengganti makeInMemoryStore)
     sock.ev.on('contacts.upsert', (contacts) => {
+        let changed = false;
         for (const c of contacts) {
             if (!c.id) continue;
             contactMap.set(c.id, { jid: c.id, name: c.name || c.notify || c.verifiedName || '' });
-            // Simpan mapping @lid → phone JID agar nomor user konsisten
             if (c.lid && c.id.endsWith('@s.whatsapp.net')) {
                 lidMap.set(c.lid, c.id);
-                if (!lidResolutionMap.has(c.lid)) { lidResolutionMap.set(c.lid, c.id); saveLidResolutionMap(); }
+                if (!lidResolutionMap.has(c.lid)) { lidResolutionMap.set(c.lid, c.id); changed = true; }
             }
-            // Beberapa versi Baileys: c.id bisa @lid, c.jid adalah phone JID
             if (c.id.endsWith('@lid') && c.jid && c.jid.endsWith('@s.whatsapp.net')) {
                 lidMap.set(c.id, c.jid);
-                if (!lidResolutionMap.has(c.id)) { lidResolutionMap.set(c.id, c.jid); saveLidResolutionMap(); }
+                if (!lidResolutionMap.has(c.id)) { lidResolutionMap.set(c.id, c.jid); changed = true; }
             }
         }
+        if (changed) saveLidResolutionMap();
     });
     sock.ev.on('contacts.update', (updates) => {
+        let changed = false;
         for (const u of updates) {
             if (!u.id) continue;
             const existing = contactMap.get(u.id) || { jid: u.id, name: '' };
             contactMap.set(u.id, { ...existing, name: u.name || u.notify || u.verifiedName || existing.name });
             if (u.lid && u.id.endsWith('@s.whatsapp.net')) {
                 lidMap.set(u.lid, u.id);
-                if (!lidResolutionMap.has(u.lid)) { lidResolutionMap.set(u.lid, u.id); saveLidResolutionMap(); }
+                if (!lidResolutionMap.has(u.lid)) { lidResolutionMap.set(u.lid, u.id); changed = true; }
             }
         }
+        if (changed) saveLidResolutionMap();
     });
     sock.ev.on('chats.upsert', (chats) => {
         for (const c of chats) {
@@ -309,7 +309,7 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             if (statusCode === 401) {
                 console.log('Sesi WA logout/expired. Menghapus sesi, menampilkan QR baru...');
-                try { require('fs').rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
+                try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
             } else {
                 console.log(`Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect dalam 5 detik...`);
             }
@@ -347,7 +347,10 @@ async function startBot() {
                         buf = await downloadMediaMessage({ ...msg, message: rawFM }, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
                     }
 
-                    const senderInGroup = (msg.key.participant || sender).replace(/:(\d+)(?=@)/, '');
+                    const rawParticipant = (msg.key.participant || sender).replace(/:(\d+)(?=@)/, '');
+                    const senderInGroup = rawParticipant.endsWith('@lid')
+                        ? (lidMap.get(rawParticipant) || lidResolutionMap.get(rawParticipant) || rawParticipant)
+                        : rawParticipant;
                     const gForm = new FormData();
                     gForm.append('sender', senderInGroup);
                     gForm.append('message', (text || '').replace(/[﻿​-‍⁠­]/g, '').trim());
