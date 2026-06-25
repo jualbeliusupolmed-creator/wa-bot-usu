@@ -24,8 +24,26 @@ let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 ent
 let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
 // Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
 let lidMap = new Map();
-// Map @lid JID → phone JID yang dikonfirmasi manual oleh user (persisten dalam sesi)
-let lidResolutionMap = new Map();
+// Map @lid JID → phone JID yang dikonfirmasi manual oleh user (persisten ke file)
+const LID_MAP_FILE = 'lid_resolution_map.json';
+let lidResolutionMap = (() => {
+    try {
+        const fs = require('fs');
+        if (fs.existsSync(LID_MAP_FILE)) {
+            const data = JSON.parse(fs.readFileSync(LID_MAP_FILE, 'utf-8'));
+            return new Map(Object.entries(data));
+        }
+    } catch (_) {}
+    return new Map();
+})();
+function saveLidResolutionMap() {
+    try {
+        const fs = require('fs');
+        fs.writeFileSync(LID_MAP_FILE, JSON.stringify(Object.fromEntries(lidResolutionMap)));
+    } catch (e) {
+        console.error('[lid-resolve] Gagal simpan lid_resolution_map.json:', e.message);
+    }
+}
 
 // Tambah entri context percakapan per-user
 function addToContext(jid, role, text) {
@@ -238,10 +256,12 @@ async function startBot() {
             // Simpan mapping @lid → phone JID agar nomor user konsisten
             if (c.lid && c.id.endsWith('@s.whatsapp.net')) {
                 lidMap.set(c.lid, c.id);
+                if (!lidResolutionMap.has(c.lid)) { lidResolutionMap.set(c.lid, c.id); saveLidResolutionMap(); }
             }
             // Beberapa versi Baileys: c.id bisa @lid, c.jid adalah phone JID
             if (c.id.endsWith('@lid') && c.jid && c.jid.endsWith('@s.whatsapp.net')) {
                 lidMap.set(c.id, c.jid);
+                if (!lidResolutionMap.has(c.id)) { lidResolutionMap.set(c.id, c.jid); saveLidResolutionMap(); }
             }
         }
     });
@@ -252,6 +272,7 @@ async function startBot() {
             contactMap.set(u.id, { ...existing, name: u.name || u.notify || u.verifiedName || existing.name });
             if (u.lid && u.id.endsWith('@s.whatsapp.net')) {
                 lidMap.set(u.lid, u.id);
+                if (!lidResolutionMap.has(u.lid)) { lidResolutionMap.set(u.lid, u.id); saveLidResolutionMap(); }
             }
         }
     });
@@ -366,6 +387,7 @@ async function startBot() {
                             // User mengirim nomor → simpan resolusi dan lanjutkan
                             const phoneJid = normalized.replace(/^0/, '62') + '@s.whatsapp.net';
                             lidResolutionMap.set(sender, phoneJid);
+                            saveLidResolutionMap();
                             resolvedSender = phoneJid;
                             console.log(`[lid-resolve] ${sender} → ${phoneJid} (manual baru)`);
                             await sock.sendMessage(sender, { text: `✅ Nomor *${normalized}* berhasil terdaftar!\n\nSekarang kamu bisa menggunakan semua fitur bot. Silakan kirim pesan lagi.` });
