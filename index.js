@@ -316,6 +316,14 @@ async function startBot() {
             connectedPhone = '';
             connectedAt = null;
             waSocket = null;
+            // Bersihkan timer photoBuffer agar tidak leak saat reconnect
+            for (const entry of photoBuffer.values()) {
+                if (entry.timer) clearTimeout(entry.timer);
+            }
+            photoBuffer.clear();
+            conversationContext.clear();
+            chatMap.clear();
+            contactMap.clear();
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             if (statusCode === 401) {
                 console.log('Sesi WA logout/expired. Menghapus sesi, menampilkan QR baru...');
@@ -429,6 +437,11 @@ async function startBot() {
                     lastTime: Date.now(),
                     preview: (typeof content === 'string' ? content : content?.text || '[media]')?.slice(0, 60) || '',
                 });
+                // Batas ukuran chatMap: hapus entry terlama jika melebihi 2000
+                if (chatMap.size > 2000) {
+                    const oldest = [...chatMap.entries()].sort((a, b) => a[1].lastTime - b[1].lastTime)[0];
+                    if (oldest) chatMap.delete(oldest[0]);
+                }
 
                 // Simpan ke in-memory log (max 100)
                 messageLog.unshift({
