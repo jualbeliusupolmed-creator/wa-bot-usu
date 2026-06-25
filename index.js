@@ -5,7 +5,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
+const WEBHOOK_URL = 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Railway Volume agar file persisten
