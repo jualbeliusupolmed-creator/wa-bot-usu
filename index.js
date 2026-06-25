@@ -568,9 +568,40 @@ async function startBot() {
         if (m.type !== 'notify') return;
 
         for (const msg of m.messages) {
-            if (!msg.message || msg.key.fromMe) continue;
+            if (!msg.message) continue;
             const sender = msg.key.remoteJid;
 
+            // ── Tangkap Status WA dari HP Sendiri (Manual Post) ──
+            if (sender === 'status@broadcast' && msg.key.fromMe) {
+                try {
+                    const { type: msgType, content: msgContent, rawForMedia } = extractMessage(msg.message);
+                    const isImage = msgType === 'imageMessage';
+                    const isVideo = msgType === 'videoMessage';
+                    const text = msgType === 'extendedTextMessage' ? msgContent?.text || '' : msgContent?.caption || '';
+                    
+                    let url = null;
+                    if (isImage) {
+                        try {
+                            const buf = await downloadMediaMessage({ ...msg, message: rawForMedia }, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock.updateMediaMessage });
+                            url = 'data:image/jpeg;base64,' + buf.toString('base64');
+                        } catch (e) { console.error('[status] Gagal download gambar status manual:', e.message); }
+                    }
+
+                    const typeLabel = isImage ? 'image' : isVideo ? 'video' : 'text';
+                    const now = Date.now();
+                    saveStatus({
+                        id: msg.key.id,
+                        type: typeLabel,
+                        text: text,
+                        url: url,
+                        timestamp: now,
+                        expiresAt: now + 24 * 60 * 60 * 1000
+                    });
+                } catch(e) { console.error('[status] Error:', e.message); }
+                continue; // Jangan proses ini sebagai chat biasa
+            }
+
+            if (msg.key.fromMe) continue;
             if (!sender || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
 
             // ── Pesan dari grup marketplace → kirim ke webhook untuk diindeks ──
