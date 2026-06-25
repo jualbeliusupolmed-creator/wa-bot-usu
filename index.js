@@ -97,6 +97,10 @@ function saveLidResolutionMap() {
     }
 }
 
+// Map phone JID → nama (dari @lid registration manual)
+const NAME_MAP_FILE = path.join(DATA_DIR, 'name_map.json');
+let nameMap = loadMapFromFile(NAME_MAP_FILE);
+
 // Tambah entri context percakapan per-user
 function addToContext(jid, role, text) {
     const now = Date.now();
@@ -698,29 +702,48 @@ async function startBot() {
                         resolvedSender = fromManual;
                         console.log(`[lid-resolve] ${sender} → ${fromManual} (manual)`);
                     } else {
-                        // Cek apakah user sedang konfirmasi nomor
+                        // Cek apakah user sedang konfirmasi nomor (+nama opsional)
                         const { type: mType, content: mContent } = extractMessage(msg.message);
                         const rawText = (mType === 'conversation' ? mContent : mContent?.text || '').trim();
-                        const digits = rawText.replace(/\D/g, '');
+
+                        // Ekstrak nomor HP: cari urutan digit paling panjang yang cocok format WA
+                        const phoneMatch = rawText.match(/\b(0|62|8)\d{8,12}\b/);
+                        const digits = phoneMatch ? phoneMatch[0].replace(/\D/g, '') : rawText.replace(/\D/g, '');
                         const normalized = digits.startsWith('62') ? '0' + digits.slice(2)
                             : digits.startsWith('8') ? '0' + digits
                             : digits.startsWith('0') ? digits : '';
 
-                        if (normalized.length >= 10 && normalized.length <= 13) {
-                            // User mengirim nomor → simpan resolusi dan lanjutkan
+                        // Ekstrak nama: hapus bagian nomor dari rawText, sisanya nama
+                        const nameCandidate = rawText.replace(phoneMatch?.[0] || '', '').trim().replace(/^[,.\-\s]+|[,.\-\s]+$/g, '').trim();
+                        const extractedName = nameCandidate.length >= 2 && nameCandidate.length <= 50 ? nameCandidate : '';
+
+                        if (normalized.length >= 10 && normalized.length <= 13 && extractedName) {
+                            // Nomor + nama lengkap → simpan dan lanjutkan
                             const phoneJid = normalized.replace(/^0/, '62') + '@s.whatsapp.net';
                             lidResolutionMap.set(sender, phoneJid);
                             saveLidResolutionMap();
+                            nameMap.set(phoneJid, extractedName);
+                            saveMapToFile(nameMap, NAME_MAP_FILE);
                             resolvedSender = phoneJid;
-                            console.log(`[lid-resolve] ${sender} → ${phoneJid} (manual baru)`);
-                            await sock.sendMessage(sender, { text: `✅ Nomor *${normalized}* berhasil terdaftar!\n\nSekarang kamu bisa menggunakan semua fitur bot. Silakan kirim pesan lagi.` });
+                            console.log(`[lid-resolve] ${sender} → ${phoneJid} (manual baru) nama: ${extractedName}`);
+                            await sock.sendMessage(sender, {
+                                text: `✅ Berhasil terdaftar!\n\n📱 Nomor: *${normalized}*\n👤 Nama: *${extractedName}*\n\nSekarang kamu bisa menggunakan semua fitur bot. Silakan kirim pesan lagi.`
+                            });
                             continue;
                         }
 
-                        // Belum punya nomor → minta konfirmasi
-                        console.warn(`[lid-resolve] Tidak bisa resolve @lid: ${sender} — minta nomor`);
+                        if (normalized.length >= 10 && normalized.length <= 13 && !extractedName) {
+                            // Ada nomor tapi tidak ada nama → minta nama
+                            await sock.sendMessage(sender, {
+                                text: `📱 Nomor *${normalized}* terdeteksi.\n\n👤 Sekarang kirim *nama kamu* untuk melengkapi pendaftaran.\n\nContoh: *08123456789 Budi Santoso*`
+                            });
+                            continue;
+                        }
+
+                        // Tidak ada nomor valid → minta ulang keduanya
+                        console.warn(`[lid-resolve] Tidak bisa resolve @lid: ${sender} — minta nomor+nama`);
                         await sock.sendMessage(sender, {
-                            text: `👋 Halo!\n\nSistem tidak dapat mengenali nomor WA-mu secara otomatis karena akun WhatsApp-mu menggunakan format baru.\n\n📱 *Balas pesan ini dengan nomor WA-mu* (format: 08xxx atau 628xxx) untuk melanjutkan.\n\nContoh: 08123456789`
+                            text: `👋 Halo!\n\nSistem tidak dapat mengenali nomor WA-mu secara otomatis karena akun WhatsApp-mu menggunakan format baru.\n\n📱 Balas pesan ini dengan *nomor WA* dan *nama kamu*, dipisah spasi.\n\nContoh: *08123456789 Budi Santoso*`
                         });
                         continue;
                     }
@@ -788,6 +811,8 @@ async function startBot() {
                             pForm.append('sender', cleanSender);
                             pForm.append('message', cleanCap);
                             pForm.append('context', JSON.stringify(ctx.slice(0, -1)));
+                            const storedNameP = nameMap.get(cleanSender);
+                            if (storedNameP) pForm.append('profile_name', storedNameP);
                             entry.images.forEach((img, i) => {
                                 pForm.append('file', new Blob([img.buf], { type: img.mime }), `image${i + 1}.jpg`);
                             });
@@ -852,6 +877,8 @@ async function startBot() {
                 form.append('sender', cleanSender);
                 form.append('message', cleanText);
                 form.append('context', JSON.stringify(contextHistory.slice(0, -1))); // kirim history sebelum pesan ini
+                const storedName = nameMap.get(cleanSender);
+                if (storedName) form.append('profile_name', storedName);
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
                 const response = await fetch(WEBHOOK_URL, {
