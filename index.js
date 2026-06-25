@@ -622,6 +622,7 @@ async function startBot() {
                     try {
                         const { type: msgType, content: msgContent, rawForMedia } = extractMessage(msg.message);
                         const isVideo = msgType === 'videoMessage';
+                        const isImage = msgType === 'imageMessage';
                         const text = msgType === 'extendedTextMessage' ? msgContent?.text || '' : msgContent?.caption || '';
                         
                         let url = null;
