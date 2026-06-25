@@ -235,6 +235,182 @@ app.post('/send', requireAuth, async (req, res) => {
     }
 });
 
+// ── Profile Bot endpoint ──────────────────────────────────────────────────────
+app.get('/profile', requireAuth, (req, res) => {
+    res.json({
+        name: waSocket?.user?.name || '',
+        jid: waSocket?.user?.id || '',
+        phone: connectedPhone || '',
+    });
+});
+
+app.post('/profile/name', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const { name } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+    try {
+        await waSocket.updateProfileName(name.trim());
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/profile/status', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const { status } = req.body;
+    if (status === undefined) return res.status(400).json({ error: 'status required' });
+    try {
+        await waSocket.updateProfileStatus(status);
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── LID Resolution Map endpoint ───────────────────────────────────────────────
+app.get('/lid-map', requireAuth, (req, res) => {
+    const entries = Array.from(lidResolutionMap.entries())
+        .map(([lid, phone]) => ({ lid, phone }));
+    res.json({ entries, count: entries.length });
+});
+
+app.delete('/lid-map', requireAuth, (req, res) => {
+    const { lid } = req.body;
+    if (!lid) return res.status(400).json({ error: 'lid required' });
+    const deleted = lidResolutionMap.delete(lid);
+    if (deleted) saveLidResolutionMap();
+    res.json({ ok: deleted });
+});
+
+// ── Conversation Context endpoint ─────────────────────────────────────────────
+app.get('/context', requireAuth, (req, res) => {
+    const now = Date.now();
+    const entries = Array.from(conversationContext.entries()).map(([jid, history]) => ({
+        jid,
+        messages: history.length,
+        lastTime: history[history.length - 1]?.time || 0,
+        lastText: history[history.length - 1]?.text?.slice(0, 80) || '',
+        lastRole: history[history.length - 1]?.role || '',
+        history,
+    }));
+    res.json({ entries: entries.sort((a, b) => b.lastTime - a.lastTime), count: entries.length, now });
+});
+
+app.delete('/context', requireAuth, (req, res) => {
+    const { jid } = req.body;
+    if (jid) {
+        conversationContext.delete(jid);
+    } else {
+        conversationContext.clear();
+    }
+    res.json({ ok: true });
+});
+
+// ── Blocklist endpoint ────────────────────────────────────────────────────────
+app.get('/blocklist', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    try {
+        const list = await waSocket.fetchBlocklist();
+        res.json({ blocklist: list || [] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/blocklist/block', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const { jid } = req.body;
+    if (!jid) return res.status(400).json({ error: 'jid required' });
+    try {
+        await waSocket.updateBlockStatus(jid, 'block');
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/blocklist/unblock', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const { jid } = req.body;
+    if (!jid) return res.status(400).json({ error: 'jid required' });
+    try {
+        await waSocket.updateBlockStatus(jid, 'unblock');
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── WA Story / Status endpoint ────────────────────────────────────────────────
+app.post('/story', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const { text, url } = req.body;
+    if (!text?.trim()) return res.status(400).json({ error: 'text required' });
+    try {
+        if (url) {
+            const imgRes = await fetch(url);
+            const buf = Buffer.from(await imgRes.arrayBuffer());
+            await waSocket.sendMessage('status@broadcast', { image: buf, caption: text });
+        } else {
+            await waSocket.sendMessage('status@broadcast', { text, backgroundColor: '#075E54', font: 3 });
+        }
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Group management endpoints ────────────────────────────────────────────────
+app.get('/groups/:jid/invite', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const jid = decodeURIComponent(req.params.jid);
+    try {
+        const code = await waSocket.groupInviteCode(jid);
+        res.json({ ok: true, link: `https://chat.whatsapp.com/${code}`, code });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/groups/create', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const { name, participants } = req.body;
+    if (!name?.trim() || !participants?.length) return res.status(400).json({ error: 'name and participants required' });
+    try {
+        const jids = participants.map(p => {
+            let num = String(p).replace(/[^0-9]/g, '');
+            if (num.startsWith('0')) num = '62' + num.slice(1);
+            return num + '@s.whatsapp.net';
+        });
+        const result = await waSocket.groupCreate(name.trim(), jids);
+        res.json({ ok: true, jid: result.id });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/groups/:jid/participants', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const jid = decodeURIComponent(req.params.jid);
+    const { action, participants } = req.body;
+    if (!['add', 'remove', 'promote', 'demote'].includes(action)) {
+        return res.status(400).json({ error: 'action: add/remove/promote/demote' });
+    }
+    try {
+        const jids = participants.map(p => {
+            let num = String(p).replace(/[^0-9]/g, '');
+            if (num.startsWith('0')) num = '62' + num.slice(1);
+            return num + '@s.whatsapp.net';
+        });
+        const result = await waSocket.groupParticipantsUpdate(jid, jids, action);
+        res.json({ ok: true, result });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Send Poll endpoint ────────────────────────────────────────────────────────
+app.post('/send-poll', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const { target, name, options } = req.body;
+    if (!target || !name?.trim() || !options?.length) {
+        return res.status(400).json({ error: 'target, name, options required' });
+    }
+    try {
+        let jid = String(target);
+        if (!jid.includes('@')) {
+            let num = jid.replace(/[^0-9]/g, '');
+            if (num.startsWith('0')) num = '62' + num.slice(1);
+            jid = num + '@s.whatsapp.net';
+        }
+        await waSocket.sendMessage(jid, { poll: { name: name.trim(), values: options, selectableCount: 1 } });
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── Ekstrak isi pesan — skip metadata wrapper (messageContextInfo, dll) ───────
 function extractMessage(rawMessage) {
     if (!rawMessage) return { type: '', content: null, rawForMedia: rawMessage };
