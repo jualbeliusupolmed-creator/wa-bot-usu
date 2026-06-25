@@ -152,6 +152,24 @@ function saveNewsletter(data) {
     }
 }
 
+// ── Status WA Tracking ────────────────────────────────────────────────────────
+const STATUS_FILE = path.join(DATA_DIR, 'statuses.json');
+function getSavedStatuses() {
+    if (fs.existsSync(STATUS_FILE)) {
+        try {
+            const list = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf-8'));
+            const now = Date.now();
+            return list.filter(s => s.expiresAt > now); // Hanya yang belum expired (24h)
+        } catch(e) {}
+    }
+    return [];
+}
+function saveStatus(data) {
+    const list = getSavedStatuses();
+    list.push(data);
+    fs.writeFileSync(STATUS_FILE, JSON.stringify(list));
+}
+
 app.get('/newsletters', requireAuth, async (req, res) => {
     if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
     res.json({ newsletters: getSavedNewsletters() });
@@ -333,18 +351,37 @@ app.post('/blocklist/unblock', requireAuth, async (req, res) => {
 });
 
 // ── WA Story / Status endpoint ────────────────────────────────────────────────
+app.get('/story', requireAuth, (req, res) => {
+    res.json({ statuses: getSavedStatuses() });
+});
+
 app.post('/story', requireAuth, async (req, res) => {
     if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
     const { text, url } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: 'text required' });
     try {
+        const jids = Array.from(new Set([...chatMap.keys(), ...contactMap.keys()]))
+            .filter(jid => jid.endsWith('@s.whatsapp.net'));
+            
+        let result;
         if (url) {
             const imgRes = await fetch(url);
             const buf = Buffer.from(await imgRes.arrayBuffer());
-            await waSocket.sendMessage('status@broadcast', { image: buf, caption: text });
+            result = await waSocket.sendMessage('status@broadcast', { image: buf, caption: text }, { statusJidList: jids });
         } else {
-            await waSocket.sendMessage('status@broadcast', { text, backgroundColor: '#075E54', font: 3 });
+            result = await waSocket.sendMessage('status@broadcast', { text, backgroundColor: '#075E54', font: 3 }, { statusJidList: jids });
         }
+        
+        const now = Date.now();
+        saveStatus({
+            id: result?.key?.id || now.toString(),
+            type: url ? 'image' : 'text',
+            text,
+            url,
+            timestamp: now,
+            expiresAt: now + 24 * 60 * 60 * 1000
+        });
+        
         res.json({ ok: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
