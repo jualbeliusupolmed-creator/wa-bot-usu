@@ -84,6 +84,17 @@ app.get('/', async (req, res) => {
     } catch (err) { res.status(500).send('Error'); }
 });
 
+// ── QR JSON endpoint (untuk admin panel web) ─────────────────────────────────
+app.get('/qr', requireAuth, async (req, res) => {
+    if (!currentQR) return res.json({ qr: null, connected: true });
+    try {
+        const qrImage = await QRCode.toDataURL(currentQR, { width: 300 });
+        res.json({ qr: qrImage, connected: false });
+    } catch (err) {
+        res.status(500).json({ error: 'Gagal generate QR' });
+    }
+});
+
 // ── Status endpoint ───────────────────────────────────────────────────────────
 app.get('/status', requireAuth, (req, res) => {
     const isConnected = waSocket && !currentQR;
