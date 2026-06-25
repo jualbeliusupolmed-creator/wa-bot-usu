@@ -258,7 +258,7 @@ app.get('/logs', requireAuth, (req, res) => {
 // ── Restart endpoint ──────────────────────────────────────────────────────────
 app.post('/restart', requireAuth, (req, res) => {
     res.json({ ok: true, message: 'Bot akan restart dalam 1 detik...' });
-    setTimeout(() => process.exit(0), 1000);
+    setTimeout(() => process.exit(1), 1000);
 });
 
 // ── Reset / Hapus sesi ────────────────────────────────────────────────────────
