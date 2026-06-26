@@ -653,7 +653,7 @@ async function startBot() {
                 continue; // Jangan proses status orang lain atau diri sendiri sebagai chat biasa
             }
 
-            if (msg.key.fromMe) continue;
+            // if (msg.key.fromMe) continue; // Allow fromMe for admin takeover
             if (!sender || sender === 'status@broadcast' || sender.includes('@newsletter')) continue;
 
             // ── Pesan dari grup marketplace → kirim ke webhook untuk diindeks ──
@@ -855,7 +855,7 @@ async function startBot() {
                     {
                         const existing = photoBuffer.get(cleanSender);
                         if (existing) clearTimeout(existing.timer);
-                        const entry = existing || { images: [], caption: '' };
+                        const entry = existing || { images: [], caption: '', fromMe: msg.key.fromMe };
                         entry.images.push({ buf: buffer, mime: mimeType });
                         if (text && !entry.caption) entry.caption = text;
 
@@ -869,6 +869,7 @@ async function startBot() {
                             pForm.append('context', JSON.stringify(ctx.slice(0, -1)));
                             const storedNameP = nameMap.get(cleanSender);
                             if (storedNameP) pForm.append('profile_name', storedNameP);
+                            pForm.append('fromMe', entry.fromMe ? 'true' : 'false');
                             entry.images.forEach((img, i) => {
                                 pForm.append('file', new Blob([img.buf], { type: img.mime }), `image${i + 1}.jpg`);
                             });
@@ -935,6 +936,7 @@ async function startBot() {
                 form.append('context', JSON.stringify(contextHistory.slice(0, -1))); // kirim history sebelum pesan ini
                 const storedName = nameMap.get(cleanSender);
                 if (storedName) form.append('profile_name', storedName);
+                form.append('fromMe', msg.key.fromMe ? 'true' : 'false');
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
                 const response = await fetch(WEBHOOK_URL, {
