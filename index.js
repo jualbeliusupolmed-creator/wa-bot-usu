@@ -22,7 +22,6 @@ let connectedPhone = '';
 let connectedAt = null;
 let reconnectAttempts = 0;
 const messageQueue = [];
-const otpMap = new Map(); // lid -> { phoneJid, phoneDisplay, name, otp, time }
 
 // Start queue processor
 setInterval(async () => {
