@@ -715,7 +715,7 @@ async function startBot() {
                     } else if (fromManual) {
                         resolvedSender = fromManual;
                         console.log(`[lid-resolve] ${sender} → ${fromManual} (manual)`);
-                    } else if (msg.key.fromMe) {
+                    } else if (msg.key.fromMe && !rawText.startsWith('#')) {
                         // Jika pesan ini dikirim OLEH bot/admin (fromMe: true), 
                         // JANGAN paksa pelanggan melakukan registrasi. 
                         // Biarkan sender tetap @lid agar pesan tetap dicatat.
@@ -723,15 +723,18 @@ async function startBot() {
                     } else {
                         // Cek apakah user sedang konfirmasi nomor (+nama opsional)
 
+                        // Bersihkan awalan '#' jika admin melakukan bypass
+                        const textCleaned = rawText.replace(/^#\s*/, '').trim();
+
                         // Cek apakah sedang dalam proses verifikasi OTP
                         if (otpMap.has(sender)) {
                             const otpData = otpMap.get(sender);
-                            if (rawText.toLowerCase() === 'batal') {
+                            if (textCleaned.toLowerCase() === 'batal') {
                                 otpMap.delete(sender);
                                 await sock.sendMessage(sender, { text: "❌ Pendaftaran dibatalkan. Silakan daftar ulang dengan *nomor WA* dan *nama kamu*." });
                                 continue;
                             }
-                            if (rawText === otpData.otp) {
+                            if (textCleaned === otpData.otp) {
                                 // OTP Cocok!
                                 lidResolutionMap.set(sender, otpData.phoneJid);
                                 saveLidResolutionMap();
@@ -753,14 +756,14 @@ async function startBot() {
                         }
 
                         // Ekstrak nomor HP: cari urutan digit paling panjang yang cocok format WA
-                        const phoneMatch = rawText.match(/\b(0|62|8)\d{8,12}\b/);
-                        const digits = phoneMatch ? phoneMatch[0].replace(/\D/g, '') : rawText.replace(/\D/g, '');
+                        const phoneMatch = textCleaned.match(/\b(0|62|8)\d{8,12}\b/);
+                        const digits = phoneMatch ? phoneMatch[0].replace(/\D/g, '') : textCleaned.replace(/\D/g, '');
                         const normalized = digits.startsWith('62') ? '0' + digits.slice(2)
                             : digits.startsWith('8') ? '0' + digits
                             : digits.startsWith('0') ? digits : '';
 
                         // Ekstrak nama: hapus bagian nomor dari rawText, sisanya nama
-                        const nameCandidate = rawText.replace(phoneMatch?.[0] || '', '').trim().replace(/^[,.\-\s]+|[,.\-\s]+$/g, '').trim();
+                        const nameCandidate = textCleaned.replace(phoneMatch?.[0] || '', '').trim().replace(/^[,.\-\s]+|[,.\-\s]+$/g, '').trim();
                         const extractedName = nameCandidate.length >= 2 && nameCandidate.length <= 50 ? nameCandidate : '';
 
                         if (normalized.length >= 10 && normalized.length <= 13 && extractedName) {
