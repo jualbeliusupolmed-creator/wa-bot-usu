@@ -715,6 +715,11 @@ async function startBot() {
                     } else if (fromManual) {
                         resolvedSender = fromManual;
                         console.log(`[lid-resolve] ${sender} → ${fromManual} (manual)`);
+                    } else if (msg.key.fromMe) {
+                        // Jika pesan ini dikirim OLEH bot/admin (fromMe: true), 
+                        // JANGAN paksa pelanggan melakukan registrasi. 
+                        // Biarkan sender tetap @lid agar pesan tetap dicatat.
+                        console.log(`[lid-resolve] Mengabaikan prompt registrasi untuk pesan fromMe ke ${sender}`);
                     } else {
                         // Cek apakah user sedang konfirmasi nomor (+nama opsional)
 
