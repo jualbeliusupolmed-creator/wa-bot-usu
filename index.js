@@ -704,8 +704,9 @@ async function startBot() {
                     if (rawText.toLowerCase() === 'reset nomor') {
                         lidResolutionMap.delete(sender);
                         saveLidResolutionMap();
-                        otpMap.delete(sender);
-                        await sock.sendMessage(sender, { text: "🔄 Data nomor lamamu telah dihapus. Silakan mulai pendaftaran dari awal.\n\nBalas pesan ini dengan *nomor WA* dan *nama kamu* (contoh: *08123456789 Budi*)" });
+                        nameMap.delete(sender);
+                        saveMapToFile(nameMap, NAME_MAP_FILE);
+                        await sock.sendMessage(sender, { text: "🔄 Nama kamu telah dihapus. Balas pesan ini dengan namamu." });
                         continue;
                     }
 
@@ -716,100 +717,27 @@ async function startBot() {
                         resolvedSender = fromManual;
                         console.log(`[lid-resolve] ${sender} → ${fromManual} (manual)`);
                     } else if (msg.key.fromMe && !rawText.startsWith('#')) {
-                        // Jika pesan ini dikirim OLEH bot/admin (fromMe: true), 
-                        // JANGAN paksa pelanggan melakukan registrasi. 
-                        // Biarkan sender tetap @lid agar pesan tetap dicatat.
-                        console.log(`[lid-resolve] Mengabaikan prompt registrasi untuk pesan fromMe ke ${sender}`);
+                        console.log(`[lid-resolve] Mengabaikan prompt untuk pesan fromMe ke ${sender}`);
                     } else {
-                        // Cek apakah user sedang konfirmasi nomor (+nama opsional)
-
-                        // Bersihkan awalan '#' jika admin melakukan bypass
-                        const textCleaned = rawText.replace(/^#\s*/, '').trim();
-
-                        // Cek apakah sedang dalam proses verifikasi OTP
-                        if (otpMap.has(sender)) {
-                            const otpData = otpMap.get(sender);
-                            if (textCleaned.toLowerCase() === 'batal') {
-                                otpMap.delete(sender);
-                                await sock.sendMessage(sender, { text: "❌ Pendaftaran dibatalkan. Silakan daftar ulang dengan *nomor WA* dan *nama kamu*." });
-                                continue;
-                            }
-                            if (textCleaned === otpData.otp) {
-                                // OTP Cocok!
-                                lidResolutionMap.set(sender, otpData.phoneJid);
-                                saveLidResolutionMap();
-                                nameMap.set(otpData.phoneJid, otpData.name);
+                        // Cek apakah user sudah punya nama
+                        const existingName = nameMap.get(sender);
+                        if (existingName) {
+                            // Sudah punya nama → lanjut proses pesan normal
+                            console.log(`[lid-resolve] ${sender} belum terresolve ke phone, nama: ${existingName}`);
+                        } else {
+                            // Cek apakah input saat ini adalah nama yang valid
+                            const nameCandidateLid = rawText.trim().replace(/^[,.\-\s]+|[,.\-\s]+$/g, '').trim();
+                            const isValidName = nameCandidateLid.length >= 2 && nameCandidateLid.length <= 50 && !/^\d+$/.test(nameCandidateLid);
+                            if (isValidName) {
+                                nameMap.set(sender, nameCandidateLid);
                                 saveMapToFile(nameMap, NAME_MAP_FILE);
-                                otpMap.delete(sender);
-                                resolvedSender = otpData.phoneJid;
-                                console.log(`[lid-resolve] ${sender} → ${otpData.phoneJid} (manual OTP sukses)`);
-                                await sock.sendMessage(sender, {
-                                    text: `✅ Berhasil diverifikasi!\n\n📱 Nomor: *${otpData.phoneDisplay}*\n👤 Nama: *${otpData.name}*\n\nSekarang kamu bisa menggunakan semua fitur bot. Silakan kirim pesan lagi (misal: *Jual* atau *Min*).`
-                                });
-                                continue;
+                                console.log(`[lid-resolve] ${sender} → nama: ${nameCandidateLid}`);
                             } else {
-                                await sock.sendMessage(sender, {
-                                    text: `❌ Kode OTP salah!\n\nSilakan cek pesan masuk dari kami di nomor *${otpData.phoneDisplay}* dan balas pesan ini dengan kode 4 digit yang benar.\n\n(Atau ketik *batal* untuk mengulang)`
-                                });
+                                // Tanya nama saja, singkat
+                                await sock.sendMessage(sender, { text: `👋 Halo! Siapa namamu?` });
                                 continue;
                             }
                         }
-
-                        // Ekstrak nomor HP: cari urutan digit paling panjang yang cocok format WA
-                        const phoneMatch = textCleaned.match(/\b(0|62|8)\d{8,12}\b/);
-                        const digits = phoneMatch ? phoneMatch[0].replace(/\D/g, '') : textCleaned.replace(/\D/g, '');
-                        const normalized = digits.startsWith('62') ? '0' + digits.slice(2)
-                            : digits.startsWith('8') ? '0' + digits
-                            : digits.startsWith('0') ? digits : '';
-
-                        // Ekstrak nama: hapus bagian nomor dari rawText, sisanya nama
-                        const nameCandidate = textCleaned.replace(phoneMatch?.[0] || '', '').trim().replace(/^[,.\-\s]+|[,.\-\s]+$/g, '').trim();
-                        const extractedName = nameCandidate.length >= 2 && nameCandidate.length <= 50 ? nameCandidate : '';
-
-                        if (normalized.length >= 10 && normalized.length <= 13 && extractedName) {
-                            // Generate OTP
-                            const phoneJid = normalized.replace(/^0/, '62') + '@s.whatsapp.net';
-                            const otpCode = Math.floor(1000 + Math.random() * 9000).toString(); // 4 digit PIN
-                            
-                            otpMap.set(sender, {
-                                phoneJid,
-                                phoneDisplay: normalized,
-                                name: extractedName,
-                                otp: otpCode,
-                                time: Date.now()
-                            });
-                            console.log(`[lid-resolve] Generate OTP ${otpCode} for ${sender} claiming ${phoneJid}`);
-
-                            // Kirim pesan OTP ke nomor HP asli secara rahasia
-                            try {
-                                await sock.sendMessage(phoneJid, {
-                                    text: `🔑 *Kode Verifikasi Jual Beli USU Polmed*\n\nSeseorang mencoba mendaftarkan nomor ini di bot kami. Jika itu kamu, balas pesan bot di HP yang satu lagi dengan kode:\n\n*${otpCode}*\n\nJika kamu tidak merasa mendaftar, abaikan pesan ini.`
-                                });
-                            } catch (e) {
-                                console.error("[lid-resolve] Gagal kirim OTP:", e);
-                            }
-
-                            // Minta user memasukkan OTP di chat ini
-                            await sock.sendMessage(sender, {
-                                text: `🔒 *Verifikasi Keamanan Anti-Bajak*\n\nKami telah mengirimkan *4-digit kode (OTP)* ke nomor aslimu di *${normalized}*.\n\nSilakan buka chat WhatsApp di nomor tersebut dan *balas pesan ini dengan kode tersebut*.\n\nJika salah nomor, ketik: *reset nomor*`
-                            });
-                            continue;
-                        }
-
-                        if (normalized.length >= 10 && normalized.length <= 13 && !extractedName) {
-                            // Ada nomor tapi tidak ada nama → minta nama
-                            await sock.sendMessage(sender, {
-                                text: `📱 Nomor *${normalized}* terdeteksi.\n\n👤 Sekarang kirim *nama kamu* untuk melengkapi pendaftaran.\n\nContoh: *08123456789 Budi Santoso*`
-                            });
-                            continue;
-                        }
-
-                        // Tidak ada nomor valid → minta ulang keduanya
-                        console.warn(`[lid-resolve] Tidak bisa resolve @lid: ${sender} — minta nomor+nama`);
-                        await sock.sendMessage(sender, {
-                            text: `👋 Halo!\n\nSistem tidak dapat mengenali nomor WA-mu secara otomatis karena akun WhatsApp-mu menggunakan format baru.\n\n📱 Balas pesan ini dengan *nomor WA* dan *nama kamu*, dipisah spasi.\n\nContoh: *08123456789 Budi Santoso*`
-                        });
-                        continue;
                     }
                 }
                 const cleanSender = resolvedSender.replace(/:(\d+)(?=@)/, '');
