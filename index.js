@@ -716,7 +716,9 @@ async function startBot() {
                         resolvedSender = fromManual;
                         console.log(`[lid-resolve] ${sender} → ${fromManual} (manual)`);
                     } else if (msg.key.fromMe && !rawText.startsWith('#')) {
-                        console.log(`[lid-resolve] Mengabaikan prompt untuk pesan fromMe ke ${sender}`);
+                        // Balasan manual admin dari WA — JANGAN teruskan ke webhook
+                        console.log(`[lid-resolve] Mengabaikan pesan fromMe biasa ke ${sender}`);
+                        continue;
                     } else {
                         // Cek apakah user sudah punya nama
                         const existingName = nameMap.get(sender);
@@ -726,12 +728,12 @@ async function startBot() {
                         } else {
                             // Cek apakah input saat ini adalah nama yang valid
                             const nameCandidateLid = rawText.trim().replace(/^[,.\-\s]+|[,.\-\s]+$/g, '').trim();
-                            const isValidName = nameCandidateLid.length >= 2 && nameCandidateLid.length <= 50 && !/^\d+$/.test(nameCandidateLid);
+                            const isValidName = nameCandidateLid.length >= 2 && nameCandidateLid.length <= 50 && !/^\d+$/.test(nameCandidateLid) && !nameCandidateLid.startsWith('#');
                             if (isValidName) {
                                 nameMap.set(sender, nameCandidateLid);
                                 saveMapToFile(nameMap, NAME_MAP_FILE);
                                 console.log(`[lid-resolve] ${sender} → nama: ${nameCandidateLid}`);
-                                // Kirim sapaan setelah nama disimpan, lalu lanjut proses chat normal
+                                // Kirim sapaan setelah nama disimpan, lanjut proses pesan normal (tidak continue)
                                 const greetings = [
                                     `Haii *${nameCandidateLid}*! 🤙 Oke siap dicatat nih. Mau ngapain dulu nih kak? Pasang iklan, cari barang, atau ada yang mau ditanyain? 😁`,
                                     `Oke oke, *${nameCandidateLid}*! 🙌 Ada yang bisa aku bantuin? Bisa pasang iklan, cari barang, atau cek iklan yang udah ada ya~`,
@@ -739,7 +741,7 @@ async function startBot() {
                                 ];
                                 const greeting = greetings[Math.floor(Math.random() * greetings.length)];
                                 await sock.sendMessage(sender, { text: greeting });
-                                continue;
+                                // Tidak 'continue' — teruskan pesan asli ke webhook juga
                             } else {
                                 // Tanya nama saja, singkat
                                 await sock.sendMessage(sender, { text: `👋 Halo! Siapa namamu?` });
@@ -898,18 +900,8 @@ async function startBot() {
                         const parsed = JSON.parse(responseText);
                         if (parsed.bot_reply) {
                             addToContext(cleanSender, 'bot', parsed.bot_reply);
-
-                            // Untuk @lid + fromMe (admin kirim # dari WA):
-                            // webhook tidak bisa kirim balik via Fonnte ke @lid,
-                            // jadi wa-bot kirim langsung via Baileys ke JID aslinya
-                            if (msg.key.fromMe && sender.endsWith('@lid') && waSocket) {
-                                try {
-                                    await waSocket.sendMessage(sender, { text: parsed.bot_reply });
-                                    console.log(`[lid-reply] Kirim bot_reply ke ${sender} via sock.sendMessage`);
-                                } catch (sendErr) {
-                                    console.error(`[lid-reply] Gagal kirim ke ${sender}:`, sendErr.message);
-                                }
-                            }
+                            // Catatan: untuk @lid + fromMe, webhook sudah kirim via sendWa→Baileys
+                            // Tidak perlu kirim ulang via sock.sendMessage (akan dobel)
                         }
                     } catch (_) {}
                 }
