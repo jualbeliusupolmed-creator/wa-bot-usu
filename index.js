@@ -732,7 +732,13 @@ async function startBot() {
                                 saveMapToFile(nameMap, NAME_MAP_FILE);
                                 console.log(`[lid-resolve] ${sender} → nama: ${nameCandidateLid}`);
                                 // Kirim sapaan setelah nama disimpan, lalu lanjut proses chat normal
-                                await sock.sendMessage(sender, { text: `Halo *${nameCandidateLid}*! 👋 Senang bertemu kamu. Ada yang bisa aku bantu? Misalnya mau pasang iklan, cari barang, atau lihat iklanmu! 😊` });
+                                const greetings = [
+                                    `Haii *${nameCandidateLid}*! 🤙 Oke siap dicatat nih. Mau ngapain dulu nih kak? Pasang iklan, cari barang, atau ada yang mau ditanyain? 😁`,
+                                    `Oke oke, *${nameCandidateLid}*! 🙌 Ada yang bisa aku bantuin? Bisa pasang iklan, cari barang, atau cek iklan yang udah ada ya~`,
+                                    `Noted! Halo *${nameCandidateLid}* 👋 Gimana, mau jual barang, cari barang, atau ada yang lain? Aku siap bantu kak!`,
+                                ];
+                                const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+                                await sock.sendMessage(sender, { text: greeting });
                                 continue;
                             } else {
                                 // Tanya nama saja, singkat
