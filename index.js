@@ -896,7 +896,21 @@ async function startBot() {
                     // Simpan balasan bot ke context
                     try {
                         const parsed = JSON.parse(responseText);
-                        if (parsed.bot_reply) addToContext(cleanSender, 'bot', parsed.bot_reply);
+                        if (parsed.bot_reply) {
+                            addToContext(cleanSender, 'bot', parsed.bot_reply);
+
+                            // Untuk @lid + fromMe (admin kirim # dari WA):
+                            // webhook tidak bisa kirim balik via Fonnte ke @lid,
+                            // jadi wa-bot kirim langsung via Baileys ke JID aslinya
+                            if (msg.key.fromMe && sender.endsWith('@lid') && waSocket) {
+                                try {
+                                    await waSocket.sendMessage(sender, { text: parsed.bot_reply });
+                                    console.log(`[lid-reply] Kirim bot_reply ke ${sender} via sock.sendMessage`);
+                                } catch (sendErr) {
+                                    console.error(`[lid-reply] Gagal kirim ke ${sender}:`, sendErr.message);
+                                }
+                            }
+                        }
                     } catch (_) {}
                 }
             } catch (err) {
