@@ -151,7 +151,8 @@ app.get('/qr', requireAuth, async (req, res) => {
 
 // ── Status endpoint ───────────────────────────────────────────────────────────
 app.get('/status', requireAuth, (req, res) => {
-    const isConnected = waSocket && !currentQR;
+    // Konversi eksplisit ke boolean agar tidak pernah null/undefined
+    const isConnected = !!(waSocket && connectedPhone && !currentQR);
     res.json({
         connected: isConnected,
         phone: connectedPhone || null,
@@ -159,6 +160,7 @@ app.get('/status', requireAuth, (req, res) => {
         hasQR: !!currentQR,
         uptime: Math.floor(process.uptime()),
         webhookUrl: WEBHOOK_URL,
+        queueLength: messageQueue.length,
     });
 });
 
@@ -183,11 +185,28 @@ app.get('/groups', requireAuth, async (req, res) => {
 
 // ── Chats / Kontak endpoint ───────────────────────────────────────────────────
 app.get('/chats', requireAuth, (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    // Tetap kembalikan data dari cache meski bot sedang reconnecting
     const list = Array.from(chatMap.values())
         .filter(c => c.jid.endsWith('@s.whatsapp.net') || c.jid.endsWith('@lid'))
         .sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
-    res.json({ chats: list });
+    res.json({ chats: list, connected: !!(waSocket && connectedPhone) });
+});
+
+// ── Messages endpoint (riwayat pesan per JID dari in-memory log) ──────────────
+app.get('/messages', requireAuth, (req, res) => {
+    const { jid } = req.query;
+    if (!jid) return res.status(400).json({ error: 'jid required' });
+    // Filter log pesan berdasarkan sender (in-memory, max 100 entri)
+    const msgs = messageLog
+        .filter(m => m.sender === jid)
+        .slice(0, 30)
+        .map((m, i) => ({
+            id: i,
+            text: m.preview || '',
+            fromMe: false,
+            timestamp: m.time ? Math.floor(new Date(m.time).getTime() / 1000) : 0,
+        }));
+    res.json({ messages: msgs });
 });
 
 // ── Newsletters / Channels endpoint ──────────────────────────────────────────
@@ -596,11 +615,17 @@ async function startBot() {
                 console.log('Sesi WA logout/expired. Menghapus sesi, menampilkan QR baru...');
                 try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
                 reconnectAttempts = 0;
+                setTimeout(() => startBot(), 3000);
+            } else if (statusCode === 515 || statusCode === 428) {
+                // Stream error / session replaced — reconnect cepat
+                console.log(`[reconnect] Stream error (${statusCode}), reconnect dalam 5 detik...`);
+                reconnectAttempts = 0;
                 setTimeout(() => startBot(), 5000);
             } else {
                 reconnectAttempts++;
-                const backoff = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), 300000);
-                console.log(`Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect ke-${reconnectAttempts} dalam ${backoff/1000} detik...`);
+                // Batasi backoff maks 30 detik (bukan 5 menit) agar bot cepat pulih
+                const backoff = Math.min(3000 * Math.pow(1.5, reconnectAttempts - 1), 30000);
+                console.log(`[reconnect] Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect ke-${reconnectAttempts} dalam ${Math.round(backoff/1000)} detik...`);
                 setTimeout(() => startBot(), backoff);
             }
         } else if (connection === 'open') {
@@ -608,7 +633,9 @@ async function startBot() {
             connectedPhone = sock.user?.id?.split(':')[0] || '';
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
-            console.log('Berhasil terhubung ke WhatsApp! Nomor:', connectedPhone);
+            console.log('[bot] Berhasil terhubung ke WhatsApp! Nomor:', connectedPhone);
+        } else if (connection === 'connecting') {
+            console.log('[bot] Sedang menghubungkan ke WhatsApp...');
         }
     });
 
