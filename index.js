@@ -558,7 +558,7 @@ async function startBot() {
         auth: state,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: Browsers.macOS('Desktop')
+        browser: Browsers.ubuntu('Desktop')
     });
     waSocket = sock;
     sock.ev.on('creds.update', saveCreds);
@@ -636,7 +636,7 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             if (statusCode === 401) {
                 console.log('[reconnect] Sesi WA expired/logout. Menghapus sesi, akan tampilkan QR...');
-                try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
+                try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); console.log('[reconnect] Hapus folder auth sukses.'); } catch (e) { console.error('[reconnect] Gagal hapus auth:', e); }
                 reconnectAttempts = 0;
                 setTimeout(() => startBot(), 3000);
             } else if (statusCode === 428) {
@@ -645,7 +645,7 @@ async function startBot() {
                 reconnectAttempts++;
                 if (reconnectAttempts >= 3) {
                     console.log(`[reconnect] 428 terjadi ${reconnectAttempts}x. WA menolak sesi. Hapus sesi & tampilkan QR...`);
-                    try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
+                    try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); console.log('[reconnect] Hapus folder auth sukses.'); } catch (e) { console.error('[reconnect] Gagal hapus auth:', e); }
                     reconnectAttempts = 0;
                     setTimeout(() => startBot(), 5000);
                 } else {
@@ -656,7 +656,7 @@ async function startBot() {
             } else if (statusCode === 515) {
                 // 515 = session sudah terganti / dipakai di perangkat lain
                 console.log('[reconnect] Sesi terganti di perangkat lain (515). Menghapus sesi...');
-                try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
+                try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); console.log('[reconnect] Hapus folder auth sukses.'); } catch (e) { console.error('[reconnect] Gagal hapus auth:', e); }
                 reconnectAttempts = 0;
                 setTimeout(() => startBot(), 5000);
             } else {
