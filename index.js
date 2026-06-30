@@ -320,6 +320,35 @@ app.post('/reset', requireAuth, (req, res) => {
     setTimeout(() => process.exit(1), 1000);
 });
 
+// ── Pairing Code endpoint ─────────────────────────────────────────────────────
+app.post('/pairing-code', requireAuth, async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) return res.status(400).json({ error: 'Nomor HP wajib diisi' });
+        
+        if (!waSocket) return res.status(503).json({ error: 'Bot sedang tidak aktif/terhubung' });
+        
+        if (waSocket.authState.creds.registered || connectedPhone) {
+            return res.status(400).json({ error: 'Bot sudah login dan terdaftar' });
+        }
+        
+        // Bersihkan nomor (hilangkan +, spasi, -) dan ganti awalan 0 menjadi 62
+        let cleanPhone = phone.replace(/[^0-9]/g, '');
+        if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+        
+        // Request kode pairing ke Baileys
+        let code = await waSocket.requestPairingCode(cleanPhone);
+        
+        // Format kode agar lebih mudah dibaca, misalnya: "ABCD-EFGH"
+        code = code?.match(/.{1,4}/g)?.join('-') || code;
+        
+        res.json({ ok: true, code });
+    } catch (e) {
+        console.error('Error request pairing code:', e);
+        res.status(500).json({ error: e.message || 'Gagal meminta kode pairing' });
+    }
+});
+
 // ── Send message endpoint ─────────────────────────────────────────────────────
 app.post('/send', requireAuth, async (req, res) => {
     const { target, message, url } = req.body;
