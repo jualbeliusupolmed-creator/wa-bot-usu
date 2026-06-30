@@ -5,7 +5,24 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 
-const WEBHOOK_URL = 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
+// Buffer untuk melacak console.log dan error (berguna untuk debugging)
+const systemLogs = [];
+const originalLog = console.log;
+const originalError = console.error;
+console.log = function(...args) {
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    systemLogs.push(`[${new Date().toISOString()}] [INFO] ${msg}`);
+    if (systemLogs.length > 50) systemLogs.shift();
+    originalLog.apply(console, args);
+};
+console.error = function(...args) {
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    systemLogs.push(`[${new Date().toISOString()}] [ERROR] ${msg}`);
+    if (systemLogs.length > 50) systemLogs.shift();
+    originalError.apply(console, args);
+};
+
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Railway Volume agar file persisten
@@ -158,10 +175,16 @@ app.get('/status', requireAuth, (req, res) => {
         phone: connectedPhone || null,
         connectedAt: connectedAt || null,
         hasQR: !!currentQR,
+        qr: currentQR, // Tambahkan raw QR string agar bisa di-debug jika perlu
         uptime: Math.floor(process.uptime()),
         webhookUrl: WEBHOOK_URL,
         queueLength: messageQueue.length,
     });
+});
+
+// ── Logs endpoint ─────────────────────────────────────────────────────────────
+app.get('/logs', requireAuth, (req, res) => {
+    res.json({ logs: systemLogs });
 });
 
 // ── Groups endpoint ───────────────────────────────────────────────────────────
