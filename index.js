@@ -612,20 +612,35 @@ async function startBot() {
             conversationContext.clear();
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             if (statusCode === 401) {
-                console.log('Sesi WA logout/expired. Menghapus sesi, menampilkan QR baru...');
+                console.log('[reconnect] Sesi WA expired/logout. Menghapus sesi, akan tampilkan QR...');
                 try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
                 reconnectAttempts = 0;
                 setTimeout(() => startBot(), 3000);
-            } else if (statusCode === 515 || statusCode === 428) {
-                // Stream error / session replaced — reconnect cepat
-                console.log(`[reconnect] Stream error (${statusCode}), reconnect dalam 5 detik...`);
+            } else if (statusCode === 428) {
+                // 428 = connectionFailure: WA menolak koneksi
+                // Setelah 3x berturut-turut → hapus sesi & paksa QR scan ulang
+                reconnectAttempts++;
+                if (reconnectAttempts >= 3) {
+                    console.log(`[reconnect] 428 terjadi ${reconnectAttempts}x. WA menolak sesi. Hapus sesi & tampilkan QR...`);
+                    try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
+                    reconnectAttempts = 0;
+                    setTimeout(() => startBot(), 5000);
+                } else {
+                    const backoff = reconnectAttempts * 20000; // 20s, 40s
+                    console.log(`[reconnect] Stream error 428 (ke-${reconnectAttempts}). Tunggu ${backoff/1000}s...`);
+                    setTimeout(() => startBot(), backoff);
+                }
+            } else if (statusCode === 515) {
+                // 515 = session sudah terganti / dipakai di perangkat lain
+                console.log('[reconnect] Sesi terganti di perangkat lain (515). Menghapus sesi...');
+                try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {}
                 reconnectAttempts = 0;
                 setTimeout(() => startBot(), 5000);
             } else {
                 reconnectAttempts++;
-                // Batasi backoff maks 30 detik (bukan 5 menit) agar bot cepat pulih
-                const backoff = Math.min(3000 * Math.pow(1.5, reconnectAttempts - 1), 30000);
-                console.log(`[reconnect] Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect ke-${reconnectAttempts} dalam ${Math.round(backoff/1000)} detik...`);
+                // Backoff eksponensial maks 60 detik
+                const backoff = Math.min(3000 * Math.pow(1.8, reconnectAttempts - 1), 60000);
+                console.log(`[reconnect] Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect ke-${reconnectAttempts} dalam ${Math.round(backoff/1000)}s...`);
                 setTimeout(() => startBot(), backoff);
             }
         } else if (connection === 'open') {
