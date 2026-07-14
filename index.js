@@ -4,6 +4,8 @@ const express = require('express');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
+const { useSupabaseAuthState } = require('./useSupabaseAuthState');
 
 // Buffer untuk melacak console.log dan error (berguna untuk debugging)
 const systemLogs = [];
@@ -25,9 +27,20 @@ console.error = function(...args) {
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
 const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Railway Volume agar file persisten
+const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Volume/Disk kalau mau file persisten
 const AUTH_DIR = process.env.AUTH_DIR || path.join(DATA_DIR, 'auth_info_baileys');
 const MARKETPLACE_GROUP_JID = process.env.GROUP_JID || '';
+
+// Sesi WhatsApp disimpan di Supabase kalau env tersedia (persisten tanpa disk,
+// cocok untuk Render Free). Fallback ke filesystem (AUTH_DIR) kalau tidak diset.
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const WA_SESSION_ID = process.env.WA_SESSION_ID || 'default';
+const supabase = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+    : null;
+// Diisi di startBot(): menghapus sesi aktif (Supabase atau file) saat logout/reset.
+let clearAuthState = async () => { try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {} };
 
 
 const app = express();
@@ -308,14 +321,14 @@ app.post('/restart', requireAuth, (req, res) => {
 });
 
 // ── Reset / Hapus sesi ────────────────────────────────────────────────────────
-app.get('/reset', (req, res) => {
-    if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+app.get('/reset', requireAuth, async (req, res) => {
+    try { await clearAuthState(); } catch (e) { console.error('[reset] gagal hapus sesi:', e); }
     res.send('Sesi dihapus. Restarting...');
     setTimeout(() => process.exit(1), 1000);
 });
 
-app.post('/reset', requireAuth, (req, res) => {
-    if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+app.post('/reset', requireAuth, async (req, res) => {
+    try { await clearAuthState(); } catch (e) { console.error('[reset] gagal hapus sesi:', e); }
     res.json({ ok: true, message: 'Sesi dihapus. Bot akan restart...' });
     setTimeout(() => process.exit(1), 1000);
 });
@@ -582,7 +595,20 @@ function extractMessage(rawMessage) {
 
 // ── Bot core ──────────────────────────────────────────────────────────────────
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    let state, saveCreds;
+    if (supabase) {
+        const authState = await useSupabaseAuthState(supabase, WA_SESSION_ID);
+        state = authState.state;
+        saveCreds = authState.saveCreds;
+        clearAuthState = authState.clear;
+        console.log(`[auth] Sesi WhatsApp dimuat dari Supabase (session_id=${WA_SESSION_ID}).`);
+    } else {
+        const authState = await useMultiFileAuthState(AUTH_DIR);
+        state = authState.state;
+        saveCreds = authState.saveCreds;
+        clearAuthState = async () => { try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {} };
+        console.log(`[auth] Sesi WhatsApp dimuat dari filesystem (${AUTH_DIR}).`);
+    }
     const sock = makeWASocket({
         auth: state,
         logger: pino({ level: 'silent' }),
@@ -665,7 +691,7 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             if (statusCode === 401) {
                 console.log('[reconnect] Sesi WA expired/logout. Menghapus sesi, akan tampilkan QR...');
-                try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); console.log('[reconnect] Hapus folder auth sukses.'); } catch (e) { console.error('[reconnect] Gagal hapus auth:', e); }
+                clearAuthState().then(() => console.log('[reconnect] Hapus sesi sukses.')).catch((e) => console.error('[reconnect] Gagal hapus sesi:', e));
                 reconnectAttempts = 0;
                 setTimeout(() => startBot(), 3000);
             } else if (statusCode === 428) {
@@ -674,7 +700,7 @@ async function startBot() {
                 reconnectAttempts++;
                 if (reconnectAttempts >= 3) {
                     console.log(`[reconnect] 428 terjadi ${reconnectAttempts}x. WA menolak sesi. Hapus sesi & tampilkan QR...`);
-                    try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); console.log('[reconnect] Hapus folder auth sukses.'); } catch (e) { console.error('[reconnect] Gagal hapus auth:', e); }
+                    clearAuthState().then(() => console.log('[reconnect] Hapus sesi sukses.')).catch((e) => console.error('[reconnect] Gagal hapus sesi:', e));
                     reconnectAttempts = 0;
                     setTimeout(() => startBot(), 5000);
                 } else {
@@ -685,7 +711,7 @@ async function startBot() {
             } else if (statusCode === 515) {
                 // 515 = session sudah terganti / dipakai di perangkat lain
                 console.log('[reconnect] Sesi terganti di perangkat lain (515). Menghapus sesi...');
-                try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); console.log('[reconnect] Hapus folder auth sukses.'); } catch (e) { console.error('[reconnect] Gagal hapus auth:', e); }
+                clearAuthState().then(() => console.log('[reconnect] Hapus sesi sukses.')).catch((e) => console.error('[reconnect] Gagal hapus sesi:', e));
                 reconnectAttempts = 0;
                 setTimeout(() => startBot(), 5000);
             } else {

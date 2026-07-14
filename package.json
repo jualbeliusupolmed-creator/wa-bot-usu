@@ -11,7 +11,11 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.3",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "axios": "^1.18.0",
     "express": "^5.2.1",

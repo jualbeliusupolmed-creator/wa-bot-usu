@@ -1,0 +1,33 @@
+# Render Blueprint untuk wa-bot-usu.
+# Buat service via Render Dashboard → "New" → "Blueprint" → pilih repo ini.
+# Sesi WhatsApp disimpan di Supabase (lihat useSupabaseAuthState.js), jadi
+# TIDAK butuh disk berbayar — plan free cukup.
+#
+# CATATAN: Render Free spin-down setelah ~15 menit idle. Agar bot tetap online
+# 24/7, pasang pinger gratis (cron-job.org / UptimeRobot) yang GET
+# https://<nama-service>.onrender.com/health tiap ~10 menit.
+services:
+  - type: web
+    name: wa-bot-usu
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm install
+    startCommand: node index.js
+    healthCheckPath: /
+    envVars:
+      # --- Diisi manual di dashboard (jangan commit nilainya) ---
+      - key: API_TOKEN
+        sync: false
+      - key: WEBHOOK_URL          # URL Vercel: https://<domain>/api/wa/baileys
+        sync: false
+      - key: GROUP_JID
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # --- Non-rahasia ---
+      - key: WA_SESSION_ID
+        value: default
