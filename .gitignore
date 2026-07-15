@@ -1,2 +1,10 @@
 node_modules
 auth_info_baileys
+*.zip
+# File state lokal (fallback saat tanpa Supabase) — jangan commit
+chats.json
+contacts.json
+name_map.json
+lid_resolution_map.json
+newsletters.json
+statuses.json

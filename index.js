@@ -45,6 +45,7 @@ let clearAuthState = async () => { try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(
 
 const app = express();
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 let waSocket = null;
 let currentQR = '';
@@ -53,25 +54,34 @@ let connectedAt = null;
 let reconnectAttempts = 0;
 const messageQueue = [];
 
-// Start queue processor
-setInterval(async () => {
-    if (messageQueue.length === 0 || !waSocket) return;
-    const task = messageQueue.shift();
-    try {
-        await waSocket.presenceSubscribe(task.jid);
-        await waSocket.sendPresenceUpdate('composing', task.jid);
-        if (task.url) {
-            await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
-        } else if (task.poll) {
-            await waSocket.sendMessage(task.jid, { poll: task.poll });
-        } else {
-            await waSocket.sendMessage(task.jid, { text: task.message });
+// Antrean pesan keluar. Dijadwal ulang secara rekursif dengan JEDA ACAK 1,5–4 dtk
+// tiap habis mengirim, supaya ritme balasan tidak terlalu seragam seperti robot
+// (jeda konstan justru terbaca otomatis oleh WhatsApp → risiko nomor di-flag).
+// Saat antrean kosong, cek lagi lebih cepat (800 ms) agar balasan tetap responsif.
+async function processQueue() {
+    let sent = false;
+    if (messageQueue.length > 0 && waSocket) {
+        const task = messageQueue.shift();
+        try {
+            await waSocket.presenceSubscribe(task.jid);
+            await waSocket.sendPresenceUpdate('composing', task.jid);
+            if (task.url) {
+                await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
+            } else if (task.poll) {
+                await waSocket.sendMessage(task.jid, { poll: task.poll });
+            } else {
+                await waSocket.sendMessage(task.jid, { text: task.message });
+            }
+            console.log(`[Queue] Pesan terkirim ke ${task.jid}`);
+            sent = true;
+        } catch (err) {
+            console.error(`[Queue] Gagal kirim ke ${task.jid}:`, err.message);
         }
-        console.log(`[Queue] Pesan terkirim ke ${task.jid}`);
-    } catch (err) {
-        console.error(`[Queue] Gagal kirim ke ${task.jid}:`, err.message);
     }
-}, 1500);
+    const nextDelay = sent ? 1500 + Math.floor(Math.random() * 2500) : 800;
+    setTimeout(processQueue, nextDelay);
+}
+setTimeout(processQueue, 800);
 
 const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
 const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
@@ -107,29 +117,59 @@ let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 ent
 let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
 // Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
 let lidMap = new Map();
-// Map @lid JID → phone JID yang dikonfirmasi manual oleh user (persisten ke file)
+// Map @lid JID → phone JID yang dikonfirmasi manual oleh user.
 const LID_MAP_FILE = path.join(DATA_DIR, 'lid_resolution_map.json');
-let lidResolutionMap = (() => {
-    try {
-        if (fs.existsSync(LID_MAP_FILE)) {
-            const data = JSON.parse(fs.readFileSync(LID_MAP_FILE, 'utf-8'));
-            console.log(`[lid-resolve] Dimuat ${Object.keys(data).length} entri dari ${LID_MAP_FILE}`);
-            return new Map(Object.entries(data));
+// Map phone/@lid JID → nama (dari registrasi manual @lid).
+const NAME_MAP_FILE = path.join(DATA_DIR, 'name_map.json');
+
+// State ini DISIMPAN DI SUPABASE kalau env tersedia (tabel wa_state), bukan di file
+// lokal. Alasannya: host gratis seperti Render Free filesystem-nya sementara (kehapus
+// tiap spin-down ~15 mnt idle). Kalau disimpan di file, nama user & resolusi @lid akan
+// hilang tiap bot restart → user ditanya nama berulang. Fallback ke file lokal hanya
+// kalau Supabase tidak diset (mis. saat dev lokal). Lihat wa_state.sql untuk skema tabel.
+const STATE_TABLE = 'wa_state';
+let nameMap = new Map();            // diisi di startBot() via loadState()
+let lidResolutionMap = new Map();   // diisi di startBot() via loadState()
+let stateLoaded = false;            // supaya tidak clobber map in-memory saat reconnect
+
+async function loadState(key, fallbackFile) {
+    if (supabase) {
+        try {
+            const { data, error } = await supabase
+                .from(STATE_TABLE)
+                .select('data')
+                .eq('session_id', WA_SESSION_ID)
+                .eq('key', key)
+                .maybeSingle();
+            if (error) throw error;
+            if (data?.data) return new Map(Object.entries(data.data));
+        } catch (e) {
+            console.error(`[state] Gagal muat ${key} dari Supabase:`, e.message);
         }
-    } catch (_) {}
-    return new Map();
-})();
-function saveLidResolutionMap() {
-    try {
-        fs.writeFileSync(LID_MAP_FILE, JSON.stringify(Object.fromEntries(lidResolutionMap)));
-    } catch (e) {
-        console.error('[lid-resolve] Gagal simpan:', e.message);
+        return new Map();
     }
+    return loadMapFromFile(fallbackFile);
 }
 
-// Map phone JID → nama (dari @lid registration manual)
-const NAME_MAP_FILE = path.join(DATA_DIR, 'name_map.json');
-let nameMap = loadMapFromFile(NAME_MAP_FILE);
+async function saveState(key, mapData, fallbackFile) {
+    if (supabase) {
+        try {
+            const { error } = await supabase.from(STATE_TABLE).upsert(
+                { session_id: WA_SESSION_ID, key, data: Object.fromEntries(mapData), updated_at: new Date().toISOString() },
+                { onConflict: 'session_id,key' }
+            );
+            if (error) throw error;
+        } catch (e) {
+            console.error(`[state] Gagal simpan ${key} ke Supabase:`, e.message);
+        }
+        return;
+    }
+    saveMapToFile(mapData, fallbackFile);
+}
+
+// Fire-and-forget: simpan tanpa memblokir alur pesan.
+function saveLidResolutionMap() { saveState('lid_resolution_map', lidResolutionMap, LID_MAP_FILE).catch(() => {}); }
+function saveNameMap() { saveState('name_map', nameMap, NAME_MAP_FILE).catch(() => {}); }
 
 // Tambah entri context percakapan per-user
 function addToContext(jid, role, text) {
@@ -160,12 +200,8 @@ app.get('/health', (req, res) => {
 });
 
 // ── QR Page (public) ─────────────────────────────────────────────────────────
-app.get('/', async (req, res) => {
-    if (!currentQR) return res.send('<p>Bot terhubung!</p>');
-    try {
-        const qrImage = await QRCode.toDataURL(currentQR);
-        res.send(`<img src="${qrImage}" />`);
-    } catch (err) { res.status(500).send('Error'); }
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
 // ── QR JSON endpoint (untuk admin panel web) ─────────────────────────────────
@@ -609,11 +645,21 @@ async function startBot() {
         clearAuthState = async () => { try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {} };
         console.log(`[auth] Sesi WhatsApp dimuat dari filesystem (${AUTH_DIR}).`);
     }
+
+    // Muat nama user & resolusi @lid SEKALI saja (jangan clobber map in-memory saat
+    // reconnect). Dari Supabase kalau ada, else file lokal.
+    if (!stateLoaded) {
+        nameMap = await loadState('name_map', NAME_MAP_FILE);
+        lidResolutionMap = await loadState('lid_resolution_map', LID_MAP_FILE);
+        stateLoaded = true;
+        console.log(`[state] Dimuat: ${nameMap.size} nama, ${lidResolutionMap.size} resolusi @lid`);
+    }
+
     const sock = makeWASocket({
         auth: state,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: Browsers.ubuntu('Desktop')
+        browser: ['Mac OS', 'Chrome', '121.0.0.0']
     });
     waSocket = sock;
     sock.ev.on('creds.update', saveCreds);
@@ -824,7 +870,7 @@ async function startBot() {
                         lidResolutionMap.delete(sender);
                         saveLidResolutionMap();
                         nameMap.delete(sender);
-                        saveMapToFile(nameMap, NAME_MAP_FILE);
+                        saveNameMap();
                         await sock.sendMessage(sender, { text: "🔄 Nama kamu telah dihapus. Balas pesan ini dengan namamu." });
                         continue;
                     }
@@ -851,7 +897,7 @@ async function startBot() {
                             const isValidName = nameCandidateLid.length >= 2 && nameCandidateLid.length <= 50 && !/^\d+$/.test(nameCandidateLid) && !nameCandidateLid.startsWith('#');
                             if (isValidName) {
                                 nameMap.set(sender, nameCandidateLid);
-                                saveMapToFile(nameMap, NAME_MAP_FILE);
+                                saveNameMap();
                                 console.log(`[lid-resolve] ${sender} → nama: ${nameCandidateLid}`);
                                 // Kirim sapaan setelah nama disimpan, lanjut proses pesan normal (tidak continue)
                                 const greetings = [
