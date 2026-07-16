@@ -25,7 +25,12 @@ console.error = function(...args) {
 };
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
-const API_TOKEN = process.env.API_TOKEN || 'jualbeliusu_rahasia';
+const API_TOKEN = process.env.API_TOKEN;
+if (!API_TOKEN) {
+    console.error('[FATAL] API_TOKEN wajib di-set di environment. Bot berhenti (fail-closed) '
+        + 'agar tidak jalan dengan token default publik yang bisa dieksploitasi.');
+    process.exit(1);
+}
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Volume/Disk kalau mau file persisten
 const AUTH_DIR = process.env.AUTH_DIR || path.join(DATA_DIR, 'auth_info_baileys');
