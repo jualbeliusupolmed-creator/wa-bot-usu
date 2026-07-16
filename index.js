@@ -133,6 +133,9 @@ let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:s
 let lidMap = new Map();
 // Penanda @lid yang sudah pernah ditanya nama (agar tanya nama HANYA sekali, tak loop)
 const askedNameOnce = new Set();
+// @lid yang mapping nomornya SUDAH dikirim ke website (untuk memicu migrasi data lama
+// LID→nomor sekali saja per lifetime bot). Migrasi di sisi website tetap idempotent.
+const migratedLids = new Set();
 // ID pesan yang sudah diproses — cegah dobel (Baileys kadang kirim event sama >1x)
 const processedMsgIds = new Set();
 // Map @lid JID → phone JID yang dikonfirmasi manual oleh user.
@@ -861,9 +864,21 @@ async function startBot() {
                     }
 
                     const rawParticipant = (msg.key.participant || sender).replace(/:(\d+)(?=@)/, '');
-                    const senderInGroup = rawParticipant.endsWith('@lid')
-                        ? (lidMap.get(rawParticipant) || lidResolutionMap.get(rawParticipant) || rawParticipant)
-                        : rawParticipant;
+                    let senderInGroup = rawParticipant;
+                    if (rawParticipant.endsWith('@lid')) {
+                        const pAlt = (msg.key.participantAlt || '').endsWith('@s.whatsapp.net') ? msg.key.participantAlt : null;
+                        senderInGroup = pAlt || lidMap.get(rawParticipant) || lidResolutionMap.get(rawParticipant) || null;
+                        if (!senderInGroup) {
+                            try {
+                                const pn = await sock.signalRepository?.lidMapping?.getPNForLID?.(rawParticipant);
+                                senderInGroup = (pn && pn.endsWith('@s.whatsapp.net')) ? pn : rawParticipant;
+                            } catch { senderInGroup = rawParticipant; }
+                        }
+                        if (senderInGroup !== rawParticipant && lidResolutionMap.get(rawParticipant) !== senderInGroup) {
+                            lidResolutionMap.set(rawParticipant, senderInGroup);
+                            saveLidResolutionMap();
+                        }
+                    }
                     const gForm = new FormData();
                     gForm.append('sender', senderInGroup);
                     gForm.append('message', (text || '').replace(/[﻿​-‍⁠­]/g, '').trim());
@@ -902,18 +917,32 @@ async function startBot() {
                         continue;
                     }
 
-                    // Nomor asli user @lid TIDAK perlu ditanya: Baileys menyediakannya lewat
-                    // remoteJidAlt. Prioritas: remoteJidAlt > lidMap (contacts) > lidResolutionMap.
+                    // Nomor asli user @lid TIDAK perlu ditanya: WhatsApp menyediakannya.
+                    // Prioritas: remoteJidAlt (pesan) > lidMap (contacts) > lidResolutionMap (cache)
+                    //          > getPNForLID (query langsung ke pemetaan LID↔nomor Baileys v7).
                     const altJid = msg.key.remoteJidAlt || '';
                     const fromAlt = altJid.endsWith('@s.whatsapp.net') ? altJid : null;
-                    const resolvedNum = fromAlt || lidMap.get(sender) || lidResolutionMap.get(sender);
+                    let resolvedNum = fromAlt || lidMap.get(sender) || lidResolutionMap.get(sender) || null;
+                    // Sumber terkuat: tanya langsung ke WhatsApp. Ini yang bikin nomor "selalu
+                    // ketahuan" walau field pesan kebetulan tak memuatnya.
+                    let fromQuery = null;
+                    if (!resolvedNum) {
+                        try {
+                            const pn = await sock.signalRepository?.lidMapping?.getPNForLID?.(sender);
+                            if (pn && pn.endsWith('@s.whatsapp.net')) { fromQuery = pn; resolvedNum = pn; }
+                        } catch (e) { console.warn(`[lid-resolve] getPNForLID gagal utk ${sender}: ${e.message}`); }
+                    }
                     if (resolvedNum) {
                         resolvedSender = resolvedNum;
-                        if (fromAlt && lidResolutionMap.get(sender) !== fromAlt) {
-                            lidResolutionMap.set(sender, fromAlt);
+                        // Persist mapping yang baru dipelajari (dari alt/query) agar konsisten
+                        // & tak perlu query ulang tiap pesan.
+                        const learned = fromAlt || fromQuery;
+                        if (learned && lidResolutionMap.get(sender) !== learned) {
+                            lidResolutionMap.set(sender, learned);
                             saveLidResolutionMap();
                         }
-                        console.log(`[lid-resolve] ${sender} → ${resolvedNum} (${fromAlt ? 'alt' : lidMap.get(sender) ? 'contacts' : 'manual'})`);
+                        const src = fromAlt ? 'alt' : lidMap.get(sender) ? 'contacts' : fromQuery ? 'query' : 'manual';
+                        console.log(`[lid-resolve] ${sender} → ${resolvedNum} (${src})`);
                     }
 
                     // Nama diambil OTOMATIS dari pushName WhatsApp. Kalau pushName benar-benar
@@ -931,6 +960,13 @@ async function startBot() {
                     }
                 }
                 const cleanSender = resolvedSender.replace(/:(\d+)(?=@)/, '');
+
+                // Kalau sender asli @lid dan kini sudah jadi nomor, kirim penanda `prev_lid`
+                // SEKALI agar website memigrasi data lama (seller_wa=LID → nomor) — cegah "double".
+                const originLidDigits = sender.endsWith('@lid') ? sender.split('@')[0].replace(/:\d+$/, '') : null;
+                const prevLid = (originLidDigits && cleanSender.endsWith('@s.whatsapp.net') && !migratedLids.has(sender))
+                    ? originLidDigits : null;
+                if (prevLid) migratedLids.add(sender);
 
                 console.log(`Pesan dari ${cleanSender} | type: ${messageType}`);
 
@@ -995,6 +1031,7 @@ async function startBot() {
                             pForm.append('context', JSON.stringify(ctx.slice(0, -1)));
                             const storedNameP = nameMap.get(cleanSender) || (msg.pushName || '').trim();
                             if (storedNameP) pForm.append('profile_name', storedNameP);
+                            if (prevLid) pForm.append('prev_lid', prevLid);
                             pForm.append('fromMe', entry.fromMe ? 'true' : 'false');
                             entry.images.forEach((img, i) => {
                                 pForm.append('file', new Blob([img.buf], { type: img.mime }), `image${i + 1}.jpg`);
@@ -1062,6 +1099,7 @@ async function startBot() {
                 form.append('context', JSON.stringify(contextHistory.slice(0, -1))); // kirim history sebelum pesan ini
                 const storedName = nameMap.get(cleanSender) || (msg.pushName || '').trim();
                 if (storedName) form.append('profile_name', storedName);
+                if (prevLid) form.append('prev_lid', prevLid);
                 form.append('fromMe', msg.key.fromMe ? 'true' : 'false');
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
