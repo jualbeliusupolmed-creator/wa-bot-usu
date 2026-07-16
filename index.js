@@ -148,11 +148,20 @@ let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 ent
 let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
 // Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
 let lidMap = new Map();
+// Set berukuran terbatas (FIFO) — cegah pertumbuhan memori tak terbatas pada bot
+// yang uptime-nya panjang di VPS.
+function boundedSet(cap) {
+  const s = new Set();
+  const q = [];
+  const _add = s.add.bind(s);
+  s.add = (v) => { if (!s.has(v)) { q.push(v); if (q.length > cap) s.delete(q.shift()); } return _add(v); };
+  return s;
+}
 // Penanda @lid yang sudah pernah ditanya nama (agar tanya nama HANYA sekali, tak loop)
-const askedNameOnce = new Set();
+const askedNameOnce = boundedSet(5000);
 // @lid yang mapping nomornya SUDAH dikirim ke website (untuk memicu migrasi data lama
 // LID→nomor sekali saja per lifetime bot). Migrasi di sisi website tetap idempotent.
-const migratedLids = new Set();
+const migratedLids = boundedSet(5000);
 // ID pesan yang sudah diproses — cegah dobel (Baileys kadang kirim event sama >1x)
 const processedMsgIds = new Set();
 // Map @lid JID → phone JID yang dikonfirmasi manual oleh user.
@@ -687,7 +696,11 @@ app.post('/send-poll', requireAuth, async (req, res) => {
         jid = num + '@s.whatsapp.net';
     }
     
-    messageQueue.push({ jid, poll: { name: name.trim(), values: options, selectableCount: 1 } });
+    // Cap antrean sama seperti /send: cegah burst (pola spam → risiko blokir WA).
+    if (messageQueue.length > 200) {
+        return res.status(503).json({ error: 'Antrean penuh, bot sedang tidak stabil' });
+    }
+    messageQueue.push({ jid, poll: { name: name.trim(), values: options, selectableCount: 1 }, ts: Date.now() });
     res.json({ ok: true, detail: 'Poll ditambahkan ke antrean' });
 });
 
