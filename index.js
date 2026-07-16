@@ -54,6 +54,21 @@ let connectedAt = null;
 let reconnectAttempts = 0;
 const messageQueue = [];
 
+// ID pesan yang dikirim BOT sendiri (via sock.sendMessage). Dipakai untuk membedakan
+// echo kiriman bot vs ketikan MANUAL owner dari HP/WA Web di event messages.upsert —
+// keduanya sama-sama fromMe, tapi hanya ketikan manual yang jadi sinyal "owner turun
+// tangan" (bot senyap otomatis). Tanpa pembeda ini, bot akan membisukan dirinya
+// sendiri di setiap kontak yang ia balas.
+const botSentIds = new Set();
+const botSentIdQueue = [];
+function rememberBotSent(result) {
+    const id = result?.key?.id;
+    if (!id) return;
+    botSentIds.add(id);
+    botSentIdQueue.push(id);
+    if (botSentIdQueue.length > 2000) botSentIds.delete(botSentIdQueue.shift());
+}
+
 // Antrean pesan keluar. Dijadwal ulang secara rekursif dengan JEDA ACAK 1,5–4 dtk
 // tiap habis mengirim, supaya ritme balasan tidak terlalu seragam seperti robot
 // (jeda konstan justru terbaca otomatis oleh WhatsApp → risiko nomor di-flag).
@@ -78,13 +93,15 @@ async function processQueue() {
             try {
                 await waSocket.presenceSubscribe(task.jid);
                 await waSocket.sendPresenceUpdate('composing', task.jid);
+                let sendResult;
                 if (task.url) {
-                    await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
+                    sendResult = await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
                 } else if (task.poll) {
-                    await waSocket.sendMessage(task.jid, { poll: task.poll });
+                    sendResult = await waSocket.sendMessage(task.jid, { poll: task.poll });
                 } else {
-                    await waSocket.sendMessage(task.jid, { text: task.message });
+                    sendResult = await waSocket.sendMessage(task.jid, { text: task.message });
                 }
+                rememberBotSent(sendResult);
                 console.log(`[Queue] Pesan terkirim ke ${task.jid}`);
                 sent = true;
             } catch (err) {
@@ -718,6 +735,30 @@ async function startBot() {
         lidResolutionMap = await loadState('lid_resolution_map', LID_MAP_FILE);
         stateLoaded = true;
         console.log(`[state] Dimuat: ${nameMap.size} nama, ${lidResolutionMap.size} resolusi @lid`);
+
+        // Bersihkan nama sampah warisan versi lama (alur tangkap-nama dulu menyimpan
+        // kata biasa/kalimat utuh sebagai nama: "min", "Ntar saya kabari...", "Iya").
+        // Nama buruk bikin bot menyapa "Haii min!" / "Haii Ntar!" ke pelanggan asli.
+        const NAME_JUNK = new Set([
+            'min', 'mimin', 'admin', 'bang', 'bg', 'kak', 'ka', 'dek', 'mas', 'mbak', 'pak', 'bu',
+            'bro', 'sis', 'cuy', 'iya', 'ya', 'yaw', 'ok', 'oke', 'okey', 'okay', 'sip', 'siap',
+            'gas', 'woi', 'woy', 'wey', 'halo', 'hai', 'haii', 'hallo', 'hello', 'ntar', 'nanti',
+            'tar', 'besok', 'test', 'tes', 'info', 'misi', 'permisi', 'p', 'pagi', 'siang', 'sore', 'malam',
+        ]);
+        let junkRemoved = 0;
+        for (const [jid, nm] of nameMap) {
+            const clean = String(nm || '').trim();
+            const firstWord = (clean.split(/\s+/)[0] || '').toLowerCase();
+            // Buang kalau: kata sapaan umum, terlalu pendek, atau "nama" >4 kata (kalimat).
+            if (!clean || clean.length < 2 || NAME_JUNK.has(firstWord) || clean.split(/\s+/).length > 4) {
+                nameMap.delete(jid);
+                junkRemoved++;
+            }
+        }
+        if (junkRemoved) {
+            saveNameMap();
+            console.log(`[state] ${junkRemoved} nama sampah dibersihkan dari name_map`);
+        }
     }
 
     const sock = makeWASocket({
@@ -936,6 +977,34 @@ async function startBot() {
             try {
                 const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
 
+                // ── Pesan fromMe (terkirim dari nomor ini sendiri) ────────────────
+                // 1) Echo balasan BOT sendiri → abaikan total (sudah tercatat via
+                //    sendWa di webhook; kalau diteruskan malah dianggap balasan manual).
+                // 2) Ketikan MANUAL owner (HP/WA Web) tanpa '#' → jangan diproses
+                //    sebagai chat, tapi teruskan ke webhook dengan fromMe=true sebagai
+                //    sinyal "owner lagi turun tangan" → bot senyap otomatis di kontak
+                //    ini. Pesan '#...' = perintah takeover, biarkan lanjut ke pipeline.
+                if (msg.key.fromMe) {
+                    if (botSentIds.has(msg.key.id)) continue;
+                    const fmText = ((messageType === 'conversation' ? content : (content?.text || content?.caption || '')) || '').trim();
+                    if (!fmText.startsWith('#')) {
+                        let manualTarget = sender;
+                        if (sender.endsWith('@lid')) {
+                            const altFm = (msg.key.remoteJidAlt || '').endsWith('@s.whatsapp.net') ? msg.key.remoteJidAlt : null;
+                            manualTarget = altFm || lidMap.get(sender) || lidResolutionMap.get(sender) || sender;
+                        }
+                        const isMediaFm = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'].includes(messageType);
+                        const fmForm = new FormData();
+                        fmForm.append('sender', manualTarget);
+                        fmForm.append('message', fmText.slice(0, 1500));
+                        fmForm.append('fromMe', 'true');
+                        if (isMediaFm) fmForm.append('manual_media', '1');
+                        fetch(WEBHOOK_URL, { method: 'POST', body: fmForm, headers: { 'Authorization': API_TOKEN } }).catch(() => {});
+                        console.log(`[owner-manual] Balasan manual ke ${manualTarget} → sinyal senyap dikirim ke webhook`);
+                        continue;
+                    }
+                }
+
                 // Resolve @lid JID ke phone JID agar nomor konsisten dengan website
                 // Urutan prioritas: lidMap (dari contacts sync) > lidResolutionMap (konfirmasi manual)
                 let resolvedSender = sender;
@@ -950,15 +1019,12 @@ async function startBot() {
                         nameMap.delete(sender);
                         saveNameMap();
                         askedNameOnce.delete(sender);
-                        await sock.sendMessage(sender, { text: "🔄 Oke, data kamu sudah di-reset." });
+                        rememberBotSent(await sock.sendMessage(sender, { text: "🔄 Oke, data kamu sudah di-reset." }));
                         continue;
                     }
 
-                    // Balasan manual admin (fromMe tanpa #) — JANGAN teruskan ke webhook
-                    if (msg.key.fromMe && !rawText.startsWith('#')) {
-                        console.log(`[lid-resolve] Mengabaikan pesan fromMe biasa ke ${sender}`);
-                        continue;
-                    }
+                    // (fromMe tanpa '#' sudah ditangani lebih awal sebagai sinyal
+                    //  balasan manual owner — yang sampai sini hanya '#takeover'.)
 
                     // Nomor asli user @lid TIDAK perlu ditanya: WhatsApp menyediakannya.
                     // Prioritas: remoteJidAlt (pesan) > lidMap (contacts) > lidResolutionMap (cache)
@@ -990,14 +1056,16 @@ async function startBot() {
 
                     // Nama diambil OTOMATIS dari pushName WhatsApp. Kalau pushName benar-benar
                     // kosong, tanya SEKALI saja (arahkan ke command NAMA) — tidak loop, tidak nebak.
-                    if (!nameMap.get(sender)) {
+                    // Jangan pernah untuk fromMe: pushName pesan fromMe = nama OWNER sendiri,
+                    // bukan nama kontak (bisa nyangkut jadi nama pelanggan).
+                    if (!msg.key.fromMe && !nameMap.get(sender)) {
                         const pushName = (msg.pushName || '').trim();
                         if (pushName) {
                             nameMap.set(sender, pushName.slice(0, 50));
                             saveNameMap();
                         } else if (!askedNameOnce.has(sender)) {
                             askedNameOnce.add(sender);
-                            await sock.sendMessage(sender, { text: "👋 Halo! Aku belum tau namamu. Ketik *NAMA [namamu]* ya, contoh: *NAMA Budi*." });
+                            rememberBotSent(await sock.sendMessage(sender, { text: "👋 Halo! Aku belum tau namamu. Ketik *NAMA [namamu]* ya, contoh: *NAMA Budi*." }));
                             // tidak 'continue' — pesan tetap diteruskan & diproses
                         }
                     }
