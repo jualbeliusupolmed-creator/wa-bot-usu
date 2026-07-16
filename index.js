@@ -276,6 +276,17 @@ function requireAuth(req, res, next) {
     next();
 }
 
+// ── Gerbang endpoint berbahaya (re-link/reset) ───────────────────────────────
+// Endpoint yang bisa MENGHAPUS SESI atau MENAUTKAN perangkat (reset/restart/
+// pairing-code) dikunci default. Selama token bot masih bisa bocor (mis. default
+// publik), tanpa gerbang ini penyerang bisa /reset → bot logout → /pairing-code →
+// ambil alih WhatsApp bisnis. Website normal TIDAK memakai endpoint ini.
+// Untuk re-link sah: set env ALLOW_RELINK=true di server sementara, lalu matikan lagi.
+function requireRelink(req, res, next) {
+    if (process.env.ALLOW_RELINK === 'true') return next();
+    return res.status(403).json({ error: 'Endpoint terkunci demi keamanan. Set ALLOW_RELINK=true di server bila memang mau re-link/reset.' });
+}
+
 // ── Health check (public, untuk Railway health check) ────────────────────────
 app.get('/health', (req, res) => {
     const isConnected = !!(waSocket && !currentQR);
@@ -438,26 +449,26 @@ app.get('/logs', requireAuth, (req, res) => {
 });
 
 // ── Restart endpoint ──────────────────────────────────────────────────────────
-app.post('/restart', requireAuth, (req, res) => {
+app.post('/restart', requireAuth, requireRelink, (req, res) => {
     res.json({ ok: true, message: 'Bot akan restart dalam 1 detik...' });
     setTimeout(() => process.exit(1), 1000);
 });
 
 // ── Reset / Hapus sesi ────────────────────────────────────────────────────────
-app.get('/reset', requireAuth, async (req, res) => {
+app.get('/reset', requireAuth, requireRelink, async (req, res) => {
     try { await clearAuthState(); } catch (e) { console.error('[reset] gagal hapus sesi:', e); }
     res.send('Sesi dihapus. Restarting...');
     setTimeout(() => process.exit(1), 1000);
 });
 
-app.post('/reset', requireAuth, async (req, res) => {
+app.post('/reset', requireAuth, requireRelink, async (req, res) => {
     try { await clearAuthState(); } catch (e) { console.error('[reset] gagal hapus sesi:', e); }
     res.json({ ok: true, message: 'Sesi dihapus. Bot akan restart...' });
     setTimeout(() => process.exit(1), 1000);
 });
 
 // ── Pairing Code endpoint ─────────────────────────────────────────────────────
-app.post('/pairing-code', requireAuth, async (req, res) => {
+app.post('/pairing-code', requireAuth, requireRelink, async (req, res) => {
     try {
         const { phone } = req.body;
         if (!phone) return res.status(400).json({ error: 'Nomor HP wajib diisi' });
