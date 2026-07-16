@@ -192,6 +192,46 @@ async function saveState(key, mapData, fallbackFile) {
 function saveLidResolutionMap() { saveState('lid_resolution_map', lidResolutionMap, LID_MAP_FILE).catch(() => {}); }
 function saveNameMap() { saveState('name_map', nameMap, NAME_MAP_FILE).catch(() => {}); }
 
+// Sekali per proses: pindai data lama ber-key LID di DB, "pelajari" nomornya lewat
+// getPNForLID (query ke WhatsApp), simpan ke lid_resolution_map. Setelah ini, endpoint
+// website /api/admin/migrate-lid?apply=1 bisa memindahkan datanya ke nomor 08.
+let dbLidsResolvedOnce = false;
+async function resolveDbLidsOnce(sock) {
+    if (dbLidsResolvedOnce || !supabase) return;
+    dbLidsResolvedOnce = true;
+    try {
+        const tables = [
+            ['seller_profiles', 'wa'], ['listings', 'seller_wa'], ['wanted_listings', 'buyer_wa'],
+            ['price_offers', 'buyer_wa'], ['seller_ratings', 'seller_wa'], ['category_subscriptions', 'buyer_wa'],
+            ['group_posts', 'sender_wa'], ['profile_change_requests', 'seller_wa'],
+        ];
+        const lids = new Set();
+        for (const [t, c] of tables) {
+            const { data, error } = await supabase.from(t).select(c).not(c, 'like', '0%').limit(5000);
+            if (error) continue;
+            for (const r of data || []) {
+                const v = r[c];
+                if (!v) continue;
+                const digits = String(v).split('@')[0].replace(/:\d+$/, '');
+                // LID = 12–18 digit, tak diawali '0' (nomor HP valid selalu 08xxx)
+                if (/^\d{12,18}$/.test(digits) && !digits.startsWith('0')) lids.add(digits);
+            }
+        }
+        if (!lids.size) { console.log('[lid-db-resolve] Tak ada LID di DB.'); return; }
+        let resolved = 0;
+        for (const digits of lids) {
+            const lidJid = digits + '@lid';
+            if (lidResolutionMap.has(lidJid)) continue;
+            try {
+                const pn = await sock.signalRepository?.lidMapping?.getPNForLID?.(lidJid);
+                if (pn && pn.endsWith('@s.whatsapp.net')) { lidResolutionMap.set(lidJid, pn); resolved++; }
+            } catch { /* biarkan, coba LID berikutnya */ }
+        }
+        if (resolved) saveLidResolutionMap();
+        console.log(`[lid-db-resolve] ${lids.size} LID di DB, ${resolved} dapat nomor → tersimpan. Sisa ${lids.size - resolved} belum ketahuan.`);
+    } catch (e) { console.warn('[lid-db-resolve] error:', e.message); }
+}
+
 // Tambah entri context percakapan per-user
 function addToContext(jid, role, text) {
     const now = Date.now();
@@ -787,6 +827,9 @@ async function startBot() {
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
             console.log('[bot] Berhasil terhubung ke WhatsApp! Nomor:', connectedPhone);
+            // Bersihkan sisa data lama ber-key LID: pelajari nomornya lalu simpan (sekali saja,
+            // beri jeda agar sinkron kontak/LID sempat jalan). Migrasi tabelnya oleh endpoint website.
+            setTimeout(() => resolveDbLidsOnce(sock), 20000);
         } else if (connection === 'connecting') {
             console.log('[bot] Sedang menghubungkan ke WhatsApp...');
         }
