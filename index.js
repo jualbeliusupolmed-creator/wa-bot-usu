@@ -1274,8 +1274,11 @@ async function startBot() {
 process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e?.message || e));
 process.on('uncaughtException', (e) => console.error('[uncaughtException]', e?.message || e));
 
-app.listen(PORT, () => {
-    console.log(`Bot Server listening on port ${PORT}`);
+// Dengar HANYA di loopback: akses publik ditutup, semua trafik masuk lewat
+// reverse-proxy nginx (HTTPS) → 127.0.0.1:3000. Bisa di-override via env BIND_HOST
+// (mis. '0.0.0.0') kalau suatu saat perlu, tapi default aman.
+app.listen(PORT, process.env.BIND_HOST || '127.0.0.1', () => {
+    console.log(`Bot Server listening on ${process.env.BIND_HOST || '127.0.0.1'}:${PORT}`);
     startBot().catch((e) => {
         console.error('[startBot] gagal init:', e?.message || e);
         setTimeout(() => startBot().catch(() => {}), 10000); // coba lagi 10 dtk
