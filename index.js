@@ -62,6 +62,13 @@ async function processQueue() {
     let sent = false;
     if (messageQueue.length > 0 && waSocket) {
         const task = messageQueue.shift();
+        // Anti-burst: buang pesan yang sudah terlalu lama menunggu (mis. numpuk saat
+        // bot offline). Kirim borongan pesan basi = pola spam → risiko blokir WA.
+        if (task.ts && Date.now() - task.ts > 3 * 60 * 1000) {
+            console.warn(`[Queue] Buang pesan basi (>3mnt) ke ${task.jid}`);
+            setTimeout(processQueue, 100);
+            return;
+        }
         // Jangan kirim gelembung kosong (teks kosong tanpa gambar/poll) — pernah
         // muncul pesan kosong ke pelanggan.
         const hasContent = task.url || task.poll || (task.message && String(task.message).trim());
@@ -124,6 +131,10 @@ let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 ent
 let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
 // Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
 let lidMap = new Map();
+// Penanda @lid yang sudah pernah ditanya nama (agar tanya nama HANYA sekali, tak loop)
+const askedNameOnce = new Set();
+// ID pesan yang sudah diproses — cegah dobel (Baileys kadang kirim event sama >1x)
+const processedMsgIds = new Set();
 // Map @lid JID → phone JID yang dikonfirmasi manual oleh user.
 const LID_MAP_FILE = path.join(DATA_DIR, 'lid_resolution_map.json');
 // Map phone/@lid JID → nama (dari registrasi manual @lid).
@@ -199,10 +210,10 @@ function requireAuth(req, res, next) {
 // ── Health check (public, untuk Railway health check) ────────────────────────
 app.get('/health', (req, res) => {
     const isConnected = !!(waSocket && !currentQR);
+    // Endpoint publik — JANGAN bocorkan nomor telepon di sini.
     res.status(isConnected ? 200 : 503).json({
         ok: isConnected,
         uptime: Math.floor(process.uptime()),
-        phone: connectedPhone || null,
     });
 });
 
@@ -417,7 +428,11 @@ app.post('/send', requireAuth, async (req, res) => {
         jid = num + '@s.whatsapp.net';
     }
 
-    messageQueue.push({ jid, message, url });
+    // Cap antrean: kalau menumpuk (bot lama offline), tolak daripada burst nanti.
+    if (messageQueue.length > 200) {
+        return res.status(503).json({ error: 'Antrean penuh, bot sedang tidak stabil' });
+    }
+    messageQueue.push({ jid, message, url, ts: Date.now() });
     res.json({ status: true, detail: 'Pesan ditambahkan ke antrean (Queue)' });
 });
 
@@ -742,34 +757,23 @@ async function startBot() {
             photoBuffer.clear();
             conversationContext.clear();
             const statusCode = lastDisconnect?.error?.output?.statusCode;
+            // PENTING: HANYA 401 (loggedOut) yang boleh menghapus sesi. Kode lain
+            // (428 gangguan sementara, 515 restartRequired yang NORMAL) cukup sambung
+            // ulang dgn creds yang sama. Menghapus sesi → QR scan ulang berulang =
+            // sinyal mencurigakan ke WhatsApp → risiko nomor diblokir.
             if (statusCode === 401) {
-                console.log('[reconnect] Sesi WA expired/logout. Menghapus sesi, akan tampilkan QR...');
+                console.log('[reconnect] Sesi WA logout (401). Menghapus sesi, akan tampilkan QR...');
                 clearAuthState().then(() => console.log('[reconnect] Hapus sesi sukses.')).catch((e) => console.error('[reconnect] Gagal hapus sesi:', e));
                 reconnectAttempts = 0;
                 setTimeout(() => startBot(), 3000);
-            } else if (statusCode === 428) {
-                // 428 = connectionFailure: WA menolak koneksi
-                // Setelah 3x berturut-turut → hapus sesi & paksa QR scan ulang
-                reconnectAttempts++;
-                if (reconnectAttempts >= 3) {
-                    console.log(`[reconnect] 428 terjadi ${reconnectAttempts}x. WA menolak sesi. Hapus sesi & tampilkan QR...`);
-                    clearAuthState().then(() => console.log('[reconnect] Hapus sesi sukses.')).catch((e) => console.error('[reconnect] Gagal hapus sesi:', e));
-                    reconnectAttempts = 0;
-                    setTimeout(() => startBot(), 5000);
-                } else {
-                    const backoff = reconnectAttempts * 20000; // 20s, 40s
-                    console.log(`[reconnect] Stream error 428 (ke-${reconnectAttempts}). Tunggu ${backoff/1000}s...`);
-                    setTimeout(() => startBot(), backoff);
-                }
             } else if (statusCode === 515) {
-                // 515 = session sudah terganti / dipakai di perangkat lain
-                console.log('[reconnect] Sesi terganti di perangkat lain (515). Menghapus sesi...');
-                clearAuthState().then(() => console.log('[reconnect] Hapus sesi sukses.')).catch((e) => console.error('[reconnect] Gagal hapus sesi:', e));
+                // restartRequired — normal (mis. tepat setelah pairing). Sambung ulang cepat.
+                console.log('[reconnect] restartRequired (515). Sambung ulang tanpa hapus sesi...');
                 reconnectAttempts = 0;
-                setTimeout(() => startBot(), 5000);
+                setTimeout(() => startBot(), 2000);
             } else {
+                // 428 & lainnya = gangguan sementara. Sambung ulang backoff, JANGAN hapus sesi.
                 reconnectAttempts++;
-                // Backoff eksponensial maks 60 detik
                 const backoff = Math.min(3000 * Math.pow(1.8, reconnectAttempts - 1), 60000);
                 console.log(`[reconnect] Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect ke-${reconnectAttempts} dalam ${Math.round(backoff/1000)}s...`);
                 setTimeout(() => startBot(), backoff);
@@ -791,6 +795,18 @@ async function startBot() {
         for (const msg of m.messages) {
             if (!msg.message) continue;
             const sender = msg.key.remoteJid;
+
+            // ── Anti-dobel: skip kalau ID pesan ini sudah pernah diproses ──
+            if (msg.key.id) {
+                if (processedMsgIds.has(msg.key.id)) continue;
+                processedMsgIds.add(msg.key.id);
+                if (processedMsgIds.size > 800) processedMsgIds.delete(processedMsgIds.values().next().value);
+            }
+
+            // ── Centang biru: tandai pesan dibaca (biar terasa dilihat, bukan bot instan) ──
+            if (!msg.key.fromMe && sender && sender !== 'status@broadcast' && !sender.includes('@newsletter')) {
+                sock.readMessages([msg.key]).catch(() => {});
+            }
 
             // ── Tangkap Status WA dari HP Sendiri (Manual Post) ──
             if (sender === 'status@broadcast') {
@@ -866,66 +882,51 @@ async function startBot() {
                 // Urutan prioritas: lidMap (dari contacts sync) > lidResolutionMap (konfirmasi manual)
                 let resolvedSender = sender;
                 if (sender.endsWith('@lid')) {
-                    const fromContacts = lidMap.get(sender);
-                    const fromManual = lidResolutionMap.get(sender);
-
-                    // Fitur Reset Nomor (bisa dipanggil kapan saja)
                     const { type: mType, content: mContent } = extractMessage(msg.message);
                     const rawText = (mType === 'conversation' ? mContent : mContent?.text || '').trim();
 
+                    // Fitur Reset Nomor/nama (bisa dipanggil kapan saja)
                     if (rawText.toLowerCase() === 'reset nomor') {
                         lidResolutionMap.delete(sender);
                         saveLidResolutionMap();
                         nameMap.delete(sender);
                         saveNameMap();
-                        await sock.sendMessage(sender, { text: "🔄 Nama kamu telah dihapus. Balas pesan ini dengan namamu." });
+                        askedNameOnce.delete(sender);
+                        await sock.sendMessage(sender, { text: "🔄 Oke, data kamu sudah di-reset." });
                         continue;
                     }
 
-                    if (fromContacts) {
-                        resolvedSender = fromContacts;
-                        console.log(`[lid-resolve] ${sender} → ${fromContacts} (contacts)`);
-                    } else if (fromManual) {
-                        resolvedSender = fromManual;
-                        console.log(`[lid-resolve] ${sender} → ${fromManual} (manual)`);
-                    } else if (msg.key.fromMe && !rawText.startsWith('#')) {
-                        // Balasan manual admin dari WA — JANGAN teruskan ke webhook
+                    // Balasan manual admin (fromMe tanpa #) — JANGAN teruskan ke webhook
+                    if (msg.key.fromMe && !rawText.startsWith('#')) {
                         console.log(`[lid-resolve] Mengabaikan pesan fromMe biasa ke ${sender}`);
                         continue;
-                    } else {
-                        // Cek apakah user sudah punya nama
-                        const existingName = nameMap.get(sender);
-                        if (existingName) {
-                            // Sudah punya nama → lanjut proses pesan normal
-                            console.log(`[lid-resolve] ${sender} belum terresolve ke phone, nama: ${existingName}`);
-                        } else {
-                            // Cek apakah input saat ini adalah nama yang valid
-                            const nameCandidateLid = rawText.trim().replace(/^[,.\-\s]+|[,.\-\s]+$/g, '').trim();
-                            // Kata umum yang BUKAN nama (jawaban/aba-aba/perintah) — cegah tersimpan
-                            // sebagai nama. Kasus nyata: user balas "Iya" → sempat tersimpan jadi nama "Iya".
-                            const NON_NAME = new Set(['iya','ya','yaa','yoi','ok','oke','okey','okay','sip','siap','gas','gaskan','min','mimin','admin','halo','hallo','hai','hi','p','pp','woi','woy','oi','oy','cari','jual','beli','mana','apa','apaan','mau','test','tes','ada','y','wkwk','ngga','gak','engga','enggak','yaudah','yawes','menu','info','saya','batal']);
-                            const isValidName = nameCandidateLid.length >= 2 && nameCandidateLid.length <= 50
-                                && !/^\d+$/.test(nameCandidateLid)
-                                && !nameCandidateLid.startsWith('#')
-                                && !NON_NAME.has(nameCandidateLid.toLowerCase());
-                            if (isValidName) {
-                                nameMap.set(sender, nameCandidateLid);
-                                saveNameMap();
-                                console.log(`[lid-resolve] ${sender} → nama: ${nameCandidateLid}`);
-                                // Kirim sapaan setelah nama disimpan, lanjut proses pesan normal (tidak continue)
-                                const greetings = [
-                                    `Haii *${nameCandidateLid}*! 🤙 Oke siap dicatat nih. Mau ngapain dulu nih kak? Pasang iklan, cari barang, atau ada yang mau ditanyain? 😁`,
-                                    `Oke oke, *${nameCandidateLid}*! 🙌 Ada yang bisa aku bantuin? Bisa pasang iklan, cari barang, atau cek iklan yang udah ada ya~`,
-                                    `Noted! Halo *${nameCandidateLid}* 👋 Gimana, mau jual barang, cari barang, atau ada yang lain? Aku siap bantu kak!`,
-                                ];
-                                const greeting = greetings[Math.floor(Math.random() * greetings.length)];
-                                await sock.sendMessage(sender, { text: greeting });
-                                // Tidak 'continue' — teruskan pesan asli ke webhook juga
-                            } else {
-                                // Tanya nama saja, singkat
-                                await sock.sendMessage(sender, { text: `👋 Halo! Siapa namamu?` });
-                                continue;
-                            }
+                    }
+
+                    // Nomor asli user @lid TIDAK perlu ditanya: Baileys menyediakannya lewat
+                    // remoteJidAlt. Prioritas: remoteJidAlt > lidMap (contacts) > lidResolutionMap.
+                    const altJid = msg.key.remoteJidAlt || '';
+                    const fromAlt = altJid.endsWith('@s.whatsapp.net') ? altJid : null;
+                    const resolvedNum = fromAlt || lidMap.get(sender) || lidResolutionMap.get(sender);
+                    if (resolvedNum) {
+                        resolvedSender = resolvedNum;
+                        if (fromAlt && lidResolutionMap.get(sender) !== fromAlt) {
+                            lidResolutionMap.set(sender, fromAlt);
+                            saveLidResolutionMap();
+                        }
+                        console.log(`[lid-resolve] ${sender} → ${resolvedNum} (${fromAlt ? 'alt' : lidMap.get(sender) ? 'contacts' : 'manual'})`);
+                    }
+
+                    // Nama diambil OTOMATIS dari pushName WhatsApp. Kalau pushName benar-benar
+                    // kosong, tanya SEKALI saja (arahkan ke command NAMA) — tidak loop, tidak nebak.
+                    if (!nameMap.get(sender)) {
+                        const pushName = (msg.pushName || '').trim();
+                        if (pushName) {
+                            nameMap.set(sender, pushName.slice(0, 50));
+                            saveNameMap();
+                        } else if (!askedNameOnce.has(sender)) {
+                            askedNameOnce.add(sender);
+                            await sock.sendMessage(sender, { text: "👋 Halo! Aku belum tau namamu. Ketik *NAMA [namamu]* ya, contoh: *NAMA Budi*." });
+                            // tidak 'continue' — pesan tetap diteruskan & diproses
                         }
                     }
                 }
@@ -992,7 +993,7 @@ async function startBot() {
                             pForm.append('sender', cleanSender);
                             pForm.append('message', cleanCap);
                             pForm.append('context', JSON.stringify(ctx.slice(0, -1)));
-                            const storedNameP = nameMap.get(cleanSender);
+                            const storedNameP = nameMap.get(cleanSender) || (msg.pushName || '').trim();
                             if (storedNameP) pForm.append('profile_name', storedNameP);
                             pForm.append('fromMe', entry.fromMe ? 'true' : 'false');
                             entry.images.forEach((img, i) => {
@@ -1059,7 +1060,7 @@ async function startBot() {
                 form.append('sender', cleanSender);
                 form.append('message', cleanText);
                 form.append('context', JSON.stringify(contextHistory.slice(0, -1))); // kirim history sebelum pesan ini
-                const storedName = nameMap.get(cleanSender);
+                const storedName = nameMap.get(cleanSender) || (msg.pushName || '').trim();
                 if (storedName) form.append('profile_name', storedName);
                 form.append('fromMe', msg.key.fromMe ? 'true' : 'false');
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
@@ -1091,4 +1092,14 @@ async function startBot() {
     });
 }
 
-app.listen(PORT, () => { console.log(`Bot Server listening on port ${PORT}`); startBot(); });
+// Jaring pengaman: satu error async liar jangan menjatuhkan proses tanpa jejak.
+process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e?.message || e));
+process.on('uncaughtException', (e) => console.error('[uncaughtException]', e?.message || e));
+
+app.listen(PORT, () => {
+    console.log(`Bot Server listening on port ${PORT}`);
+    startBot().catch((e) => {
+        console.error('[startBot] gagal init:', e?.message || e);
+        setTimeout(() => startBot().catch(() => {}), 10000); // coba lagi 10 dtk
+    });
+});
