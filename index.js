@@ -62,20 +62,27 @@ async function processQueue() {
     let sent = false;
     if (messageQueue.length > 0 && waSocket) {
         const task = messageQueue.shift();
-        try {
-            await waSocket.presenceSubscribe(task.jid);
-            await waSocket.sendPresenceUpdate('composing', task.jid);
-            if (task.url) {
-                await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
-            } else if (task.poll) {
-                await waSocket.sendMessage(task.jid, { poll: task.poll });
-            } else {
-                await waSocket.sendMessage(task.jid, { text: task.message });
+        // Jangan kirim gelembung kosong (teks kosong tanpa gambar/poll) — pernah
+        // muncul pesan kosong ke pelanggan.
+        const hasContent = task.url || task.poll || (task.message && String(task.message).trim());
+        if (!hasContent) {
+            console.warn(`[Queue] Lewati pesan kosong ke ${task.jid}`);
+        } else {
+            try {
+                await waSocket.presenceSubscribe(task.jid);
+                await waSocket.sendPresenceUpdate('composing', task.jid);
+                if (task.url) {
+                    await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
+                } else if (task.poll) {
+                    await waSocket.sendMessage(task.jid, { poll: task.poll });
+                } else {
+                    await waSocket.sendMessage(task.jid, { text: task.message });
+                }
+                console.log(`[Queue] Pesan terkirim ke ${task.jid}`);
+                sent = true;
+            } catch (err) {
+                console.error(`[Queue] Gagal kirim ke ${task.jid}:`, err.message);
             }
-            console.log(`[Queue] Pesan terkirim ke ${task.jid}`);
-            sent = true;
-        } catch (err) {
-            console.error(`[Queue] Gagal kirim ke ${task.jid}:`, err.message);
         }
     }
     const nextDelay = sent ? 1500 + Math.floor(Math.random() * 2500) : 800;
@@ -894,7 +901,13 @@ async function startBot() {
                         } else {
                             // Cek apakah input saat ini adalah nama yang valid
                             const nameCandidateLid = rawText.trim().replace(/^[,.\-\s]+|[,.\-\s]+$/g, '').trim();
-                            const isValidName = nameCandidateLid.length >= 2 && nameCandidateLid.length <= 50 && !/^\d+$/.test(nameCandidateLid) && !nameCandidateLid.startsWith('#');
+                            // Kata umum yang BUKAN nama (jawaban/aba-aba/perintah) — cegah tersimpan
+                            // sebagai nama. Kasus nyata: user balas "Iya" → sempat tersimpan jadi nama "Iya".
+                            const NON_NAME = new Set(['iya','ya','yaa','yoi','ok','oke','okey','okay','sip','siap','gas','gaskan','min','mimin','admin','halo','hallo','hai','hi','p','pp','woi','woy','oi','oy','cari','jual','beli','mana','apa','apaan','mau','test','tes','ada','y','wkwk','ngga','gak','engga','enggak','yaudah','yawes','menu','info','saya','batal']);
+                            const isValidName = nameCandidateLid.length >= 2 && nameCandidateLid.length <= 50
+                                && !/^\d+$/.test(nameCandidateLid)
+                                && !nameCandidateLid.startsWith('#')
+                                && !NON_NAME.has(nameCandidateLid.toLowerCase());
                             if (isValidName) {
                                 nameMap.set(sender, nameCandidateLid);
                                 saveNameMap();
