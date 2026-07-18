@@ -339,6 +339,28 @@ app.get('/logs', requireAuth, (req, res) => {
     res.json({ logs: systemLogs });
 });
 
+// ── Resolve @lid → nomor (admin) ─────────────────────────────────────────────
+// Untuk migrasi data lama ber-key LID: tanya pemetaan LID↔nomor langsung ke
+// WhatsApp (getPNForLID). Hasil dipakai POST /api/admin/migrate-lid di website.
+app.get('/resolve-lid', requireAuth, async (req, res) => {
+    if (!waSocket) return res.status(503).json({ error: 'Bot belum tersambung' });
+    const digits = String(req.query.lid || '').split('@')[0].replace(/\D/g, '');
+    if (!digits) return res.status(400).json({ error: 'param ?lid= wajib' });
+    const lidJid = digits + '@lid';
+    const cached = lidMap.get(lidJid) || lidResolutionMap.get(lidJid) || null;
+    let phone = cached;
+    if (!phone) {
+        try {
+            const pn = await waSocket.signalRepository?.lidMapping?.getPNForLID?.(lidJid);
+            if (pn && pn.endsWith('@s.whatsapp.net')) phone = pn;
+        } catch (e) {
+            return res.status(500).json({ error: e.message });
+        }
+    }
+    if (phone && !lidResolutionMap.has(lidJid)) { lidResolutionMap.set(lidJid, phone); saveLidResolutionMap(); }
+    res.json({ lid: lidJid, phone: phone || null, source: phone ? (cached ? 'cache' : 'query') : null });
+});
+
 // ── Groups endpoint ───────────────────────────────────────────────────────────
 app.get('/groups', requireAuth, async (req, res) => {
     if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
