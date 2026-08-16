@@ -57,6 +57,12 @@ console.warn = function(...args) { if (isSignalNoise(args)) return; originalWarn
 // dengan isi yang berbeda-beda — sekarang satu definisi untuk semuanya.
 const INVISIBLE_RE = /[﻿​-‍⁠­]/g;
 const stripInvisible = (s) => String(s || '').replace(INVISIBLE_RE, '').trim();
+// Titik pemanggil bot dibuang sebelum pesan diteruskan: website mengenali perintah
+// polos ("JUAL", "CARI sepatu"), bukan ".JUAL".
+const stripBotPrefix = (s) => {
+    const t = String(s || '');
+    return t.startsWith(BOT_PREFIX) ? t.slice(BOT_PREFIX.length).trimStart() : t;
+};
 
 // '08xxx' / '+62 xxx' / '62xxx' → JID WhatsApp. Dulu disalin di 4 endpoint.
 function toJid(target) {
@@ -78,6 +84,44 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Volume/Disk kalau mau file persisten
 const AUTH_DIR = process.env.AUTH_DIR || path.join(DATA_DIR, 'auth_info_baileys');
 const MARKETPLACE_GROUP_JID = process.env.GROUP_JID || '';
+
+// ── Gerbang bot ───────────────────────────────────────────────────────────────
+// Default percakapan pelanggan adalah dengan ADMIN (manusia). Bot baru ikut campur
+// kalau pesan diawali tanda ini. Tanpa gerbang, bot menyahut tiap chat masuk dan
+// admin jadi tak leluasa membalas manual.
+const BOT_PREFIX = process.env.BOT_PREFIX || '.';
+// Titik cuma dipakai untuk MEMBUKA sesi. Alur bot itu bertahap (.JUAL → bot tanya
+// harga/kondisi → pelanggan kirim foto tanpa caption); kalau tiap pesan wajib
+// bertitik, alur itu putus di langkah kedua. Sesi disegarkan tiap pesan yang lolos.
+const BOT_SESSION_MS = Number(process.env.BOT_SESSION_MINUTES || 15) * 60 * 1000;
+// Kata yang menutup sesi bot lebih cepat (pelanggan mau balik ngobrol ke admin).
+// Sengaja pendek: kata seperti "sudah"/"oke" sering jadi JAWABAN wajar di tengah alur
+// .JUAL, jadi kalau dimasukkan ke sini sesi bisa putus di tengah pemasangan iklan.
+const BOT_END_WORDS = new Set(['admin', 'stop', 'selesai']);
+// Sapaan untuk pesan TANPA titik — dikirim SEKALI per kontak, sesudah itu bot diam
+// total di chat itu supaya admin bebas membalas manual.
+const GREETING_TEXT = process.env.GREETING_TEXT || [
+    'Terima kasih telah menghubungi 🙏',
+    '',
+    'Anda akan chat dengan *admin (manusia)*.',
+    '',
+    `Kalau ingin jual beli & cari barang lewat *bot*, awali pesan dengan tanda titik ( *${BOT_PREFIX}* ), contoh: *${BOT_PREFIX}MENU*`,
+    '',
+    `• *${BOT_PREFIX}JUAL* — Pasang iklan`,
+    `• *${BOT_PREFIX}CARI [nama barang]* — Cari barang`,
+    `• *${BOT_PREFIX}PERPANJANG* — Perpanjang iklan`,
+    `• *${BOT_PREFIX}UPGRADE* — Upgrade iklan`,
+    `• *${BOT_PREFIX}SAYA* — Profil & statistik saya`,
+    `• *${BOT_PREFIX}MENU* — Lihat semua perintah lengkap`,
+    '',
+    'Dan jika ingin lebih mudah, bisa melalui website:',
+    '*Lihat Barang* jualbeliusupolmed.web.id',
+    '*Jual Barang* jualbeliusupolmed.web.id/jual',
+    '*Cari Barang* jualbeliusupolmed.web.id/dicari',
+    '*Instagram* instagram.com/usulovepolmed',
+    '',
+    'Terima kasih 🙏',
+].join('\n');
 // Batas waktu socket boleh menggantung di state 'connecting'. Lewat ini dianggap
 // nyangkut (event 'open' maupun 'close' tidak pernah datang) → paksa sambung ulang.
 const CONNECT_TIMEOUT_MS = Number(process.env.CONNECT_TIMEOUT_MS || 90000);
@@ -122,35 +166,69 @@ function rememberBotSent(result) {
     if (botSentIdQueue.length > 2000) botSentIds.delete(botSentIdQueue.shift());
 }
 
-// Antrean pesan keluar. Dijadwal ulang secara rekursif dengan JEDA ACAK 1,5–4 dtk
-// tiap habis mengirim, supaya ritme balasan tidak terlalu seragam seperti robot
-// (jeda konstan justru terbaca otomatis oleh WhatsApp → risiko nomor di-flag).
-// Saat antrean kosong, cek lagi lebih cepat (800 ms) agar balasan tetap responsif.
+// Antrean pesan keluar. Dulu dijadwal ulang dengan POLLING 800 ms: tiap balasan
+// menunggu sampai 0,8 dtk cuma untuk dilihat antrean, padahal antreannya kosong.
+// Sekarang event-driven — kickQueue() dipanggil saat pesan masuk, jadi balasan
+// pertama berangkat tanpa jeda sama sekali.
+//
+// Yang TETAP dipertahankan adalah jeda ANTAR kiriman (bukan jeda sebelum kiriman
+// pertama): itu bagian yang benar-benar menjaga ritme tidak terbaca sebagai bot.
+// Jeda dibedakan dua macam, karena risikonya beda:
+//   - ke kontak yang SAMA  → satu percakapan, wajar beruntun cepat.
+//   - ke kontak BERBEDA    → pola ini yang mirip blast, jadi tetap dilonggarkan.
 const MAX_SEND_ATTEMPTS = 3;
+const GAP_SAME_MIN_MS = Number(process.env.GAP_SAME_MIN_MS || 500);
+const GAP_SAME_RAND_MS = Number(process.env.GAP_SAME_RAND_MS || 500);
+const GAP_OTHER_MIN_MS = Number(process.env.GAP_OTHER_MIN_MS || 1500);
+const GAP_OTHER_RAND_MS = Number(process.env.GAP_OTHER_RAND_MS || 2500);
 // `waSocket` non-null belum berarti tersambung: ada jendela di mana koneksi sudah
 // mati tapi event 'close' belum datang. Cek websocket-nya langsung.
 function socketAlive() { return !!(waSocket && waSocket.ws?.isOpen); }
 
+let queueTimer = null;
+let queueBusy = false;   // processQueue itu async — tanpa ini, kick di tengah
+                         // pengiriman bisa memulai kiriman kedua yang tumpang tindih.
+let nextSendAt = 0;      // kiriman berikutnya tidak boleh mendahului waktu ini
+let lastSentJid = '';
+
+function scheduleQueue(delayMs) {
+    if (queueTimer) clearTimeout(queueTimer);
+    queueTimer = setTimeout(processQueue, Math.max(0, delayMs));
+}
+// Dipanggil tiap ada pesan baru masuk antrean. Kalau jatah jeda sudah lewat
+// (kasus normal: balasan pertama setelah bot menganggur), delay-nya jadi 0.
+function kickQueue() {
+    if (queueBusy) return;   // run yang sedang jalan pasti menjadwalkan lanjutannya
+    scheduleQueue(nextSendAt - Date.now());
+}
+
 async function processQueue() {
-    let sent = false;
-    if (messageQueue.length > 0 && socketAlive()) {
+    queueTimer = null;
+    if (queueBusy) return;
+    if (messageQueue.length === 0) return;                       // menganggur → tunggu kickQueue()
+    if (!socketAlive()) { scheduleQueue(1000); return; }          // socket mati → tahan, jangan buang
+    const wait = nextSendAt - Date.now();
+    if (wait > 0) { scheduleQueue(wait); return; }
+
+    queueBusy = true;
+    let gap = 0;
+    try {
         const task = messageQueue.shift();
         // Anti-burst: buang pesan yang sudah terlalu lama menunggu (mis. numpuk saat
         // bot offline). Kirim borongan pesan basi = pola spam → risiko blokir WA.
         if (task.ts && Date.now() - task.ts > 3 * 60 * 1000) {
             console.warn(`[Queue] Buang pesan basi (>3mnt) ke ${task.jid}`);
-            setTimeout(processQueue, 100);
-            return;
         }
         // Jangan kirim gelembung kosong (teks kosong tanpa gambar/poll) — pernah
         // muncul pesan kosong ke pelanggan.
-        const hasContent = task.url || task.poll || (task.message && String(task.message).trim());
-        if (!hasContent) {
+        else if (!(task.url || task.poll || (task.message && String(task.message).trim()))) {
             console.warn(`[Queue] Lewati pesan kosong ke ${task.jid}`);
         } else {
             try {
-                await waSocket.presenceSubscribe(task.jid);
-                await waSocket.sendPresenceUpdate('composing', task.jid);
+                // Indikator "mengetik" sengaja TIDAK di-await: dua round-trip ini dulu
+                // duduk persis di jalur kritis tiap balasan, padahal hasilnya kosmetik.
+                waSocket.presenceSubscribe(task.jid).catch(() => {});
+                waSocket.sendPresenceUpdate('composing', task.jid).catch(() => {});
                 let sendResult;
                 if (task.url) {
                     sendResult = await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
@@ -160,8 +238,11 @@ async function processQueue() {
                     sendResult = await waSocket.sendMessage(task.jid, { text: task.message });
                 }
                 rememberBotSent(sendResult);
-                console.log(`[Queue] Pesan terkirim ke ${task.jid}`);
-                sent = true;
+                console.log(`[Queue] Pesan terkirim ke ${task.jid} (antre ${Date.now() - (task.ts || Date.now())}ms)`);
+                gap = task.jid === lastSentJid
+                    ? GAP_SAME_MIN_MS + Math.floor(Math.random() * GAP_SAME_RAND_MS)
+                    : GAP_OTHER_MIN_MS + Math.floor(Math.random() * GAP_OTHER_RAND_MS);
+                lastSentJid = task.jid;
             } catch (err) {
                 // Dulu di sini pesan langsung hilang: task sudah ter-shift dari antrean
                 // dan kegagalan cuma di-log. Tiap "Connection Closed" = satu balasan
@@ -170,17 +251,24 @@ async function processQueue() {
                 task.attempts = (task.attempts || 0) + 1;
                 if (task.attempts < MAX_SEND_ATTEMPTS) {
                     messageQueue.unshift(task);
+                    gap = 1000;   // beri napas sebelum coba lagi, jangan loop ketat
                     console.error(`[Queue] Gagal kirim ke ${task.jid} (percobaan ${task.attempts}/${MAX_SEND_ATTEMPTS}), diulang:`, err.message);
                 } else {
                     console.error(`[Queue] Gagal kirim ke ${task.jid} setelah ${MAX_SEND_ATTEMPTS} percobaan, pesan DIBUANG:`, err.message);
                 }
             }
         }
+    } finally {
+        queueBusy = false;
     }
-    const nextDelay = sent ? 1500 + Math.floor(Math.random() * 2500) : 800;
-    setTimeout(processQueue, nextDelay);
+    nextSendAt = Date.now() + gap;
+    scheduleQueue(gap);
 }
-setTimeout(processQueue, 800);
+// Jaring pengaman: kalau ada satu kickQueue() yang terlewat, antrean tidak boleh
+// menggantung selamanya. Cek longgar, hanya kalau memang ada isinya.
+setInterval(() => {
+    if (messageQueue.length && !queueTimer && !queueBusy) kickQueue();
+}, 5000).unref();
 
 const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
 const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
@@ -222,6 +310,9 @@ setInterval(() => {
         if (!alive.length) conversationContext.delete(jid);
         else if (alive.length !== history.length) conversationContext.set(jid, alive);
     }
+    // Sesi bot yang sudah lewat waktunya ikut disapu di sini — botSessionActive() hanya
+    // membersihkan JID yang kebetulan mengirim pesan lagi.
+    for (const [jid, until] of botSessions) if (now > until) botSessions.delete(jid);
 }, 5 * 60 * 1000);
 
 let messageLog = []; // in-memory log (max 100 entries)
@@ -249,6 +340,20 @@ const processedMsgIds = new Set();
 const LID_MAP_FILE = path.join(DATA_DIR, 'lid_resolution_map.json');
 // Map phone/@lid JID → nama (dari registrasi manual @lid).
 const NAME_MAP_FILE = path.join(DATA_DIR, 'name_map.json');
+// Map JID → waktu sapaan "chat ini dilayani admin" dikirim. Disimpan permanen supaya
+// pelanggan lama tidak disapa ulang tiap bot restart.
+const GREETED_FILE = path.join(DATA_DIR, 'greeted_map.json');
+
+// JID → epoch ms kapan sesi bot berakhir. Sengaja HANYA di memori: sesi cuma
+// berumur menit, dan restart yang menutup sesi jauh lebih aman daripada sesi
+// zombie yang bikin bot menyahut chat yang sebenarnya ditujukan ke admin.
+const botSessions = new Map();
+function botSessionActive(jid) {
+    const until = botSessions.get(jid);
+    if (!until) return false;
+    if (Date.now() > until) { botSessions.delete(jid); return false; }
+    return true;
+}
 
 // State ini DISIMPAN DI SUPABASE kalau env tersedia (tabel wa_state), bukan di file
 // lokal. Alasannya: host gratis seperti Render Free filesystem-nya sementara (kehapus
@@ -258,6 +363,7 @@ const NAME_MAP_FILE = path.join(DATA_DIR, 'name_map.json');
 const STATE_TABLE = 'wa_state';
 let nameMap = new Map();            // diisi di startBot() via loadState()
 let lidResolutionMap = new Map();   // diisi di startBot() via loadState()
+let greetedMap = new Map();         // diisi di startBot() via loadState()
 let stateLoaded = false;            // supaya tidak clobber map in-memory saat reconnect
 
 async function loadState(key, fallbackFile) {
@@ -298,6 +404,7 @@ async function saveState(key, mapData, fallbackFile) {
 // Fire-and-forget: simpan tanpa memblokir alur pesan.
 function saveLidResolutionMap() { saveState('lid_resolution_map', lidResolutionMap, LID_MAP_FILE).catch(() => {}); }
 function saveNameMap() { saveState('name_map', nameMap, NAME_MAP_FILE).catch(() => {}); }
+function saveGreetedMap() { saveState('greeted_map', greetedMap, GREETED_FILE).catch(() => {}); }
 
 // Sekali per proses: pindai data lama ber-key LID di DB, "pelajari" nomornya lewat
 // getPNForLID (query ke WhatsApp), simpan ke lid_resolution_map. Setelah ini, endpoint
@@ -423,6 +530,53 @@ app.get('/status', requireAuth, (req, res) => {
 // ── Logs endpoint ─────────────────────────────────────────────────────────────
 app.get('/logs', requireAuth, (req, res) => {
     res.json({ logs: systemLogs });
+});
+
+// ── Halaman laporan analisis ─────────────────────────────────────────────────
+// Ada DUA berkas, dan bedanya disengaja:
+//
+//   laporan-publik.html — /laporan, tanpa token. Temuan bisnis & performa utuh,
+//       tapi cara menembus keamanan bot dibuang. Sebuah halaman publik yang
+//       menuliskan "endpoint X cuma dijaga satu token dan tidak dibatasi laju"
+//       berhenti jadi laporan audit dan berubah jadi petunjuk serangan.
+//
+//   laporan.html — /laporan/penuh, wajib token. Versi lengkap untuk admin.
+//
+// Keduanya di root proyek, BUKAN di public/, supaya express.static tidak diam-diam
+// menyajikan versi lengkapnya ke siapa saja.
+//
+// Token boleh lewat query string KHUSUS di rute penuh: tautan yang diklik dari
+// browser tidak bisa membawa header Authorization. Konsekuensinya token ikut
+// tercatat di riwayat browser, jadi tautan /laporan/penuh jangan disebar.
+function requireAuthPage(req, res, next) {
+    if (tokenMatches(req.headers.authorization) || tokenMatches(req.query.token)) return next();
+    res.status(401).type('html').send(
+        '<!doctype html><meta charset="utf-8">'
+        + '<title>401 — token salah</title>'
+        + '<body style="font:16px/1.6 system-ui;max-width:34rem;margin:18vh auto;padding:0 1.5rem">'
+        + '<h1 style="font-size:1.25rem">Token tidak cocok</h1>'
+        + '<p>Halaman ini butuh token bot. Buka lewat tombol <b>Laporan analisis</b> di dashboard, '
+        + 'atau tambahkan <code>?token=…</code> di alamatnya.</p></body>'
+    );
+}
+// Versi lengkap — admin saja.
+app.get('/laporan/penuh', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'laporan.html'));
+});
+// Versi publik — tanpa token, boleh dibagikan.
+app.get('/laporan', (req, res) => {
+    // Token yang sudah terlanjur ditempel di tautan lama tetap dihormati: kalau
+    // cocok, langsung sajikan yang lengkap daripada memaksa pindah alamat.
+    if (tokenMatches(req.headers.authorization) || tokenMatches(req.query.token)) {
+        return res.sendFile(path.join(__dirname, 'laporan.html'));
+    }
+    res.sendFile(path.join(__dirname, 'laporan-publik.html'));
+});
+// Menebak '/laporan.html' itu refleks yang wajar — dan tanpa ini jawabannya cuma
+// "Cannot GET" dari Express, yang bikin orang mengira halamannya belum ada.
+app.get('/laporan.html', (req, res) => {
+    const q = req.query.token ? '?token=' + encodeURIComponent(req.query.token) : '';
+    res.redirect(301, '/laporan' + q);
 });
 
 // ── Resolve @lid → nomor (admin) ─────────────────────────────────────────────
@@ -634,6 +788,7 @@ app.post('/send', requireAuth, async (req, res) => {
         return res.status(503).json({ error: 'Antrean penuh, bot sedang tidak stabil' });
     }
     messageQueue.push({ jid, message, url, ts: Date.now() });
+    kickQueue();
     res.json({ status: true, detail: 'Pesan ditambahkan ke antrean (Queue)' });
 });
 
@@ -827,6 +982,7 @@ app.post('/send-poll', requireAuth, async (req, res) => {
         return res.status(503).json({ error: 'Antrean penuh, bot sedang tidak stabil' });
     }
     messageQueue.push({ jid, poll: { name: name.trim(), values: options, selectableCount: 1 }, ts: Date.now() });
+    kickQueue();
     res.json({ ok: true, detail: 'Poll ditambahkan ke antrean' });
 });
 
@@ -888,8 +1044,9 @@ async function startBot() {
     if (!stateLoaded) {
         nameMap = await loadState('name_map', NAME_MAP_FILE);
         lidResolutionMap = await loadState('lid_resolution_map', LID_MAP_FILE);
+        greetedMap = await loadState('greeted_map', GREETED_FILE);
         stateLoaded = true;
-        console.log(`[state] Dimuat: ${nameMap.size} nama, ${lidResolutionMap.size} resolusi @lid`);
+        console.log(`[state] Dimuat: ${nameMap.size} nama, ${lidResolutionMap.size} resolusi @lid, ${greetedMap.size} kontak tersapa`);
 
         // Bersihkan nama sampah warisan versi lama (alur tangkap-nama dulu menyimpan
         // kata biasa/kalimat utuh sebagai nama: "min", "Ntar saya kabari...", "Iya").
@@ -1199,6 +1356,17 @@ async function startBot() {
             try {
                 const { type: messageType, content, rawForMedia } = extractMessage(msg.message);
 
+                // Teks mentah dipakai untuk memutuskan gerbang bot SEBELUM media
+                // di-download — pesan buat admin tak perlu ongkos unduh foto/video.
+                const gateText = stripInvisible(
+                    messageType === 'conversation' ? content : (content?.text || content?.caption || '')
+                );
+                const hasPrefix = gateText.startsWith(BOT_PREFIX);
+                // Kunci sesi/sapaan pakai remoteJid apa adanya: nilai ini konsisten untuk
+                // kontak yang sama (termasuk pada pesan fromMe), sementara hasil resolve
+                // @lid→nomor baru tersedia belakangan dan bisa berubah di tengah jalan.
+                const gateKey = sender;
+
                 // ── Pesan fromMe (terkirim dari nomor ini sendiri) ────────────────
                 // 1) Echo balasan BOT sendiri → abaikan total (sudah tercatat via
                 //    sendWa di webhook; kalau diteruskan malah dianggap balasan manual).
@@ -1210,6 +1378,9 @@ async function startBot() {
                     if (botSentIds.has(msg.key.id)) continue;
                     const fmText = ((messageType === 'conversation' ? content : (content?.text || content?.caption || '')) || '').trim();
                     if (!fmText.startsWith('#')) {
+                        // Admin sudah turun tangan → tutup sesi bot di kontak ini juga,
+                        // biar bot tidak nyeletuk lagi di tengah obrolan manual.
+                        botSessions.delete(gateKey);
                         let manualTarget = sender;
                         if (sender.endsWith('@lid')) {
                             const altFm = (msg.key.remoteJidAlt || '').endsWith('@s.whatsapp.net') ? msg.key.remoteJidAlt : null;
@@ -1285,7 +1456,9 @@ async function startBot() {
                         if (pushName) {
                             nameMap.set(sender, pushName.slice(0, 50));
                             saveNameMap();
-                        } else if (!askedNameOnce.has(sender)) {
+                        } else if (!askedNameOnce.has(sender) && (hasPrefix || botSessionActive(gateKey))) {
+                            // Hanya ditanyakan kalau pesannya memang ditujukan ke bot —
+                            // pelanggan yang mau ngobrol ke admin tak perlu diminta nama.
                             askedNameOnce.add(sender);
                             rememberBotSent(await sock.sendMessage(sender, { text: "👋 Halo! Aku belum tau namamu. Ketik *NAMA [namamu]* ya, contoh: *NAMA Budi*." }));
                             // tidak 'continue' — pesan tetap diteruskan & diproses
@@ -1329,6 +1502,36 @@ async function startBot() {
                 });
                 if (messageLog.length > 100) messageLog.pop();
 
+                // ── Gerbang titik ─────────────────────────────────────────────────
+                // Aturannya: chat pelanggan itu milik ADMIN sampai pelanggan sendiri
+                // yang memanggil bot dengan tanda titik. Pesan yang tidak lolos gerbang
+                // TIDAK diteruskan ke webhook — webhook adalah otak balasan otomatis,
+                // meneruskannya sama saja dengan menyuruh bot menyahut.
+                if (!msg.key.fromMe) {
+                    const inSession = botSessionActive(gateKey);
+                    // Sesi bisa ditutup pelanggan kapan saja ("admin", "selesai", ...)
+                    // tanpa menunggu BOT_SESSION_MS habis.
+                    if (inSession && !hasPrefix && BOT_END_WORDS.has(gateText.toLowerCase())) {
+                        botSessions.delete(gateKey);
+                        console.log(`[gerbang] ${cleanSender} menutup sesi bot ("${gateText}") → lanjut ke admin`);
+                        continue;
+                    }
+                    if (!hasPrefix && !inSession) {
+                        if (!greetedMap.has(gateKey)) {
+                            greetedMap.set(gateKey, Date.now());
+                            saveGreetedMap();
+                            rememberBotSent(await sock.sendMessage(sender, { text: GREETING_TEXT }));
+                            console.log(`[gerbang] ${cleanSender} → chat admin, sapaan dikirim (sekali)`);
+                        } else {
+                            console.log(`[gerbang] ${cleanSender} → chat admin, bot diam`);
+                        }
+                        continue;
+                    }
+                    // Lolos gerbang: buka/segarkan sesi supaya pesan lanjutan (jawaban
+                    // tanya-jawab, foto tanpa caption) tidak perlu bertitik lagi.
+                    botSessions.set(gateKey, Date.now() + BOT_SESSION_MS);
+                }
+
                 let text = '', hasMedia = false, buffer = null, mimeType = '', filename = '';
 
                 if (messageType === 'conversation') {
@@ -1356,7 +1559,7 @@ async function startBot() {
 
                         entry.timer = setTimeout(async () => {
                             photoBuffer.delete(cleanSender);
-                            const cleanCap = stripInvisible(entry.caption);
+                            const cleanCap = stripBotPrefix(stripInvisible(entry.caption));
                             const ctx = addToContext(cleanSender, 'user', cleanCap || '[foto]');
                             const pForm = new FormData();
                             pForm.append('sender', cleanSender);
@@ -1421,7 +1624,10 @@ async function startBot() {
                 }
 
                 // Strip BOM dan invisible chars agar FormData tidak gagal encode
-                const cleanText = stripInvisible(text);
+                let cleanText = stripBotPrefix(stripInvisible(text));
+                // Titik telanjang tanpa perintah: jangan kirim pesan kosong ke webhook
+                // (balasannya jadi ngawur) — perlakukan sebagai permintaan menu.
+                if (hasPrefix && !cleanText && !hasMedia) cleanText = 'MENU';
 
                 // Bangun context percakapan (kirim sebagai JSON ke webhook)
                 const contextHistory = addToContext(cleanSender, 'user', cleanText || `[${messageType}]`);
@@ -1436,16 +1642,20 @@ async function startBot() {
                 form.append('fromMe', msg.key.fromMe ? 'true' : 'false');
                 if (hasMedia && buffer) form.append('file', new Blob([buffer], { type: mimeType }), filename);
 
+                // Waktu bulat-bulat website: dari POST sampai badan balasan terbaca.
+                // Tanpa angka ini, "bot lambat" tidak bisa dibedakan dari "website lambat".
+                const hookStart = Date.now();
                 const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
                     body: form,
                     headers: { 'Authorization': API_TOKEN }
                 });
                 const responseText = await response.text();
+                const hookMs = Date.now() - hookStart;
                 if (!response.ok) {
-                    console.error(`Webhook error ${response.status}: ${responseText}`);
+                    console.error(`Webhook error ${response.status} (${hookMs}ms): ${responseText}`);
                 } else {
-                    console.log(`Webhook OK: ${responseText}`);
+                    console.log(`Webhook OK (${hookMs}ms): ${responseText}`);
                     // Simpan balasan bot ke context
                     try {
                         const parsed = JSON.parse(responseText);

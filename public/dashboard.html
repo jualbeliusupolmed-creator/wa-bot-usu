@@ -244,6 +244,7 @@
                 <div id="connection-status" class="status-badge status-offline glass">
                     <div class="status-dot"></div> <span id="status-text">Memuat...</span>
                 </div>
+                <button class="logout-btn glass" onclick="bukaLaporan()"><i class="fa-solid fa-clipboard-list"></i> Laporan analisis</button>
                 <button class="logout-btn glass" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Keluar</button>
             </div>
         </div>
@@ -310,6 +311,12 @@
             token = input;
             localStorage.setItem('bot_api_token', token);
             showDashboard();
+        }
+
+        // Laporan disajikan rute berpenjaga /laporan, bukan file statis. Tautan <a>
+        // tak bisa membawa header Authorization, jadi token ikut lewat query string.
+        function bukaLaporan() {
+            window.open('/laporan/penuh?token=' + encodeURIComponent(token), '_blank', 'noopener');
         }
 
         function logout() {

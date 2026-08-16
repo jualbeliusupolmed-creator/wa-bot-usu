@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Rapor Empat Kanal USU Polmed</title>
+</head>
+<body>
+<div class="wrap" style="padding-top:44px">
+  <p style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);border:1px solid var(--rule-strong);padding:11px 16px;margin:0">
+    Rapor operasional · versi publik · sebagian detail teknis dihilangkan
+  </p>
+</div>
+<style>
+  :root {
+    --ground: #F6F7F4;
+    --surface: #FFFFFF;
+    --sunk: #EDEFEA;
+    --ink: #131C18;
+    --ink-soft: #54625B;
+    --ink-faint: #8A968E;
+    --rule: #DCE1DB;
+    --rule-strong: #BFC8C0;
+    --accent: #0E6A50;
+    --crit: #A61E16;
+    --high: #935410;
+    --med: #3A5C8D;
+    --ok: #1D6B4B;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --serif: "Iowan Old Style", Charter, Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0E1310;
+      --surface: #151B17;
+      --sunk: #1B231E;
+      --ink: #E9EEE9;
+      --ink-soft: #98A69E;
+      --ink-faint: #6B7973;
+      --rule: #262F29;
+      --rule-strong: #3A453E;
+      --accent: #55D2A3;
+      --crit: #F07362;
+      --high: #E0A34C;
+      --med: #82AADF;
+      --ok: #55C08C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0E1310;
+    --surface: #151B17;
+    --sunk: #1B231E;
+    --ink: #E9EEE9;
+    --ink-soft: #98A69E;
+    --ink-faint: #6B7973;
+    --rule: #262F29;
+    --rule-strong: #3A453E;
+    --accent: #55D2A3;
+    --crit: #F07362;
+    --high: #E0A34C;
+    --med: #82AADF;
+    --ok: #55C08C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.65;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+  }
+
+  /* ── kepala ─────────────────────────────────────── */
+  .masthead {
+    padding-top: 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 28px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .eyebrow b { color: var(--accent); font-weight: 600; }
+  h1 {
+    font-family: var(--sans);
+    font-weight: 700;
+    letter-spacing: -0.028em;
+    font-size: clamp(38px, 6.4vw, 62px);
+    line-height: 1.02;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .lede {
+    font-size: 19px;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 64ch;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  /* ── papan status ───────────────────────────────── */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+    border-top: 1px solid var(--rule-strong);
+    border-left: 1px solid var(--rule-strong);
+  }
+  .cell {
+    border-right: 1px solid var(--rule-strong);
+    border-bottom: 1px solid var(--rule-strong);
+    background: var(--surface);
+    padding: 18px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 168px;
+  }
+  .cell-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .cell-state {
+    font-family: var(--sans);
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; }
+  .s-crit { color: var(--crit); } .s-crit .dot { background: var(--crit); }
+  .s-high { color: var(--high); } .s-high .dot { background: var(--high); }
+  .s-med  { color: var(--med);  } .s-med  .dot { background: var(--med);  }
+  .s-ok   { color: var(--ok);   } .s-ok   .dot { background: var(--ok);   }
+  .cell-note {
+    font-size: 14.5px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+    margin: 0;
+  }
+  .cell-metric {
+    margin-top: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+  }
+
+  /* ── bagian ─────────────────────────────────────── */
+  .part { display: flex; flex-direction: column; gap: 22px; }
+  h2 {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--ink);
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.018em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  p { margin: 0; max-width: 68ch; }
+  .part > p { color: var(--ink-soft); }
+  .part > p strong, .find-body strong { color: var(--ink); font-weight: 600; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--sunk);
+    padding: 1.5px 5px;
+    border: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+
+  /* ── daftar temuan ──────────────────────────────── */
+  .finds { display: flex; flex-direction: column; }
+  .find {
+    display: grid;
+    grid-template-columns: 116px 1fr;
+    gap: 4px 24px;
+    padding: 22px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .find:first-child { border-top: 1px solid var(--rule-strong); }
+  .tag {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding-top: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .tag .lvl { font-weight: 700; }
+  .tag .ref { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .t-crit .lvl { color: var(--crit); }
+  .t-high .lvl { color: var(--high); }
+  .t-med  .lvl { color: var(--med);  }
+  .find-body { display: flex; flex-direction: column; gap: 9px; }
+  .find-body p { font-size: 16px; }
+  .evidence {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    background: var(--sunk);
+    border-left: 2px solid var(--rule-strong);
+    padding: 10px 14px;
+    overflow-x: auto;
+    white-space: pre;
+    max-width: 100%;
+  }
+
+  /* ── linimasa ───────────────────────────────────── */
+  figure { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+  .chartbox { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule-strong); padding: 26px 24px 18px; }
+  figcaption { font-size: 14px; color: var(--ink-faint); font-family: var(--sans); max-width: 68ch; }
+
+  /* ── tabel ──────────────────────────────────────── */
+  .tablebox { overflow-x: auto; border: 1px solid var(--rule-strong); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 14.5px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 400;
+    background: var(--sunk);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ── rencana ────────────────────────────────────── */
+  .plan { display: flex; flex-direction: column; }
+  .step {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 4px 20px;
+    padding: 20px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .step:first-child { border-top: 1px solid var(--rule-strong); }
+  .step-n {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+  }
+  .step-body { display: flex; flex-direction: column; gap: 8px; }
+  .step-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+  .step-body p { font-size: 15.5px; color: var(--ink-soft); }
+
+  /* ── catatan kaki ───────────────────────────────── */
+  details {
+    border: 1px solid var(--rule-strong);
+    background: var(--surface);
+    padding: 0;
+  }
+  summary {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 14px 18px;
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+  .details-inner {
+    padding: 0 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    font-size: 15px;
+    color: var(--ink-soft);
+  }
+  .details-inner p { max-width: 72ch; }
+
+  ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+  ul.plain li { font-size: 15.5px; color: var(--ink-soft); }
+  ul.plain li strong { color: var(--ink); font-weight: 600; }
+
+  .closing {
+    border-top: 2px solid var(--ink);
+    padding-top: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-faint);
+    line-height: 1.8;
+  }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .find { grid-template-columns: 1fr; gap: 10px; }
+    .tag { flex-direction: row; gap: 14px; padding-top: 0; }
+    .step { grid-template-columns: 32px 1fr; gap: 4px 14px; }
+    .step-n { font-size: 18px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">
+      <span>Audit operasional</span>
+      <span>16 Agustus 2026</span>
+      <span><b>jualbeliusupolmed.web.id</b></span>
+    </div>
+    <h1>Rapor Empat Kanal</h1>
+    <p class="lede">Pemeriksaan menyeluruh atas bot WhatsApp, website, jaringan grup, dan Instagram. Tiga kanal berjalan; <strong>dua fitur yang paling menentukan pertumbuhan justru mati tanpa pesan error</strong> — tidak ada yang rusak, tapi ada yang tidak pernah dinyalakan.</p>
+  </header>
+
+  <!-- PAPAN STATUS -->
+  <section class="part">
+    <div class="board">
+      <div class="cell">
+        <span class="cell-name">Bot WhatsApp</span>
+        <span class="cell-state s-med"><span class="dot"></span>Jalan, pincang</span>
+        <p class="cell-note">Tersambung dan membalas. Fitur grup dimatikan oleh env yang kosong.</p>
+        <span class="cell-metric">1.662 baris · uptime aktif · antre 12 ms</span>
+      </div>
+      <div class="cell">
+        <span class="cell-name">Website</span>
+        <span class="cell-state s-high"><span class="dot"></span>Lambat &amp; bocor</span>
+        <p class="cell-note">Server di Virginia melayani pembeli Medan. Nomor penjual terbuka di sitemap.</p>
+        <span class="cell-metric">TTFB 1,51 s · 16 iklan aktif</span>
+      </div>
+      <div class="cell">
+        <span class="cell-name">Grup WhatsApp</span>
+        <span class="cell-state s-crit"><span class="dot"></span>Tidak terpakai</span>
+        <p class="cell-note">143 grup diikuti, nol pesan diindeks. Aset terbesar, hasil nol.</p>
+        <span class="cell-metric">143 grup · 0 terindeks</span>
+      </div>
+      <div class="cell">
+        <span class="cell-name">Instagram</span>
+        <span class="cell-state s-crit"><span class="dot"></span>Terputus</span>
+        <p class="cell-note">Tidak ada satu pun tautan ke @usulovepolmed di seluruh website.</p>
+        <span class="cell-metric">0 tautan di 8 halaman</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- TEMUAN -->
+  <section class="part">
+    <h2>Temuan, diurut dari yang paling mahal</h2>
+    <p>Setiap temuan disertai buktinya. Nomor baris merujuk <code>index.js</code> versi hari ini; angka waktu diukur langsung dari VPS di Singapura.</p>
+
+    <div class="finds">
+
+      <article class="find t-crit">
+        <div class="tag"><span class="lvl">Kritis</span><span class="ref">T-1</span></div>
+        <div class="find-body">
+          <h3>143 grup diikuti, nol pesan masuk ke website</h3>
+          <p>Bot ikut di 143 grup, tapi <strong>setiap pesan grup dibuang di baris pertama</strong> penanganannya. Penyebabnya bukan bug: variabel <code>GROUP_JID</code> tidak pernah di-set di server, dan kode memang menutup pintu kalau nilainya kosong. Jaringan grup — aset paling berharga yang Anda punya — tidak menyumbang satu iklan pun ke katalog.</p>
+          <div class="evidence">index.js:1266  if (sender.includes('@g.us')) {
+index.js:1267      if (!MARKETPLACE_GROUP_JID || sender !== MARKETPLACE_GROUP_JID) continue;
+
+env proses  →  GROUP_JID (kosong)
+chats.json  →  143 grup tercatat, semuanya tanpa nama</div>
+        </div>
+      </article>
+
+      <article class="find t-crit">
+        <div class="tag"><span class="lvl">Kritis</span><span class="ref">T-2</span></div>
+        <div class="find-body">
+          <h3>Nomor HP penjual dipublikasikan lewat sitemap</h3>
+          <p>Dari 32 URL di sitemap, <strong>15 di antaranya adalah nomor HP penjual</strong> yang dipakai sebagai alamat halaman. Sitemap itu yang Anda serahkan sendiri ke Google. Efeknya siapa pun bisa memanen seluruh daftar nomor penjual tanpa membuka satu halaman iklan pun — bahan mentah paling disukai penipu yang menyamar sebagai admin.</p>
+          <div class="evidence">sitemap.xml  →  32 URL total
+             15 × /penjual/08xxxxxxxxxx   ← nomor HP sebagai URL
+              0 × /produk/...             ← justru halaman yang mau diiklankan
+
+/penjual/0823xxxxx520  →  HTTP 200, publik, memuat nomor WA penjual</div>
+        </div>
+      </article>
+
+      <article class="find t-crit">
+        <div class="tag"><span class="lvl">Kritis</span><span class="ref">T-3</span></div>
+        <div class="find-body">
+          <h3>Bot senyap sekitar tiga minggu, dan tidak ada yang memberi tahu</h3>
+          <p>Jejak di VPS ini menunjukkan lubang aktivitas dari <strong>23 Juli sampai 16 Agustus</strong>: nol chat pada rentang 1–7 hari terakhir, status WA terakhir 23 Juli, dan log penuh percobaan sambung ulang kode 408 sampai 26 kali beruntun. Health check <code>/health</code> sudah ada dan benar, tapi tidak ada satu pun pemantau yang meneleponnya. Bot mati tidak menimbulkan alarm apa pun.</p>
+          <div class="evidence">chats.json, ember aktivitas:   &lt;1 hari    6
+                               1–7 hari    0   ← senyap total
+                               7–30 hari 120   ← menumpuk di 23 Juli
+                               &gt;30 hari   28
+
+statuses.json  →  posting terakhir 23 Juli 2026
+pm2 log        →  "Reconnect ke-26" (408) berturut-turut</div>
+        </div>
+      </article>
+
+      <article class="find t-high">
+        <div class="tag"><span class="lvl">Tinggi</span><span class="ref">T-4</span></div>
+        <div class="find-body">
+          <h3>Otak bot berpikir di Virginia, penggunanya di Medan</h3>
+          <p>Semua balasan otomatis diputuskan oleh <code>/api/wa/baileys</code> di Vercel. Permintaan masuk lewat edge Singapura, lalu <strong>dilempar ke fungsi di <code>iad1</code> — Virginia, Amerika Serikat</strong> — sebelum menyentuh database. Setiap balasan menyeberangi Pasifik dua kali. Ini penyumbang terbesar rasa lambat yang tersisa setelah antrean bot diperbaiki hari ini.</p>
+          <div class="evidence">x-vercel-id: sin1::iad1::…      sin1 = edge Singapura
+                                iad1 = fungsi di Virginia, AS
+webhook hangat  →  0,33 s
+webhook dingin  →  1,20 s
+VPS bot         →  DigitalOcean, Singapura</div>
+        </div>
+      </article>
+
+      <article class="find t-high">
+        <div class="tag"><span class="lvl">Tinggi</span><span class="ref">T-5</span></div>
+        <div class="find-body">
+          <h3>Beranda menolak semua cache, dan bayarannya 1,2 detik</h3>
+          <p>Beranda dikirim dengan <code>no-store</code> sehingga tidak pernah tersimpan di edge — <strong>1,51 detik</strong> berbanding <strong>0,33 detik</strong> untuk halaman lain di situs yang sama. Halaman katalog yang isinya sama untuk semua pengunjung tidak punya alasan menjadi dinamis penuh.</p>
+          <div class="evidence">GET /          ttfb 1,509 s   cache-control: no-store   x-vercel-cache: MISS
+GET /jual      ttfb 0,343 s
+GET /dicari    ttfb 0,317 s</div>
+        </div>
+      </article>
+
+      <article class="find t-high">
+        <div class="tag"><span class="lvl">Tinggi</span><span class="ref">T-6</span></div>
+        <div class="find-body">
+          <h3>Halaman produk tidak pernah didaftarkan ke Google</h3>
+          <p>Sitemap memuat halaman statis dan halaman penjual, tapi <strong>nol halaman produk</strong> — padahal iklan itulah yang orang cari lewat mesin pencari ("jual iPhone XR Medan"). Kombinasi terbalik dengan T-2: yang mau disembunyikan malah didaftarkan, yang mau dipromosikan malah tidak.</p>
+        </div>
+      </article>
+
+      <article class="find t-high">
+        <div class="tag"><span class="lvl">Tinggi</span><span class="ref">T-7</span></div>
+        <div class="find-body">
+          <h3>Instagram berdiri sendirian, tidak terhubung apa pun</h3>
+          <p>Delapan halaman website saya periksa satu per satu — beranda, jual, dicari, FAQ, cara bergabung, info, blog, daftar harga. <strong>Tidak ada satu pun tautan ke Instagram.</strong> Akun @usulovepolmed juga tidak muncul di hasil pencarian umum. Lalu lintas yang Anda bangun di Instagram tidak punya jalan pulang ke katalog, dan katalog tidak punya jalan ke Instagram.</p>
+          <div class="evidence">grep "instagram.com/" pada 8 halaman  →  0 hasil
+pencarian web "usulovepolmed"        →  tidak ada yang cocok
+instagram.com/usulovepolmed          →  terkunci login, tidak bisa diverifikasi</div>
+        </div>
+      </article>
+
+      <article class="find t-high">
+        <div class="tag"><span class="lvl">Tinggi</span><span class="ref">T-8</span></div>
+        <div class="find-body">
+          <h3>Bot mengajarkan perintah yang tidak diakui website</h3>
+          <p>Sapaan bot menyuruh pelanggan mengetik <code>.JUAL</code>, <code>.CARI</code>, <code>.MENU</code>. Halaman <em>Cara Bergabung</em> sama sekali tidak menyebut perintah itu — di sana alurnya "masuk grup, lalu minta bantuan admin". <strong>Dua kanal mengajarkan dua cara berjualan yang berbeda</strong>, dan yang paling otomatis justru yang tidak diajarkan.</p>
+        </div>
+      </article>
+
+      <article class="find t-med">
+        <div class="tag"><span class="lvl">Sedang</span><span class="ref">T-9</span></div>
+        <div class="find-body">
+          <h3>Sesi WhatsApp membengkak jadi 101 MB berisi 15 byte per file</h3>
+          <p>Folder sesi memuat <strong>25.319 file</strong>, dan 24.304 di antaranya cuma cache pemetaan nomor — tiap file berisi satu nomor telepon, sekitar lima belas byte, tapi memakan satu blok 4 KB di disk. Seluruhnya ditulis dalam satu ledakan sinkronisasi. Belum mengganggu (disk terpakai 13%), tapi akan berulang tiap sinkron penuh.</p>
+          <div class="evidence">auth_info_baileys/   101 MB, 25.319 file
+  lid-mapping-*      24.304  (96%)   ← isi tiap file: "6285372525242"
+  pre-key-*             802
+  session-*              12   ← ini yang benar-benar kredensial</div>
+        </div>
+      </article>
+
+      <article class="find t-med">
+        <div class="tag"><span class="lvl">Sedang</span><span class="ref">T-10</span></div>
+        <div class="find-body">
+          <h3>Supabase tidak diaktifkan, satu fitur pembersih data ikut mati</h3>
+          <p>Kredensial Supabase tidak di-set di VPS, jadi bot memakai file lokal. Untuk penyimpanan sesi itu tidak masalah — VPS punya disk permanen. Yang jadi korban diam-diam: fungsi yang membereskan data lama ber-ID <code>@lid</code> di database website <strong>keluar di baris pertama tanpa Supabase</strong>. 708 pemetaan nomor sudah dikumpulkan bot, tapi menganggur di file lokal dan tidak pernah dipakai membetulkan data penjual lama.</p>
+          <div class="evidence">index.js:413  if (dbLidsResolvedOnce || !supabase) return;
+env proses    →  SUPABASE_URL (kosong), SUPABASE_SERVICE_ROLE_KEY (kosong)
+lid_resolution_map.json  →  708 pemetaan tersimpan, tidak terpakai</div>
+        </div>
+      </article>
+
+      <article class="find t-med">
+        <div class="tag"><span class="lvl">Sedang</span><span class="ref">T-11</span></div>
+        <div class="find-body">
+          <h3>Pengerasan akses bot masih menyisakan satu pekerjaan</h3>
+          <p>Dasarnya sudah benar: perbandingan token tahan serangan waktu, endpoint yang bisa memindahkan sesi WhatsApp terkunci di balik sakelar yang memang tidak diaktifkan, dan dashboard tidak pernah menyimpan token di dalam HTML-nya. <strong>Yang tersisa satu lapis pengerasan di sisi server.</strong> Rinciannya sengaja tidak dimuat di versi publik ini — ada di versi internal, beserta perintah persisnya.</p>
+          <div class="evidence">endpoint bot tanpa token  →  401  (benar)
+sisa RAM VPS              →  87 MB dari 1.967 MB</div>
+        </div>
+      </article>
+
+      <article class="find t-med">
+        <div class="tag"><span class="lvl">Sedang</span><span class="ref">T-12</span></div>
+        <div class="find-body">
+          <h3>Daftar harga tidak menjual aset yang paling Anda punya</h3>
+          <p>Paket yang dijual semuanya soal penempatan di website: Rp2.000 iklan standar, Rp10.000 poster, Rp1.000 sundul, Rp5.000/hari unggulan, Rp49.000/bulan Pro. <strong>Tidak ada satu paket pun yang menjual sebaran ke 143 grup atau ke Instagram</strong> — dua kanal dengan audiens paling nyata. Yang dimonetisasi justru kanal dengan trafik paling kecil.</p>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- LINIMASA -->
+  <section class="part">
+    <h2>Lubang tiga minggu</h2>
+    <figure>
+      <div class="chartbox">
+        <svg viewBox="0 0 880 132" width="100%" height="132" role="img" aria-label="Linimasa aktivitas bot: aktif 15–23 Juli, senyap 23 Juli sampai 16 Agustus, aktif kembali 16 Agustus">
+          <rect x="40" y="40" width="150" height="26" fill="var(--ok)" opacity="0.85"></rect>
+          <rect x="190" y="40" width="590" height="26" fill="var(--sunk)"></rect>
+          <rect x="190" y="40" width="590" height="26" fill="none" stroke="var(--crit)" stroke-width="1.5" stroke-dasharray="5 4"></rect>
+          <rect x="780" y="40" width="60" height="26" fill="var(--ok)" opacity="0.85"></rect>
+
+          <line x1="40" y1="76" x2="840" y2="76" stroke="var(--rule-strong)" stroke-width="1"></line>
+          <line x1="190" y1="30" x2="190" y2="82" stroke="var(--ink-faint)" stroke-width="1"></line>
+          <line x1="780" y1="30" x2="780" y2="82" stroke="var(--ink-faint)" stroke-width="1"></line>
+
+          <text x="40" y="28" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="var(--ink-faint)">15 JUL</text>
+          <text x="190" y="28" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="var(--ink-faint)">23 JUL</text>
+          <text x="780" y="28" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="var(--ink-faint)" text-anchor="end">16 AGU</text>
+
+          <text x="485" y="58" font-family="ui-monospace, Menlo, monospace" font-size="12.5" fill="var(--crit)" text-anchor="middle" font-weight="600">24 HARI SENYAP · 0 CHAT MASUK</text>
+
+          <text x="40" y="98" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="var(--ink-soft)">120 chat</text>
+          <text x="40" y="114" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="var(--ink-faint)">menumpuk di sisi kiri</text>
+          <text x="840" y="98" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="var(--ink-soft)" text-anchor="end">6 chat</text>
+          <text x="840" y="114" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="var(--ink-faint)" text-anchor="end">sejak hidup lagi</text>
+        </svg>
+      </div>
+      <figcaption>Direkonstruksi dari stempel waktu <code>chats.json</code> dan <code>statuses.json</code> di VPS ini. Catatan jujur: <code>render.yaml</code> di repo menunjukkan bot pernah disiapkan untuk Render, jadi ada kemungkinan ia sempat jalan di sana selama rentang ini — tapi tidak ada jejaknya di server ini, dan Render plan gratis memang tidur setelah 15 menit menganggur.</figcaption>
+    </figure>
+  </section>
+
+  <!-- PER KANAL -->
+  <section class="part">
+    <h2>Kondisi tiap kanal</h2>
+
+    <h3>Bot WhatsApp — rapi, dan itu terlihat</h3>
+    <p>Ini bagian paling sehat dari keseluruhan sistem. Kodenya menunjukkan tangan yang sudah kena masalah nyata lalu memperbaikinya dengan benar: sesi hanya dihapus pada kode 401 dan tidak pada 515 atau 428 — persis pilihan yang mencegah nomor kena flag WhatsApp; pesan gagal kirim dikembalikan ke antrean alih-alih hilang diam-diam; log libsignal dibungkam <em>karena</em> ia mencetak kunci privat ke file; watchdog memaksa sambung ulang saat socket menggantung; centang biru sengaja tidak dikirim supaya tidak ketahuan bot. Perbandingan token pun sudah tahan serangan waktu.</p>
+    <p>Perbaikan latensi yang saya pasang hari ini melengkapi itu: antrean tidak lagi menunggu tick 800 ms, indikator "mengetik" keluar dari jalur kritis, dan jeda antar pesan ke orang yang sama turun dari 1,5–4 detik menjadi 0,5–1 detik — sementara jeda antar kontak berbeda sengaja dibiarkan longgar, karena pola itulah yang terbaca sebagai blast oleh WhatsApp.</p>
+
+    <h3>Website — cepat di tempat yang salah</h3>
+    <p>Fondasinya benar: HTTPS dengan HSTS dua tahun, <code>x-content-type-options</code> aktif, robots menutup <code>/admin</code>, <code>/dashboard</code>, dan <code>/api</code>. Yang bermasalah adalah keputusan penempatan dan pendaftaran: fungsi di benua yang salah (T-4), beranda menolak cache (T-5), produk tidak didaftarkan sementara nomor penjual didaftarkan (T-2, T-6).</p>
+
+    <h3>Grup WhatsApp — 143 pintu yang tidak pernah dibuka</h3>
+    <p>Bot duduk di 143 grup dan mendengar semuanya, tapi membuang semuanya. Selain sakelar yang mati (T-1), <strong>tidak satu pun dari 143 grup punya nama tersimpan</strong> di <code>chats.json</code> — jadi bahkan kalau Anda mau memilih grup mana yang diindeks, dashboard tidak bisa menampilkan daftarnya secara terbaca. Endpoint <code>/groups</code> sebenarnya bisa menarik nama dan jumlah anggota langsung dari WhatsApp; hasilnya cuma belum pernah disimpan.</p>
+
+    <h3>Instagram — di luar jangkauan pemeriksaan ini</h3>
+    <p>Saya perlu jujur soal batasnya: <strong>@usulovepolmed tidak bisa saya buka.</strong> Instagram mengunci profil di balik halaman login untuk pengunjung anonim, dan akun itu juga tidak muncul di hasil pencarian umum. Jadi jumlah pengikut, frekuensi posting, dan performa konten <em>tidak</em> saya nilai — dan jangan diperlakukan seolah sudah dinilai.</p>
+    <p>Yang bisa saya pastikan hanyalah sisi yang menghadap keluar, dan hasilnya tegas: nol tautan dari website ke Instagram di delapan halaman, nol paket iklan yang melibatkan Instagram, dan tidak adanya akun itu di pencarian menunjukkan belum ada satu pun halaman publik yang menautkannya. Sebagai kanal pemasaran, Instagram saat ini adalah pulau.</p>
+  </section>
+
+  <!-- RENCANA -->
+  <section class="part">
+    <h2>Urutan pengerjaan yang saya sarankan</h2>
+    <p>Diurut berdasarkan hasil dibagi usaha, bukan berdasarkan tingkat keparahan. Empat langkah pertama semuanya di bawah satu jam dan tidak menyentuh logika bisnis.</p>
+
+    <div class="plan">
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <span class="step-meta"><span>5 menit</span><span>Dampak besar</span><span>VPS</span></span>
+          <h3>Isi <code>GROUP_JID</code>, hidupkan lagi 143 grup</h3>
+          <p>Panggil <code>/groups</code> untuk melihat nama dan jumlah anggota tiap grup, pilih grup marketplace utama, set env-nya, restart. Kode indeksnya sudah lengkap dan tinggal dipakai. Kalau Anda ingin lebih dari satu grup, sakelar itu perlu diubah dari satu nilai menjadi daftar — pekerjaan kecil, dan saya sarankan sekalian.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <span class="step-meta"><span>10 menit</span><span>Privasi</span><span>Repo website</span></span>
+          <h3>Keluarkan nomor HP dari sitemap, masukkan produk</h3>
+          <p>Buang seluruh entri <code>/penjual/…</code> dari sitemap dan tambahkan halaman produk. Langkah berikutnya yang lebih benar, tapi lebih besar: ganti alamat halaman penjual dari nomor HP menjadi ID acak, supaya nomor tidak lagi menjadi identitas publik seseorang.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <span class="step-meta"><span>2 menit</span><span>Kecepatan</span><span>Repo website</span></span>
+          <h3>Pindahkan fungsi Vercel ke Singapura</h3>
+          <p>Tambahkan <code>"regions": ["sin1"]</code> di <code>vercel.json</code>, lalu deploy ulang. Ini memotong satu penyeberangan Pasifik dari setiap balasan bot — perbaikan latensi terbesar yang tersisa, dengan perubahan satu baris.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">4</span>
+        <div class="step-body">
+          <span class="step-meta"><span>10 menit</span><span>Keandalan</span><span>Gratis</span></span>
+          <h3>Pasang pemantau ke <code>/health</code></h3>
+          <p>UptimeRobot atau cron-job.org, interval lima menit, kirim notifikasi ke WhatsApp Anda sendiri. Endpointnya sudah benar — sudah membedakan "proses hidup" dari "WhatsApp benar-benar tersambung". Tanpa ini, kejadian 24 hari senyap bisa terulang persis sama.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">5</span>
+        <div class="step-body">
+          <span class="step-meta"><span>30 menit</span><span>Konversi</span><span>Repo website</span></span>
+          <h3>Satukan cerita bot, grup, dan Instagram</h3>
+          <p>Perintah <code>.JUAL</code> dan <code>.CARI</code> masuk ke halaman <em>Cara Bergabung</em> dan FAQ; tautan Instagram masuk ke footer setiap halaman; tautan website masuk ke bio Instagram. Tiga kanal yang sekarang saling tidak menyebut satu sama lain.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">6</span>
+        <div class="step-body">
+          <span class="step-meta"><span>1 jam</span><span>Kecepatan</span><span>Repo website</span></span>
+          <h3>Biarkan beranda di-cache</h3>
+          <p>Katalog yang sama untuk semua pengunjung tidak perlu dirender ulang tiap permintaan. Cache pendek dengan revalidasi — enam puluh detik sudah cukup — memangkas 1,2 detik dari kunjungan pertama setiap orang.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">7</span>
+        <div class="step-body">
+          <span class="step-meta"><span>20 menit</span><span>Keamanan</span><span>VPS</span></span>
+          <h3>Batasi laju permintaan di nginx</h3>
+          <p>Satu lapis pembatasan di sisi server, cukup untuk menutup percobaan akses membabi buta tanpa mengganggu website yang memang memanggil bot terus-menerus. Perintahnya ada di versi internal laporan ini.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n">8</span>
+        <div class="step-body">
+          <span class="step-meta"><span>Diskusi</span><span>Pendapatan</span><span>Bisnis</span></span>
+          <h3>Jual sebaran, bukan cuma penempatan</h3>
+          <p>Setelah langkah 1 jalan, 143 grup menjadi barang yang bisa dijual: paket "sebar ke grup" dan "tampil di Instagram" akan berharga lebih tinggi daripada Rp2.000 iklan standar, karena di sanalah audiensnya benar-benar berada. Ini keputusan Anda, bukan pekerjaan teknis — tapi ia yang mengubah temuan T-1 dari perbaikan bug menjadi lini pendapatan.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RINGKASAN ANGKA -->
+  <section class="part">
+    <h2>Angka yang terukur</h2>
+    <div class="tablebox">
+      <table>
+        <thead>
+          <tr><th scope="col">Ukuran</th><th scope="col">Nilai</th><th scope="col">Catatan</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Webhook website (hangat)</td><td class="num">0,33 s</td><td>Sisa latensi terbesar setelah antrean dibetulkan</td></tr>
+          <tr><td>Webhook website (dingin)</td><td class="num">1,20 s</td><td>Cold start fungsi di Virginia</td></tr>
+          <tr><td>Beranda TTFB</td><td class="num">1,51 s</td><td>Tanpa cache; halaman lain 0,33 s</td></tr>
+          <tr><td>Tunggu antrean bot</td><td class="num">12 ms</td><td>Sebelumnya sampai 800 ms</td></tr>
+          <tr><td>Grup diikuti</td><td class="num">143</td><td>0 diindeks, 0 punya nama tersimpan</td></tr>
+          <tr><td>Kontak tersimpan</td><td class="num">2.415</td><td>29 punya nama, 708 pemetaan @lid</td></tr>
+          <tr><td>Iklan aktif di website</td><td class="num">16</td><td>Tidak satu pun ada di sitemap</td></tr>
+          <tr><td>Folder sesi WhatsApp</td><td class="num">101 MB</td><td>25.319 file, 96% cache pemetaan nomor</td></tr>
+          <tr><td>RAM VPS tersisa</td><td class="num">87 MB</td><td>Dari 1.967 MB; bot memakai 157 MB</td></tr>
+          <tr><td>Tautan ke Instagram</td><td class="num">0</td><td>Dari 8 halaman website yang diperiksa</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- METODOLOGI -->
+  <section class="part">
+    <h2>Cara ini diperiksa, dan apa yang tidak diperiksa</h2>
+    <details>
+      <summary>Buka metodologi &amp; batasan</summary>
+      <div class="details-inner">
+        <p><strong>Diperiksa langsung:</strong> seluruh <code>index.js</code> (1.662 baris) dan <code>useSupabaseAuthState.js</code> dibaca; environment proses bot dibaca dari <code>/proc</code>; <code>chats.json</code>, <code>contacts.json</code>, <code>statuses.json</code>, dan folder sesi dihitung isinya; konfigurasi nginx, port yang mendengarkan, disk, dan memori diperiksa di server; latensi website dan webhook diukur berulang dari VPS ini.</p>
+        <p><strong>Diperiksa dari luar saja:</strong> website. Kode sumbernya tidak ada di server ini — saya cari di <code>/root</code>, <code>/srv</code>, <code>/var/www</code>, dan <code>/opt</code>, tidak ada. Jadi semua temuan website berasal dari perilaku yang tampak dari luar: header HTTP, sitemap, robots, isi halaman, dan waktu respons. Bug di dalam kodenya bisa saja ada dan tidak terlihat dari sini.</p>
+        <p><strong>Tidak diperiksa sama sekali:</strong> Instagram @usulovepolmed. Profil terkunci di balik login, dan penutupannya total — dicoba sebagai pengunjung biasa, sebagai Googlebot, dan sebagai crawler Facebook; ketiganya dialihkan ke halaman login tanpa satu byte pun isi profil. Uji pembanding memastikan ini bukan soal akunnya: alamat akun yang jelas-jelas tidak ada pun dijawab dengan pengalihan yang sama persis, jadi dari luar Instagram bahkan tidak memberi tahu apakah sebuah akun ada. Jumlah pengikut, jadwal posting, dan performa konten tidak dinilai — dan tidak bisa dinilai tanpa data dari dalam akun.</p>
+        <p><strong>Yang berubah hari ini:</strong> hanya <code>index.js</code> di VPS — antrean pesan keluar ditulis ulang menjadi event-driven, indikator "mengetik" dikeluarkan dari jalur kritis, jeda antar pesan dipisah per-kontak, dan pengukuran waktu webhook ditambahkan ke log. Cadangan sebelum perubahan ada di <code>index.js.bak-20260816d</code>. Perubahan ini belum di-commit ke git.</p>
+      </div>
+    </details>
+  </section>
+
+  <p class="closing">
+    Rapor operasional · disusun 16 Agustus 2026<br>
+    Sumber: kode &amp; state di VPS Singapura, pengukuran langsung jualbeliusupolmed.web.id, sitemap &amp; robots publik<br>
+    Instagram tidak terverifikasi — lihat metodologi
+  </p>
+
+</div>
+
+</body>
+</html>

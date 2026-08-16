@@ -12,6 +12,7 @@ statuses.json
 newsletters.json
 lid_resolution_map.json
 name_map.json
+greeted_map.json
 
 # Cadangan manual era pra-git
 *.bak-*
