@@ -1,0 +1,17 @@
+# Dependensi
+node_modules/
+
+# Sesi & kredensial WhatsApp — JANGAN pernah masuk git
+auth_info_baileys/
+.env
+
+# State runtime (dibangun ulang sendiri saat jalan)
+chats.json
+contacts.json
+statuses.json
+newsletters.json
+lid_resolution_map.json
+name_map.json
+
+# Cadangan manual era pra-git
+*.bak-*

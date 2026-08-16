@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard WA Bot</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --primary: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.15) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Glassmorphism Classes */
+        .glass {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Auth Screen */
+        #auth-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: var(--bg-color);
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+        
+        .auth-card {
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .auth-card h2 {
+            margin-bottom: 24px;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 20px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        button:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        /* Dashboard Layout */
+        #dashboard {
+            display: none;
+            width: 100%;
+            max-width: 1200px;
+            padding: 40px 20px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status-online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-offline { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+        }
+        .status-online .status-dot { background: var(--success); box-shadow: 0 0 10px var(--success); }
+        .status-offline .status-dot { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .terminal {
+            background: #000;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            height: 300px;
+            overflow-y: auto;
+            color: #a78bfa;
+            line-height: 1.5;
+        }
+        
+        .terminal span.info { color: #3b82f6; }
+        .terminal span.error { color: #ef4444; }
+
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 250px;
+        }
+
+        .qr-container img {
+            max-height: 200px;
+            border-radius: 12px;
+            background: white;
+            padding: 8px;
+        }
+
+        /* Logout btn */
+        .logout-btn {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            padding: 8px 16px;
+            width: auto;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .logout-btn:hover { background: rgba(255,255,255,0.1); }
+
+    </style>
+</head>
+<body>
+
+    <!-- Login Screen -->
+    <div id="auth-screen">
+        <div class="auth-card glass">
+            <h2><i class="fa-brands fa-whatsapp"></i> Dashboard Bot</h2>
+            <p style="color: var(--text-muted); margin-bottom: 24px;">Masukkan API Token untuk masuk</p>
+            <input type="password" id="token-input" placeholder="API Token Rahasia">
+            <button onclick="login()">Masuk Dashboard</button>
+        </div>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard">
+        <div class="header">
+            <h1>Bot Panel</h1>
+            <div style="display: flex; gap: 16px; align-items: center;">
+                <div id="connection-status" class="status-badge status-offline glass">
+                    <div class="status-dot"></div> <span id="status-text">Memuat...</span>
+                </div>
+                <button class="logout-btn glass" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Keluar</button>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Info Card -->
+            <div class="card glass">
+                <div class="card-header"><i class="fa-solid fa-circle-info"></i> Informasi Bot</div>
+                <div class="stat-value" id="phone-number">-</div>
+                <p style="color: var(--text-muted); margin-bottom: 16px;">Nomor Terhubung</p>
+                <div style="font-size: 14px;">
+                    Uptime: <strong id="uptime" style="color: white;">0s</strong>
+                </div>
+            </div>
+
+            <!-- Stats Card -->
+            <div class="card glass">
+                <div class="card-header"><i class="fa-solid fa-chart-simple"></i> Statistik</div>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <div>
+                        <div class="stat-value" id="chat-count">0</div>
+                        <p style="color: var(--text-muted); font-size: 14px;">Chats Aktif</p>
+                    </div>
+                    <div>
+                        <div class="stat-value" id="group-count">0</div>
+                        <p style="color: var(--text-muted); font-size: 14px;">Grup Bot</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QR Card -->
+            <div class="card glass">
+                <div class="card-header"><i class="fa-solid fa-qrcode"></i> Scan QR / Pairing Code</div>
+                <div id="qr-container" class="qr-container" style="display: flex; flex-direction: column; gap: 12px; height: auto; min-height: 250px;">
+                    <p style="color: var(--text-muted)">Bot sudah terhubung dengan aman.</p>
+                </div>
+                <div id="pairing-container" style="display: none; margin-top: 16px; border-top: 1px solid var(--card-border); padding-top: 16px;">
+                    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Gagal scan QR WA Bisnis? Gunakan Pairing Code:</p>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="pairing-phone" placeholder="Contoh: 62812..." style="margin-bottom: 0; padding: 8px; font-size: 14px;">
+                        <button onclick="requestPairing()" style="padding: 8px 12px; width: auto; font-size: 14px; white-space: nowrap;">Minta Kode</button>
+                    </div>
+                    <div id="pairing-result" style="margin-top: 12px; font-size: 24px; font-weight: bold; color: var(--success); text-align: center; letter-spacing: 2px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal Logs -->
+        <div class="card glass" style="margin-top: 24px;">
+            <div class="card-header"><i class="fa-solid fa-terminal"></i> Live System Logs</div>
+            <div class="terminal" id="terminal"></div>
+        </div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('bot_api_token');
+        let pollInterval;
+
+        if (token) showDashboard();
+
+        function login() {
+            const input = document.getElementById('token-input').value;
+            if (!input) return alert('Masukkan token!');
+            token = input;
+            localStorage.setItem('bot_api_token', token);
+            showDashboard();
+        }
+
+        function logout() {
+            localStorage.removeItem('bot_api_token');
+            clearInterval(pollInterval);
+            document.getElementById('dashboard').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('dashboard').style.display = 'none';
+                document.getElementById('auth-screen').style.display = 'flex';
+                document.getElementById('token-input').value = '';
+            }, 500);
+        }
+
+        function showDashboard() {
+            document.getElementById('auth-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                setTimeout(() => document.getElementById('dashboard').style.opacity = '1', 50);
+                startPolling();
+            }, 500);
+        }
+
+        async function requestPairing() {
+            const phone = document.getElementById('pairing-phone').value;
+            if (!phone) return alert('Masukkan nomor WA Anda!');
+            document.getElementById('pairing-result').innerText = 'Loading...';
+            try {
+                const res = await fetch('/pairing-code', {
+                    method: 'POST',
+                    headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    document.getElementById('pairing-result').innerText = data.code;
+                } else {
+                    document.getElementById('pairing-result').innerText = '';
+                    alert('Error: ' + data.error);
+                }
+            } catch (e) { alert('Gagal request pairing code'); }
+        }
+
+        async function apiFetch(endpoint) {
+            try {
+                const res = await fetch(endpoint, {
+                    headers: { 'Authorization': token }
+                });
+                if (res.status === 401) {
+                    logout();
+                    alert('Token tidak valid atau kedaluwarsa!');
+                    return null;
+                }
+                return await res.json();
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds) return '0s';
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `${h}h ${m}m ${s}s`;
+        }
+
+        async function updateDashboard() {
+            // Fetch Status
+            const status = await apiFetch('/status');
+            if (status) {
+                const badge = document.getElementById('connection-status');
+                const text = document.getElementById('status-text');
+                if (status.connected) {
+                    badge.className = 'status-badge status-online glass';
+                    text.innerText = 'Online';
+                } else {
+                    badge.className = 'status-badge status-offline glass';
+                    text.innerText = 'Terputus';
+                }
+
+                document.getElementById('phone-number').innerText = status.phone ? '+' + status.phone.split(':')[0] : 'Tidak ada';
+                document.getElementById('uptime').innerText = formatUptime(status.uptime);
+                
+                // Fetch QR if offline
+                if (status.hasQR) {
+                    document.getElementById('pairing-container').style.display = 'block';
+                    const qrData = await apiFetch('/qr');
+                    if (qrData && qrData.qr) {
+                        document.getElementById('qr-container').innerHTML = `<img src="${qrData.qr}" alt="Scan QR" style="max-height: 200px;">`;
+                    }
+                } else if (status.connected) {
+                    document.getElementById('pairing-container').style.display = 'none';
+                    document.getElementById('qr-container').innerHTML = `<p style="color: var(--success); font-weight: 600;"><i class="fa-solid fa-check-circle"></i> Connected</p>`;
+                } else {
+                    document.getElementById('pairing-container').style.display = 'none';
+                    document.getElementById('qr-container').innerHTML = `<p style="color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Sedang menghubungkan ke WhatsApp...</p>`;
+                }
+            }
+
+            // Fetch Logs
+            const logs = await apiFetch('/logs');
+            if (logs && logs.logs) {
+                const term = document.getElementById('terminal');
+                const isScrolledToBottom = term.scrollHeight - term.clientHeight <= term.scrollTop + 10;
+                
+                term.innerHTML = logs.logs.map(log => {
+                    const cleanLog = log.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    if (cleanLog.includes('[INFO]')) return `<span class="info">${cleanLog}</span><br>`;
+                    if (cleanLog.includes('[ERROR]')) return `<span class="error">${cleanLog}</span><br>`;
+                    return `${cleanLog}<br>`;
+                }).join('');
+
+                if (isScrolledToBottom) term.scrollTop = term.scrollHeight;
+            }
+
+            // Fetch Chats & Groups stats (every 3rd poll to save requests)
+            if (!window.pollCount || window.pollCount % 3 === 0) {
+                const chats = await apiFetch('/chats');
+                if (chats && chats.chats) document.getElementById('chat-count').innerText = chats.chats.length;
+                
+                const groups = await apiFetch('/groups');
+                if (groups && groups.groups) document.getElementById('group-count').innerText = groups.groups.length;
+            }
+            window.pollCount = (window.pollCount || 0) + 1;
+        }
+
+        function startPolling() {
+            updateDashboard();
+            pollInterval = setInterval(updateDashboard, 2000);
+        }
+    </script>
+</body>
+</html>
