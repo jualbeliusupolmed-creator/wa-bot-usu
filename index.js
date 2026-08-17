@@ -524,6 +524,9 @@ app.get('/status', requireAuth, (req, res) => {
         uptime: Math.floor(process.uptime()),
         webhookUrl: WEBHOOK_URL,
         queueLength: messageQueue.length,
+        // Berapa kali sapaan lama website dicegat sejak proses hidup. Angka yang
+        // mandek di 0 padahal sapaan lama masih muncul di HP = penandanya meleset.
+        legacyGreetingSwaps,
     });
 });
 
@@ -776,12 +779,35 @@ app.post('/pairing-code', requireAuth, requireRelink, async (req, res) => {
     }
 });
 
+// ── Sapaan lama dari website → diganti sapaan resmi bot ──────────────────────
+// Website punya jawaban cadangan sendiri ("Halo! 👋 Ketik salah satu perintah…")
+// yang dikirimnya langsung lewat /send saat perintah pelanggan tidak dikenali.
+// Teks itu memakai format TANPA titik, jadi mengajarkan cara pakai yang sudah
+// tidak berlaku dan bertabrakan dengan sapaan bot. Selama repo website belum bisa
+// disentuh, penggantinya dikerjakan di sini — di pintu masuknya.
+//
+// SADARI KELEMAHANNYA: ini pencocokan teks. Kalau suatu hari website mengubah
+// kalimat sapaannya, penanda di bawah tidak lagi cocok dan sapaan lama akan lolos
+// lagi tanpa error. Itu sebabnya setiap penggantian DICATAT ke log — kalau baris
+// '[sapaan]' berhenti muncul padahal sapaan lama masih terlihat di HP, penandanya
+// yang perlu disesuaikan (atau lebih baik: perbaiki di repo website).
+const OLD_GREETING_MARK = process.env.OLD_GREETING_MARK || 'Ketik salah satu perintah berikut';
+let legacyGreetingSwaps = 0;
+function swapLegacyGreeting(text, jid) {
+    if (!text || !String(text).includes(OLD_GREETING_MARK)) return text;
+    legacyGreetingSwaps++;
+    console.log(`[sapaan] Sapaan lama website dicegat untuk ${jid} → diganti sapaan bot `
+        + `(total ${legacyGreetingSwaps}x sejak start).`);
+    return GREETING_TEXT;
+}
+
 // ── Send message endpoint ─────────────────────────────────────────────────────
 app.post('/send', requireAuth, async (req, res) => {
-    const { target, message, url } = req.body;
+    const { target, url } = req.body;
     if (!target) return res.status(400).json({ error: 'Target required' });
 
     const jid = toJid(target);
+    const message = swapLegacyGreeting(req.body.message, jid);
 
     // Cap antrean: kalau menumpuk (bot lama offline), tolak daripada burst nanti.
     if (messageQueue.length > 200) {
