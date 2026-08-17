@@ -98,9 +98,35 @@ const BOT_SESSION_MS = Number(process.env.BOT_SESSION_MINUTES || 15) * 60 * 1000
 // Sengaja pendek: kata seperti "sudah"/"oke" sering jadi JAWABAN wajar di tengah alur
 // .JUAL, jadi kalau dimasukkan ke sini sesi bisa putus di tengah pemasangan iklan.
 const BOT_END_WORDS = new Set(['admin', 'stop', 'selesai']);
+// Panggilan ke admin ("min"). Bedanya dengan BOT_END_WORDS: kata di sini BUKAN cuma
+// menutup sesi, tapi selalu dibalas sapaan — orang yang manggil "min" jelas sedang
+// mencari manusia, jadi dia harus langsung tahu chat ini dipegang admin dan bot
+// punya jalur titik sendiri. Sengaja dipisah supaya "admin"/"stop" di tengah alur
+// .JUAL tetap menutup sesi tanpa memuntahkan sapaan panjang.
+const ADMIN_CALL_WORDS = new Set(
+    (process.env.ADMIN_CALL_WORDS || 'min,mimin')
+        .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+);
+// Jeda minimum antar sapaan untuk kontak yang sama. Tanpa ini, "min min min" tiga
+// kali dibalas tiga sapaan panjang — mirip spam dan bikin admin susah baca chat.
+const ADMIN_CALL_COOLDOWN_MS = Number(process.env.ADMIN_CALL_COOLDOWN_SECONDS || 60) * 1000;
+// Cocokkan hanya kalau SELURUH pesan berupa panggilan itu ("Min", "min?", "MIN!!").
+// Kalimat seperti "admin nya kemana" sengaja tidak kena: itu pesan untuk dibaca
+// admin, bukan permintaan menu.
+const isAdminCall = (s) => ADMIN_CALL_WORDS.has(
+    String(s || '').toLowerCase().replace(/[^a-z]/g, '')
+);
+// Kata perintah yang sering diketik TANPA titik. Tidak mengubah perilaku gerbang —
+// murni untuk dihitung, supaya keputusan "buka kata polos atau tidak" punya angka.
+const PLAIN_COMMAND_WORDS = new Set(['jual', 'cari', 'menu', 'perpanjang', 'upgrade', 'saya', 'beli']);
+function plainCommandWord(text) {
+    const first = String(text || '').trim().toLowerCase().split(/\s+/)[0] || '';
+    const word = first.replace(/[^a-z]/g, '');
+    return PLAIN_COMMAND_WORDS.has(word) ? word : '';
+}
 // Sapaan untuk pesan TANPA titik — dikirim SEKALI per kontak, sesudah itu bot diam
 // total di chat itu supaya admin bebas membalas manual.
-const GREETING_TEXT = process.env.GREETING_TEXT || [
+const DEFAULT_GREETING = process.env.GREETING_TEXT || [
     'Terima kasih telah menghubungi 🙏',
     '',
     'Anda akan chat dengan *admin (manusia)*.',
@@ -122,6 +148,12 @@ const GREETING_TEXT = process.env.GREETING_TEXT || [
     '',
     'Terima kasih 🙏',
 ].join('\n');
+// Teks sapaan yang BERLAKU. Dipisah dari DEFAULT_GREETING supaya bisa diubah dari
+// dashboard tanpa menyunting berkas ini dan tanpa restart bot — mengganti kalimat
+// sapaan itu pekerjaan admin sehari-hari, bukan pekerjaan deploy. Nilai kustom
+// disimpan di settings.json (lihat loadSettings) dan menang atas default di atas.
+let greetingText = DEFAULT_GREETING;
+const GREETING_MAX = 4000;   // batas WhatsApp untuk satu gelembung teks, dengan sisa
 // Batas waktu socket boleh menggantung di state 'connecting'. Lewat ini dianggap
 // nyangkut (event 'open' maupun 'close' tidak pernah datang) → paksa sambung ulang.
 const CONNECT_TIMEOUT_MS = Number(process.env.CONNECT_TIMEOUT_MS || 90000);
@@ -141,6 +173,11 @@ let clearAuthState = async () => { try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(
 
 
 const app = express();
+// Semua trafik masuk lewat nginx di loopback, jadi req.ip apa adanya selalu
+// 127.0.0.1 dan rem percobaan token di bawah tidak bisa membedakan penyerang dari
+// pengguna sah. Percayai HANYA proxy loopback — header X-Forwarded-For dari luar
+// tetap tidak dipercaya.
+app.set('trust proxy', 'loopback');
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -150,6 +187,17 @@ let connectedPhone = '';
 let connectedAt = null;
 let reconnectAttempts = 0;
 const messageQueue = [];
+
+// ── Jejak putus koneksi ───────────────────────────────────────────────────────
+// Selama ini bot mati cuma ketahuan kalau kebetulan buka `pm2 logs`. Tiga variabel
+// ini menjadikannya terlihat di dashboard, dan yang panjang dilaporkan ke WhatsApp
+// pemilik. Catatan jujur: laporannya baru bisa terkirim SETELAH bot tersambung lagi
+// — mustahil mengirim pesan WhatsApp justru saat WhatsApp-nya yang putus.
+let offlineSince = null;
+let lastOutage = null;
+let outageCount = 0;
+const OFFLINE_ALERT_MS = Number(process.env.OFFLINE_ALERT_MINUTES || 5) * 60 * 1000;
+const OWNER_NUMBER = process.env.OWNER_JID || '';
 
 // ID pesan yang dikirim BOT sendiri (via sock.sendMessage). Dipakai untuk membedakan
 // echo kiriman bot vs ketikan MANUAL owner dari HP/WA Web di event messages.upsert —
@@ -184,6 +232,15 @@ const GAP_OTHER_RAND_MS = Number(process.env.GAP_OTHER_RAND_MS || 2500);
 // `waSocket` non-null belum berarti tersambung: ada jendela di mana koneksi sudah
 // mati tapi event 'close' belum datang. Cek websocket-nya langsung.
 function socketAlive() { return !!(waSocket && waSocket.ws?.isOpen); }
+
+// Laporan ke pemilik lewat WhatsApp. Tanpa OWNER_JID, dikirim ke nomor bot sendiri
+// (chat "pesan ke diri sendiri") — tetap sampai dan tidak mengganggu pelanggan.
+function notifyOwner(text) {
+    const target = OWNER_NUMBER ? toJid(OWNER_NUMBER) : (connectedPhone ? `${connectedPhone}@s.whatsapp.net` : '');
+    if (!target) return;
+    messageQueue.push({ jid: target, message: text, ts: Date.now() });
+    kickQueue();
+}
 
 let queueTimer = null;
 let queueBusy = false;   // processQueue itu async — tanpa ini, kick di tengah
@@ -238,6 +295,8 @@ async function processQueue() {
                     sendResult = await waSocket.sendMessage(task.jid, { text: task.message });
                 }
                 rememberBotSent(sendResult);
+                recordMessage(task.jid, 'out', task.poll ? `[poll] ${task.poll.name || ''}` : (task.message || '[media]'), task.url ? 'image' : 'text');
+                bump('keluar');
                 console.log(`[Queue] Pesan terkirim ke ${task.jid} (antre ${Date.now() - (task.ts || Date.now())}ms)`);
                 gap = task.jid === lastSentJid
                     ? GAP_SAME_MIN_MS + Math.floor(Math.random() * GAP_SAME_RAND_MS)
@@ -254,6 +313,7 @@ async function processQueue() {
                     gap = 1000;   // beri napas sebelum coba lagi, jangan loop ketat
                     console.error(`[Queue] Gagal kirim ke ${task.jid} (percobaan ${task.attempts}/${MAX_SEND_ATTEMPTS}), diulang:`, err.message);
                 } else {
+                    bump('kirim_gagal');
                     console.error(`[Queue] Gagal kirim ke ${task.jid} setelah ${MAX_SEND_ATTEMPTS} percobaan, pesan DIBUANG:`, err.message);
                 }
             }
@@ -297,7 +357,102 @@ setInterval(() => {
         saveMapToFile(chatMap, CHATS_FILE);
         isStateDirty = false;
     }
+    flushMsgArchive();
+    flushStats();
 }, 10000);
+
+// ── Pengaturan yang bisa diubah dari dashboard ────────────────────────────────
+// Hanya untuk hal yang wajar diubah admin saat bot jalan (sapaan). Kredensial dan
+// perilaku berisiko TIDAK di sini: itu tetap lewat env supaya tidak bisa diubah
+// siapa pun yang kebetulan pegang token dashboard.
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+let settings = {};
+function loadSettings() {
+    if (!fs.existsSync(SETTINGS_FILE)) return;
+    try {
+        settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')) || {};
+        if (typeof settings.greeting === 'string' && settings.greeting.trim()) {
+            greetingText = settings.greeting;
+            console.log(`[settings] Sapaan kustom dimuat (${greetingText.length} karakter).`);
+        }
+    } catch (e) { console.error('[settings] gagal baca:', e.message); }
+}
+function saveSettings() {
+    try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2)); }
+    catch (e) { console.error('[settings] gagal simpan:', e.message); }
+}
+loadSettings();
+
+// ── Arsip pesan (persisten) ───────────────────────────────────────────────────
+// messageLog lama cuma 100 entri di memori, tanpa arah pesan, dan lenyap tiap
+// restart — cukup untuk mengintip, tidak cukup untuk membalas pelanggan dari
+// dashboard. Arsip ini menyimpan masuk DAN keluar ke berkas, jadi riwayat satu
+// kontak masih utuh setelah bot di-restart.
+const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+const MSG_ARCHIVE_CAP = Number(process.env.MSG_ARCHIVE_CAP || 5000);
+const MSG_TEXT_CAP = 1000;   // isi penuh, bukan preview 60/100 karakter seperti dulu
+let msgArchive = [];
+let msgArchiveDirty = false;
+(function loadMsgArchive() {
+    if (!fs.existsSync(MESSAGES_FILE)) return;
+    try {
+        const raw = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf-8'));
+        if (Array.isArray(raw)) msgArchive = raw.slice(-MSG_ARCHIVE_CAP);
+    } catch (e) { console.error('[arsip] gagal baca:', e.message); }
+})();
+// dir: 'in' = dari pelanggan, 'out' = dari bot/admin. Dipisah eksplisit karena
+// /messages yang lama menghardcode fromMe:false — semua pesan tampak masuk.
+function recordMessage(jid, dir, text, type = 'text') {
+    if (!jid) return;
+    msgArchive.push({
+        jid,
+        dir,
+        type,
+        text: String(text || '').slice(0, MSG_TEXT_CAP),
+        time: new Date().toISOString(),
+    });
+    if (msgArchive.length > MSG_ARCHIVE_CAP) msgArchive.splice(0, msgArchive.length - MSG_ARCHIVE_CAP);
+    msgArchiveDirty = true;
+}
+function flushMsgArchive() {
+    if (!msgArchiveDirty) return;
+    try { fs.writeFileSync(MESSAGES_FILE, JSON.stringify(msgArchive)); msgArchiveDirty = false; }
+    catch (e) { console.error('[arsip] gagal simpan:', e.message); }
+}
+
+// ── Statistik gerbang (persisten) ─────────────────────────────────────────────
+// Semua keputusan gerbang selama ini cuma lewat di log terminal lalu hilang. Yang
+// paling ingin dijawab angka ini: berapa banyak pesan polos yang DIDIAMKAN bot, dan
+// berapa di antaranya sebenarnya kata perintah ("jual" tanpa titik). Selama itu tak
+// terukur, membuka kata polos cuma tebak-tebakan.
+const STATS_FILE = path.join(DATA_DIR, 'stats.json');
+const STATS_DAYS = 30;
+let stats = { total: {}, daily: {} };
+let statsDirty = false;
+(function loadStats() {
+    if (!fs.existsSync(STATS_FILE)) return;
+    try {
+        const raw = JSON.parse(fs.readFileSync(STATS_FILE, 'utf-8'));
+        if (raw && typeof raw === 'object') stats = { total: raw.total || {}, daily: raw.daily || {} };
+    } catch (e) { console.error('[stats] gagal baca:', e.message); }
+})();
+// Kunci harian pakai jam Jakarta, bukan UTC: laporan "hari ini" yang berganti jam
+// 07:00 pagi waktu setempat akan membingungkan saat dibaca admin.
+function statsDay(ts = Date.now()) { return new Date(ts + 7 * 3600 * 1000).toISOString().slice(0, 10); }
+function bump(key, n = 1) {
+    const day = statsDay();
+    stats.total[key] = (stats.total[key] || 0) + n;
+    if (!stats.daily[day]) stats.daily[day] = {};
+    stats.daily[day][key] = (stats.daily[day][key] || 0) + n;
+    const days = Object.keys(stats.daily).sort();
+    while (days.length > STATS_DAYS) delete stats.daily[days.shift()];
+    statsDirty = true;
+}
+function flushStats() {
+    if (!statsDirty) return;
+    try { fs.writeFileSync(STATS_FILE, JSON.stringify(stats)); statsDirty = false; }
+    catch (e) { console.error('[stats] gagal simpan:', e.message); }
+}
 
 // Sapu context percakapan yang sudah kedaluwarsa. addToContext hanya memangkas JID
 // yang sedang mengirim pesan, jadi kontak yang berhenti chat menetap di memori
@@ -348,6 +503,9 @@ const GREETED_FILE = path.join(DATA_DIR, 'greeted_map.json');
 // berumur menit, dan restart yang menutup sesi jauh lebih aman daripada sesi
 // zombie yang bikin bot menyahut chat yang sebenarnya ditujukan ke admin.
 const botSessions = new Map();
+// JID → epoch ms sapaan terakhir akibat panggilan "min". Cukup di memori: cooldown
+// ini cuma soal menahan balasan beruntun dalam hitungan detik.
+const adminCallMap = new Map();
 function botSessionActive(jid) {
     const until = botSessions.get(jid);
     if (!until) return false;
@@ -467,8 +625,43 @@ function tokenMatches(given) {
     if (a.length !== b.length) return false;
     return crypto.timingSafeEqual(a, b);
 }
+// ── Rem percobaan token ──────────────────────────────────────────────────────
+// Satu token statis tanpa pembatasan laju artinya token boleh ditebak secepat
+// jaringan mengizinkan. Ini tidak mengubah kekuatan tokennya, tapi mengubah
+// tebakan dari "jutaan per jam" jadi segelintir — cukup untuk membuat penebakan
+// tidak praktis. Per-IP dan hanya di memori; restart membersihkannya, dan itu
+// tidak apa-apa karena serangan yang relevan berlangsung dalam hitungan menit.
+const AUTH_FAIL_MAX = Number(process.env.AUTH_FAIL_MAX || 10);
+const AUTH_FAIL_WINDOW_MS = Number(process.env.AUTH_FAIL_WINDOW_MINUTES || 5) * 60 * 1000;
+const authFails = new Map();   // ip → { count, first }
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, rec] of authFails) if (now - rec.first > AUTH_FAIL_WINDOW_MS) authFails.delete(ip);
+}, 60000).unref();
+
+function authBlocked(ip) {
+    const rec = authFails.get(ip);
+    if (!rec) return false;
+    if (Date.now() - rec.first > AUTH_FAIL_WINDOW_MS) { authFails.delete(ip); return false; }
+    return rec.count >= AUTH_FAIL_MAX;
+}
+function noteAuthFail(ip) {
+    const rec = authFails.get(ip);
+    if (!rec || Date.now() - rec.first > AUTH_FAIL_WINDOW_MS) {
+        authFails.set(ip, { count: 1, first: Date.now() });
+    } else {
+        rec.count++;
+        if (rec.count === AUTH_FAIL_MAX) console.warn(`[auth] ${ip} diblokir sementara setelah ${rec.count} token salah.`);
+    }
+}
+
 function requireAuth(req, res, next) {
-    if (!tokenMatches(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' });
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    if (authBlocked(ip)) return res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.' });
+    if (!tokenMatches(req.headers.authorization)) {
+        noteAuthFail(ip);
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     next();
 }
 
@@ -524,6 +717,16 @@ app.get('/status', requireAuth, (req, res) => {
         uptime: Math.floor(process.uptime()),
         webhookUrl: WEBHOOK_URL,
         queueLength: messageQueue.length,
+        // Kesehatan koneksi — supaya bot mati tidak perlu ditemukan lewat `pm2 logs`.
+        offlineSince: offlineSince ? new Date(offlineSince).toISOString() : null,
+        lastOutage,
+        outageCount,
+        reconnectAttempts,
+        // Ringkasan hari ini, biar dashboard tidak perlu dua panggilan untuk kartu utama.
+        today: stats.daily[statsDay()] || {},
+        archiveCount: msgArchive.length,
+        chatCount: chatMap.size,
+        greetingCustom: greetingText !== DEFAULT_GREETING,
         // Berapa kali sapaan lama website dicegat sejak proses hidup. Angka yang
         // mandek di 0 padahal sapaan lama masih muncul di HP = penandanya meleset.
         legacyGreetingSwaps,
@@ -552,7 +755,10 @@ app.get('/logs', requireAuth, (req, res) => {
 // browser tidak bisa membawa header Authorization. Konsekuensinya token ikut
 // tercatat di riwayat browser, jadi tautan /laporan/penuh jangan disebar.
 function requireAuthPage(req, res, next) {
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    if (authBlocked(ip)) return res.status(429).type('html').send('<!doctype html><meta charset="utf-8"><title>429</title><body style="font:16px/1.6 system-ui;max-width:34rem;margin:18vh auto"><h1 style="font-size:1.25rem">Terlalu banyak percobaan</h1><p>Coba lagi beberapa menit lagi.</p></body>');
     if (tokenMatches(req.headers.authorization) || tokenMatches(req.query.token)) return next();
+    noteAuthFail(ip);
     res.status(401).type('html').send(
         '<!doctype html><meta charset="utf-8">'
         + '<title>401 — token salah</title>'
@@ -605,8 +811,23 @@ app.get('/resolve-lid', requireAuth, async (req, res) => {
 });
 
 // ── Groups endpoint ───────────────────────────────────────────────────────────
+// Hasil di-cache. groupFetchAllParticipating() itu panggilan ke server WhatsApp,
+// dan dashboard lama memanggilnya tiap 6 detik — itulah yang membuat WhatsApp
+// menjawab 'rate-overlimit' dan daftar grup malah kosong saat dibutuhkan. Daftar
+// grup nyaris tidak pernah berubah, jadi cache beberapa menit sudah cukup.
+const GROUPS_TTL_MS = Number(process.env.GROUPS_TTL_MINUTES || 5) * 60 * 1000;
+let groupsCache = { at: 0, data: null };
+
 app.get('/groups', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    const fresh = req.query.fresh === '1';
+    if (!fresh && groupsCache.data && Date.now() - groupsCache.at < GROUPS_TTL_MS) {
+        return res.json({ groups: groupsCache.data, cached: true, age: Date.now() - groupsCache.at });
+    }
+    if (!waSocket) {
+        // Bot lagi putus? Sajikan cache lama daripada gagal total.
+        if (groupsCache.data) return res.json({ groups: groupsCache.data, cached: true, stale: true, age: Date.now() - groupsCache.at });
+        return res.status(503).json({ error: 'Bot not connected' });
+    }
     try {
         const chats = await waSocket.groupFetchAllParticipating();
         const groups = Object.entries(chats).map(([jid, meta]) => ({
@@ -617,8 +838,13 @@ app.get('/groups', requireAuth, async (req, res) => {
                 p.id === waSocket.user?.id && (p.admin === 'admin' || p.admin === 'superadmin')
             ) || false,
         }));
-        res.json({ groups });
+        groupsCache = { at: Date.now(), data: groups };
+        res.json({ groups, cached: false });
     } catch (err) {
+        // Rate limit WhatsApp jangan menghapus daftar yang sudah pernah berhasil.
+        if (groupsCache.data) {
+            return res.json({ groups: groupsCache.data, cached: true, stale: true, error: err.message, age: Date.now() - groupsCache.at });
+        }
         res.status(500).json({ error: err.message });
     }
 });
@@ -632,21 +858,69 @@ app.get('/chats', requireAuth, (req, res) => {
     res.json({ chats: list, connected: !!(waSocket && connectedPhone) });
 });
 
-// ── Messages endpoint (riwayat pesan per JID dari in-memory log) ──────────────
+// ── Messages endpoint (riwayat pesan per JID dari arsip persisten) ───────────
+// Dulu endpoint ini membaca messageLog (100 entri, in-memory, semua ditandai
+// fromMe:false). Sekarang dari msgArchive: dua arah, isi penuh, selamat dari restart.
 app.get('/messages', requireAuth, (req, res) => {
     const { jid } = req.query;
     if (!jid) return res.status(400).json({ error: 'jid required' });
-    // Filter log pesan berdasarkan sender (in-memory, max 100 entri)
-    const msgs = messageLog
-        .filter(m => m.sender === jid)
-        .slice(0, 30)
+    const limit = Math.min(Number(req.query.limit) || 200, 500);
+    const msgs = msgArchive
+        .filter(m => m.jid === jid)
+        .slice(-limit)
         .map((m, i) => ({
             id: i,
-            text: m.preview || '',
-            fromMe: false,
+            text: m.text || '',
+            type: m.type,
+            fromMe: m.dir === 'out',
+            time: m.time,
             timestamp: m.time ? Math.floor(new Date(m.time).getTime() / 1000) : 0,
         }));
-    res.json({ messages: msgs });
+    res.json({ messages: msgs, count: msgs.length });
+});
+
+// ── Statistik gerbang ────────────────────────────────────────────────────────
+app.get('/stats', requireAuth, (req, res) => {
+    const days = Object.keys(stats.daily).sort();
+    res.json({
+        total: stats.total,
+        today: stats.daily[statsDay()] || {},
+        daily: stats.daily,
+        days,
+        archive: { messages: msgArchive.length, cap: MSG_ARCHIVE_CAP },
+        since: days[0] || statsDay(),
+    });
+});
+
+// ── Pengaturan sapaan ────────────────────────────────────────────────────────
+app.get('/settings', requireAuth, (req, res) => {
+    res.json({
+        greeting: greetingText,
+        isCustom: greetingText !== DEFAULT_GREETING,
+        default: DEFAULT_GREETING,
+        adminCallWords: [...ADMIN_CALL_WORDS],
+        botPrefix: BOT_PREFIX,
+        max: GREETING_MAX,
+    });
+});
+
+app.post('/settings/greeting', requireAuth, (req, res) => {
+    const text = String(req.body?.text ?? '');
+    if (!text.trim()) return res.status(400).json({ error: 'Teks sapaan tidak boleh kosong' });
+    if (text.length > GREETING_MAX) return res.status(400).json({ error: `Maksimal ${GREETING_MAX} karakter` });
+    greetingText = text;
+    settings.greeting = text;
+    saveSettings();
+    console.log(`[settings] Sapaan diubah dari dashboard (${text.length} karakter).`);
+    res.json({ ok: true, greeting: greetingText });
+});
+
+app.post('/settings/greeting/reset', requireAuth, (req, res) => {
+    greetingText = DEFAULT_GREETING;
+    delete settings.greeting;
+    saveSettings();
+    console.log('[settings] Sapaan dikembalikan ke bawaan.');
+    res.json({ ok: true, greeting: greetingText });
 });
 
 // ── Newsletters / Channels endpoint ──────────────────────────────────────────
@@ -798,7 +1072,25 @@ function swapLegacyGreeting(text, jid) {
     legacyGreetingSwaps++;
     console.log(`[sapaan] Sapaan lama website dicegat untuk ${jid} → diganti sapaan bot `
         + `(total ${legacyGreetingSwaps}x sejak start).`);
-    return GREETING_TEXT;
+    return greetingText;
+}
+
+// ── Pesan "Dicari" dari website → tambah ajakan jual langsung ─────────────────
+// Broadcast "🔍 *Dicari:* …" disusun di repo website; selama repo itu belum bisa
+// disentuh, tambahannya dikerjakan di sini — di pintu masuk /send, sama seperti
+// sapaan lama di atas. Pencocokan teks juga: kalau website mengubah kalimat
+// "Punya barangnya? 👉 …/dicari", penanda di bawah tidak cocok lagi dan tambahan
+// diam-diam berhenti — pantau baris '[dicari]' di log.
+const DICARI_LINK_MARK = 'Punya barangnya? 👉 https://www.jualbeliusupolmed.web.id/dicari';
+const DICARI_JUAL_SUFFIX = ', Atau kalau mau lebih cepat langsung jual di https://www.jualbeliusupolmed.web.id/jual';
+let dicariEnrichCount = 0;
+function enrichDicariMessage(text, jid) {
+    if (!text || typeof text !== 'string') return text;
+    if (!text.includes(DICARI_LINK_MARK) || text.includes(DICARI_JUAL_SUFFIX)) return text;
+    dicariEnrichCount++;
+    console.log(`[dicari] Ajakan jual ditambahkan ke pesan Dicari untuk ${jid} `
+        + `(total ${dicariEnrichCount}x sejak start).`);
+    return text.replace(DICARI_LINK_MARK, DICARI_LINK_MARK + DICARI_JUAL_SUFFIX);
 }
 
 // ── Send message endpoint ─────────────────────────────────────────────────────
@@ -807,7 +1099,7 @@ app.post('/send', requireAuth, async (req, res) => {
     if (!target) return res.status(400).json({ error: 'Target required' });
 
     const jid = toJid(target);
-    const message = swapLegacyGreeting(req.body.message, jid);
+    const message = enrichDicariMessage(swapLegacyGreeting(req.body.message, jid), jid);
 
     // Cap antrean: kalau menumpuk (bot lama offline), tolak daripada burst nanti.
     if (messageQueue.length > 200) {
@@ -816,6 +1108,74 @@ app.post('/send', requireAuth, async (req, res) => {
     messageQueue.push({ jid, message, url, ts: Date.now() });
     kickQueue();
     res.json({ status: true, detail: 'Pesan ditambahkan ke antrean (Queue)' });
+});
+
+// ── Broadcast terbatas ────────────────────────────────────────────────────────
+// Batasannya ditegakkan di SERVER, bukan cuma disembunyikan di UI: tujuan wajib
+// kontak yang PERNAH mengirim pesan ke bot (ada di chatMap). Nomor hasil sinkron
+// buku kontak, anggota grup, atau nomor yang diketik manual tidak diterima —
+// mengirim pesan borongan ke orang yang tak pernah menghubungi kita itu spam, dan
+// yang kena getahnya nomor WhatsApp ini sendiri (risiko blokir permanen).
+const BROADCAST_MAX = Number(process.env.BROADCAST_MAX || 50);
+
+// chatMap TIDAK dipakai sebagai sumber kelayakan: event chats.upsert mengisinya dari
+// sinkronisasi daftar chat HP, jadi di dalamnya ikut nomor yang tidak pernah menulis
+// ke bot. Dua sumber di bawah ini benar-benar berarti "orang ini menghubungi duluan":
+//   - msgArchive dir 'in'  → ada pesan masuk yang tercatat
+//   - greetedMap           → sapaan hanya terkirim sebagai jawaban atas pesan masuk
+function broadcastTargets() {
+    const eligible = new Set();
+    for (const m of msgArchive) if (m.dir === 'in' && m.jid) eligible.add(m.jid);
+    for (const jid of greetedMap.keys()) eligible.add(jid);
+    return Array.from(eligible)
+        .filter(jid => jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid'))
+        .map(jid => {
+            const chat = chatMap.get(jid) || {};
+            return {
+                jid,
+                name: chat.name || nameMap.get(jid) || contactMap.get(jid)?.name || '',
+                lastTime: chat.lastTime || greetedMap.get(jid) || 0,
+                preview: chat.preview || '',
+            };
+        })
+        .sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
+}
+
+app.get('/broadcast/targets', requireAuth, (req, res) => {
+    const list = broadcastTargets();
+    res.json({ targets: list, count: list.length, max: BROADCAST_MAX });
+});
+
+app.post('/broadcast', requireAuth, (req, res) => {
+    const message = String(req.body?.message || '').trim();
+    const jids = Array.isArray(req.body?.jids) ? req.body.jids : [];
+    if (!message) return res.status(400).json({ error: 'Pesan tidak boleh kosong' });
+    if (!jids.length) return res.status(400).json({ error: 'Pilih minimal satu tujuan' });
+    if (jids.length > BROADCAST_MAX) {
+        return res.status(400).json({ error: `Maksimal ${BROADCAST_MAX} tujuan sekali kirim` });
+    }
+    if (messageQueue.length > 100) {
+        return res.status(503).json({ error: 'Antrean sedang panjang, coba lagi nanti' });
+    }
+    const allowed = new Set(broadcastTargets().map(t => t.jid));
+    const accepted = [], rejected = [];
+    for (const raw of jids) {
+        const jid = String(raw || '');
+        if (allowed.has(jid)) accepted.push(jid); else rejected.push(jid);
+    }
+    if (!accepted.length) {
+        return res.status(400).json({
+            error: 'Tidak ada tujuan yang valid. Hanya kontak yang pernah chat bot yang bisa dikirimi.',
+            rejected,
+        });
+    }
+    // Lewat antrean yang sama dengan balasan biasa, jadi jeda antar kontak berbeda
+    // (GAP_OTHER_*) tetap berlaku — kiriman menyebar, bukan burst.
+    for (const jid of accepted) messageQueue.push({ jid, message, ts: Date.now() });
+    kickQueue();
+    bump('broadcast', accepted.length);
+    console.log(`[broadcast] ${accepted.length} tujuan diantrekan${rejected.length ? `, ${rejected.length} ditolak (bukan kontak yang pernah chat)` : ''}.`);
+    res.json({ ok: true, queued: accepted.length, rejected });
 });
 
 // ── Profile Bot endpoint ──────────────────────────────────────────────────────
@@ -1102,9 +1462,16 @@ async function startBot() {
     // Versi protokol WA yang ikut paket Baileys cepat basi; kalau ketinggalan,
     // WhatsApp menolak handshake dengan kode 405 dan QR pun tidak pernah muncul.
     // Jadi ambil versi terbaru saat runtime, fallback ke bawaan paket kalau gagal.
+    // fetchLatestBaileysVersion() memakai fetch TANPA timeout — kalau
+    // raw.githubusercontent.com menggantung (pernah terjadi 17 Agu 2026), await ini
+    // tidak pernah selesai dan bot membeku sebelum makeWASocket, tanpa log apa pun.
+    // Watchdog belum terpasang di titik ini, jadi timeout-nya harus kita bawa sendiri.
     let waVersion;
     try {
-        const { version, isLatest } = await fetchLatestBaileysVersion();
+        const { version, isLatest } = await Promise.race([
+            fetchLatestBaileysVersion(),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout 15s')), 15000).unref()),
+        ]);
         waVersion = version;
         console.log(`[bot] Versi WA: ${version.join('.')} (terbaru: ${isLatest}).`);
     } catch (e) {
@@ -1227,6 +1594,7 @@ async function startBot() {
             // bilang "connected" dan antrean terus menembak socket itu.
             connectedPhone = '';
             connectedAt = null;
+            if (!offlineSince) offlineSince = Date.now();
             // Hanya lepas kalau socket INI yang masih terpasang — socket lama yang
             // telat mengirim 'close' jangan sampai menjatuhkan socket baru yang sehat.
             if (waSocket === sock) waSocket = null;
@@ -1267,6 +1635,22 @@ async function startBot() {
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
             console.log('[bot] Berhasil terhubung ke WhatsApp! Nomor:', connectedPhone);
+            // Putus yang baru saja berakhir dicatat, dan yang lama dilaporkan ke pemilik.
+            // Sengaja dilaporkan di sini (bukan saat putus): kanalnya sendiri baru hidup
+            // sekarang. Yang pendek (reconnect biasa, mis. kode 515) tidak dilaporkan
+            // supaya notifikasi tidak jadi kebisingan yang akhirnya diabaikan.
+            if (offlineSince) {
+                const ms = Date.now() - offlineSince;
+                lastOutage = { startedAt: new Date(offlineSince).toISOString(), endedAt: new Date().toISOString(), ms };
+                outageCount++;
+                offlineSince = null;
+                bump('putus_koneksi');
+                if (ms >= OFFLINE_ALERT_MS) {
+                    const menit = Math.round(ms / 60000);
+                    console.warn(`[alarm] Bot sempat offline ${menit} menit.`);
+                    notifyOwner(`⚠️ *Bot sempat offline ${menit} menit*\n\nPutus: ${new Date(lastOutage.startedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\nPulih: ${new Date(lastOutage.endedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n\nPesan yang masuk selama itu tidak dibalas otomatis — cek inbox di dashboard.`);
+                }
+            }
             // Bersihkan sisa data lama ber-key LID: pelajari nomornya lalu simpan (sekali saja,
             // beri jeda agar sinkron kontak/LID sempat jalan). Migrasi tabelnya oleh endpoint website.
             setTimeout(() => resolveDbLidsOnce(sock), 20000);
@@ -1419,6 +1803,10 @@ async function startBot() {
                         fmForm.append('fromMe', 'true');
                         if (isMediaFm) fmForm.append('manual_media', '1');
                         fetch(WEBHOOK_URL, { method: 'POST', body: fmForm, headers: { 'Authorization': API_TOKEN } }).catch(() => {});
+                        // Balasan manual admin ikut diarsipkan, kalau tidak inbox dashboard
+                        // cuma menampilkan sisi pelanggan dan riwayatnya terbaca timpang.
+                        recordMessage(manualTarget, 'out', isMediaFm ? (fmText || '[media]') : fmText, 'manual');
+                        bump('balas_manual');
                         console.log(`[owner-manual] Balasan manual ke ${manualTarget} → sinyal senyap dikirim ke webhook`);
                         continue;
                     }
@@ -1527,6 +1915,10 @@ async function startBot() {
                     time: new Date().toISOString(),
                 });
                 if (messageLog.length > 100) messageLog.pop();
+                // Arsip persisten (dipakai inbox dashboard). Sengaja memakai gateText:
+                // isi teks apa adanya, bukan preview terpotong seperti messageLog.
+                recordMessage(cleanSender, 'in', gateText || '[media]', messageType);
+                bump('masuk');
 
                 // ── Gerbang titik ─────────────────────────────────────────────────
                 // Aturannya: chat pelanggan itu milik ADMIN sampai pelanggan sendiri
@@ -1537,24 +1929,55 @@ async function startBot() {
                     const inSession = botSessionActive(gateKey);
                     // Sesi bisa ditutup pelanggan kapan saja ("admin", "selesai", ...)
                     // tanpa menunggu BOT_SESSION_MS habis.
+                    // Panggilan "min" → selalu dijawab sapaan, sesi bot (kalau ada)
+                    // ditutup. Ini melewati greetedMap dengan sengaja: sapaan biasa
+                    // sekali seumur kontak, sedangkan orang yang manggil "min" memang
+                    // sedang minta petunjuk saat itu juga.
+                    if (!hasPrefix && isAdminCall(gateText)) {
+                        botSessions.delete(gateKey);
+                        bump('panggil_min');
+                        const lastCall = adminCallMap.get(gateKey) || 0;
+                        if (Date.now() - lastCall >= ADMIN_CALL_COOLDOWN_MS) {
+                            adminCallMap.set(gateKey, Date.now());
+                            rememberBotSent(await sock.sendMessage(sender, { text: greetingText }));
+                            recordMessage(cleanSender, 'out', greetingText, 'sapaan');
+                            bump('sapaan');
+                            console.log(`[gerbang] ${cleanSender} panggil admin ("${gateText}") → sapaan dikirim`);
+                        } else {
+                            console.log(`[gerbang] ${cleanSender} panggil admin ("${gateText}") → sapaan ditahan (cooldown)`);
+                        }
+                        // Tandai tersapa supaya pesan polos berikutnya tidak memicu
+                        // sapaan "sekali per kontak" untuk kedua kalinya.
+                        if (!greetedMap.has(gateKey)) { greetedMap.set(gateKey, Date.now()); saveGreetedMap(); }
+                        continue;
+                    }
                     if (inSession && !hasPrefix && BOT_END_WORDS.has(gateText.toLowerCase())) {
                         botSessions.delete(gateKey);
                         console.log(`[gerbang] ${cleanSender} menutup sesi bot ("${gateText}") → lanjut ke admin`);
                         continue;
                     }
                     if (!hasPrefix && !inSession) {
+                        // Pesan polos yang sebenarnya kata perintah ("jual", "cari sepatu")
+                        // dihitung terpisah. Angka inilah bukti apakah gerbang titik bikin
+                        // pelanggan nyangkut — tanpa itu, melonggarkan gerbang cuma tebakan.
+                        const plainCmd = plainCommandWord(gateText);
+                        if (plainCmd) { bump('perintah_polos'); bump(`polos_${plainCmd}`); }
                         if (!greetedMap.has(gateKey)) {
                             greetedMap.set(gateKey, Date.now());
                             saveGreetedMap();
-                            rememberBotSent(await sock.sendMessage(sender, { text: GREETING_TEXT }));
+                            rememberBotSent(await sock.sendMessage(sender, { text: greetingText }));
+                            recordMessage(cleanSender, 'out', greetingText, 'sapaan');
+                            bump('sapaan');
                             console.log(`[gerbang] ${cleanSender} → chat admin, sapaan dikirim (sekali)`);
                         } else {
+                            bump('didiamkan');
                             console.log(`[gerbang] ${cleanSender} → chat admin, bot diam`);
                         }
                         continue;
                     }
                     // Lolos gerbang: buka/segarkan sesi supaya pesan lanjutan (jawaban
                     // tanya-jawab, foto tanpa caption) tidak perlu bertitik lagi.
+                    if (!inSession) bump('sesi_bot');
                     botSessions.set(gateKey, Date.now() + BOT_SESSION_MS);
                 }
 
@@ -1679,8 +2102,10 @@ async function startBot() {
                 const responseText = await response.text();
                 const hookMs = Date.now() - hookStart;
                 if (!response.ok) {
+                    bump('webhook_gagal');
                     console.error(`Webhook error ${response.status} (${hookMs}ms): ${responseText}`);
                 } else {
+                    bump('webhook_ok');
                     console.log(`Webhook OK (${hookMs}ms): ${responseText}`);
                     // Simpan balasan bot ke context
                     try {
@@ -1714,6 +2139,8 @@ function gracefulExit(sig) {
     console.log(`[shutdown] ${sig} diterima — menyimpan state sebelum keluar...`);
     saveMapToFile(contactMap, CONTACTS_FILE);
     saveMapToFile(chatMap, CHATS_FILE);
+    flushMsgArchive();
+    flushStats();
     Promise.allSettled([
         saveState('name_map', nameMap, NAME_MAP_FILE),
         saveState('lid_resolution_map', lidResolutionMap, LID_MAP_FILE),

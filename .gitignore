@@ -13,6 +13,9 @@ newsletters.json
 lid_resolution_map.json
 name_map.json
 greeted_map.json
+messages.json
+stats.json
+settings.json
 
 # Cadangan manual era pra-git
 *.bak-*
