@@ -216,8 +216,11 @@ function rememberBotSent(result) {
 
 // Antrean pesan keluar. Dulu dijadwal ulang dengan POLLING 800 ms: tiap balasan
 // menunggu sampai 0,8 dtk cuma untuk dilihat antrean, padahal antreannya kosong.
-// Sekarang event-driven — kickQueue() dipanggil saat pesan masuk, jadi balasan
-// pertama berangkat tanpa jeda sama sekali.
+// Sekarang event-driven — kickQueue() dipanggil saat pesan masuk.
+//
+// Tiap pesan menunggu minimal REPLY_DELAY_MS sejak masuk antrean sebelum
+// dikirim (permintaan pemilik: balasan instan terasa robot). Selama menunggu,
+// bot memasang status "mengetik…" ke penerima.
 //
 // Yang TETAP dipertahankan adalah jeda ANTAR kiriman (bukan jeda sebelum kiriman
 // pertama): itu bagian yang benar-benar menjaga ritme tidak terbaca sebagai bot.
@@ -225,6 +228,7 @@ function rememberBotSent(result) {
 //   - ke kontak yang SAMA  → satu percakapan, wajar beruntun cepat.
 //   - ke kontak BERBEDA    → pola ini yang mirip blast, jadi tetap dilonggarkan.
 const MAX_SEND_ATTEMPTS = 3;
+const REPLY_DELAY_MS = Number(process.env.REPLY_DELAY_MS || 2000);
 const GAP_SAME_MIN_MS = Number(process.env.GAP_SAME_MIN_MS || 500);
 const GAP_SAME_RAND_MS = Number(process.env.GAP_SAME_RAND_MS || 500);
 const GAP_OTHER_MIN_MS = Number(process.env.GAP_OTHER_MIN_MS || 1500);
@@ -266,6 +270,21 @@ async function processQueue() {
     if (!socketAlive()) { scheduleQueue(1000); return; }          // socket mati → tahan, jangan buang
     const wait = nextSendAt - Date.now();
     if (wait > 0) { scheduleQueue(wait); return; }
+
+    // Jeda balasan: pesan paling depan belum berumur REPLY_DELAY_MS → tunda,
+    // dan pasang "mengetik…" (sekali saja) supaya jedanya terlihat manusiawi.
+    const head = messageQueue[0];
+    const readyAt = (head.ts || 0) + REPLY_DELAY_MS;
+    const replyWait = readyAt - Date.now();
+    if (replyWait > 0) {
+        if (!head.composing) {
+            head.composing = true;
+            waSocket.presenceSubscribe(head.jid).catch(() => {});
+            waSocket.sendPresenceUpdate('composing', head.jid).catch(() => {});
+        }
+        scheduleQueue(replyWait);
+        return;
+    }
 
     queueBusy = true;
     let gap = 0;
