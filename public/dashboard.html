@@ -469,8 +469,6 @@
         let activeTab = 'ringkasan';
         let chats = [], targets = [], activeJid = null, activeName = '';
 
-        if (token) showDashboard();
-
         /* ── util ───────────────────────────────────────────────────────── */
         const $ = (id) => document.getElementById(id);
         // Semua teks dari WhatsApp (nama kontak, isi pesan) ditulis lewat sini.
@@ -948,6 +946,11 @@
             tick();
             pollInterval = setInterval(tick, 3000);
         }
+
+        // Auto-login DI AKHIR skrip: showDashboard memakai `$` dan kawan-kawan
+        // yang berupa const — memanggilnya sebelum baris const dieksekusi melempar
+        // ReferenceError dan mematikan seluruh skrip (termasuk tombol Masuk).
+        if (token) showDashboard();
     </script>
 </body>
 </html>

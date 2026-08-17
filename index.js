@@ -693,6 +693,13 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
+// ── Beranda (public) ─────────────────────────────────────────────────────────
+// Daftar tombol ke semua halaman & endpoint. Halamannya sendiri publik; data
+// yang butuh token tetap diambil lewat fetch ber-Authorization dari browser.
+app.get('/home', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'home.html'));
+});
+
 // ── QR JSON endpoint (untuk admin panel web) ─────────────────────────────────
 app.get('/qr', requireAuth, async (req, res) => {
     if (!currentQR) return res.json({ qr: null, connected: true });
