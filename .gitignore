@@ -22,3 +22,8 @@ outage_guard.json
 # Cadangan manual era pra-git
 *.bak-*
 push-ke-github.sh
+
+# Berkas kerja penjaga-bot.sh (status lokal, bukan bagian aplikasi)
+.penjaga-hitung
+.penjaga-restart-terakhir
+penjaga-bot.log
