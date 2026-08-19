@@ -218,6 +218,54 @@ let outageCount = 0;
 const OFFLINE_ALERT_MS = Number(process.env.OFFLINE_ALERT_MINUTES || 5) * 60 * 1000;
 const OWNER_NUMBER = process.env.OWNER_JID || '';
 
+// ── Eskalasi padam berkepanjangan ────────────────────────────────────────────
+// 18-19 Agu 2026 bot diam 907 menit: 247 kali sambung-ulang kode 408 beruntun,
+// tidak pernah pulih sendiri. Backoff yang mentok di 60 detik memang tidak akan
+// menyerah — tapi juga tidak pernah mencoba sesuatu yang BERBEDA. Sebagian
+// kegagalan (resolver DNS yang telanjur di-cache proses, handle socket bocor,
+// state Baileys yang rusak) cuma sembuh oleh proses yang benar-benar baru.
+// Jadi lewat ambang ini, proses dimatikan dan pm2 menghidupkannya dari nol.
+const OFFLINE_RESTART_MS = Number(process.env.OFFLINE_RESTART_MINUTES || 20) * 60 * 1000;
+// Ambang digandakan tiap eskalasi beruntun sampai batas ini. Alasannya sama dengan
+// toleransi 401 di atas: kalau WhatsApp memang sedang menolak nomor ini, restart
+// tiap 20 menit tanpa henti justru pola handshake berulang yang bikin nomor
+// dicurigai. Menyerah pelan-pelan lebih aman daripada menggedor terus.
+const OFFLINE_RESTART_MAX_MS = Number(process.env.OFFLINE_RESTART_MAX_MINUTES || 360) * 60 * 1000;
+// Sambungan harus bertahan selama ini sebelum hitungan eskalasi dinolkan: 'open'
+// yang putus lagi semenit kemudian bukan pemulihan, dan menolkannya di situ bikin
+// bot menggedor WhatsApp tiap 20 menit selamanya.
+const ESCALATION_RESET_MS = Number(process.env.ESCALATION_RESET_MINUTES || 5) * 60 * 1000;
+const PROSES_MULAI = Date.now();
+let offlineEscalations = 0;
+let escalationResetTimer = null;
+
+// Hitungan eskalasi disimpan ke disk — kalau hanya di memori, ia ikut hilang tepat
+// pada saat yang ia jaga (restart proses), jadi ambangnya tidak pernah naik.
+const OUTAGE_GUARD_FILE = path.join(DATA_DIR, 'outage_guard.json');
+function loadOutageGuard() {
+    try {
+        const raw = JSON.parse(fs.readFileSync(OUTAGE_GUARD_FILE, 'utf-8'));
+        const n = Number(raw?.escalations);
+        if (Number.isFinite(n)) offlineEscalations = Math.max(0, Math.min(20, Math.trunc(n)));
+        if (offlineEscalations > 0) {
+            console.warn(`[eskalasi] Proses ini lanjutan dari ${offlineEscalations} restart darurat beruntun.`);
+        }
+    } catch (_) {}
+}
+function saveOutageGuard() {
+    try {
+        fs.writeFileSync(OUTAGE_GUARD_FILE, JSON.stringify({
+            escalations: offlineEscalations,
+            updatedAt: new Date().toISOString(),
+        }, null, 2));
+    } catch (e) { console.error('[eskalasi] gagal simpan penanda:', e.message); }
+}
+loadOutageGuard();
+// Ambang yang berlaku sekarang, dipakai pemantau sekaligus dilaporkan di /status.
+function ambangEskalasiMs() {
+    return Math.min(OFFLINE_RESTART_MS * Math.pow(2, offlineEscalations), OFFLINE_RESTART_MAX_MS);
+}
+
 // ID pesan yang dikirim BOT sendiri (via sock.sendMessage). Dipakai untuk membedakan
 // echo kiriman bot vs ketikan MANUAL owner dari HP/WA Web di event messages.upsert —
 // keduanya sama-sama fromMe, tapi hanya ketikan manual yang jadi sinyal "owner turun
@@ -767,6 +815,11 @@ app.get('/status', requireAuth, (req, res) => {
         lastOutage,
         outageCount,
         reconnectAttempts,
+        // Restart darurat karena padam berkepanjangan: 0 = belum pernah, angka naik
+        // = bot sedang berjuang. Ambangnya ikut dilaporkan supaya jelas kapan
+        // eskalasi berikutnya jatuh tanpa perlu menghitung sendiri.
+        offlineEscalations,
+        escalationThresholdMinutes: Math.round(ambangEskalasiMs() / 60000),
         // Kapan perangkat terakhir benar-benar dilepas WhatsApp (butuh scan ulang).
         // null artinya sesi masih utuh — putus koneksi biasa tidak mengisi ini.
         sessionLostAt,
@@ -1062,6 +1115,34 @@ function exitAfterFlush(code) {
     const bye = () => { if (!done) { done = true; process.exit(code); } };
     flushAuthState().then(bye).catch(bye);
     setTimeout(bye, 5000).unref();
+}
+
+// Pemantau padam berkepanjangan. Dijalankan tiap menit; lihat catatan di
+// OFFLINE_RESTART_MS soal kenapa restart proses adalah obat yang berbeda dari
+// sekadar startBot() sekali lagi.
+function watchProlongedOutage() {
+    if (shuttingDown) return;
+    // Menunggu manusia menyecan QR itu bukan kegagalan koneksi. Restart di sini
+    // justru menghanguskan QR yang sedang dipelototi orang di dashboard, dan sesi
+    // yang hilang tidak akan kembali oleh proses baru — itu butuh tangan admin.
+    if (currentQR || sessionLostAt) return;
+    // Belum pernah tersambung sejak proses hidup pun terhitung padam: kalau
+    // startBot() membeku sebelum socket lahir, tidak ada event 'close' yang
+    // mengisi offlineSince dan pemantau ini akan tidur selamanya.
+    const padamSejak = offlineSince || (connectedAt ? null : PROSES_MULAI);
+    if (!padamSejak) return;
+    const ms = Date.now() - padamSejak;
+    const ambang = ambangEskalasiMs();
+    if (ms < ambang) return;
+    offlineEscalations++;
+    saveOutageGuard();
+    console.warn(`[eskalasi] Padam ${Math.round(ms / 60000)} menit (ambang `
+        + `${Math.round(ambang / 60000)} menit) — sambung-ulang biasa tidak menolong. `
+        + `Proses dimatikan supaya pm2 menghidupkannya bersih. Eskalasi beruntun ke-${offlineEscalations}, `
+        + `ambang berikutnya ${Math.round(ambangEskalasiMs() / 60000)} menit.`);
+    // exitAfterFlush, bukan process.exit polos: penulisan creds yang masih di udara
+    // harus mendarat dulu, kalau tidak restart daruratnya sendiri yang merusak sesi.
+    exitAfterFlush(1);
 }
 
 // ── Restart endpoint ──────────────────────────────────────────────────────────
@@ -1796,6 +1877,9 @@ async function startBotInner(myGen) {
             // Hanya lepas kalau socket INI yang masih terpasang — socket lama yang
             // telat mengirim 'close' jangan sampai menjatuhkan socket baru yang sehat.
             if (waSocket === sock) waSocket = null;
+            // Sambungan putus sebelum sempat dianggap stabil → hitungan eskalasi
+            // TIDAK jadi dinolkan.
+            if (escalationResetTimer) { clearTimeout(escalationResetTimer); escalationResetTimer = null; }
             // Bersihkan timer photoBuffer agar tidak leak saat reconnect
             for (const entry of photoBuffer.values()) {
                 if (entry.timer) clearTimeout(entry.timer);
@@ -1851,6 +1935,18 @@ async function startBotInner(myGen) {
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
             logoutStrikes = 0;   // sambungan sehat → hitungan 401 mulai dari nol lagi
+            // Hitungan eskalasi baru boleh nol setelah sambungan terbukti bertahan
+            // (lihat ESCALATION_RESET_MS), bukan pada detik 'open' ini.
+            if (offlineEscalations > 0 && !escalationResetTimer) {
+                escalationResetTimer = setTimeout(() => {
+                    escalationResetTimer = null;
+                    if (!socketAlive()) return;
+                    offlineEscalations = 0;
+                    saveOutageGuard();
+                    console.log('[eskalasi] Sambungan stabil — hitungan restart darurat kembali ke nol.');
+                }, ESCALATION_RESET_MS);
+                escalationResetTimer.unref?.();
+            }
             sessionLostAt = null;
             console.log('[bot] Berhasil terhubung ke WhatsApp! Nomor:', connectedPhone);
             // Putus yang baru saja berakhir dicatat, dan yang lama dilaporkan ke pemilik.
@@ -2378,6 +2474,8 @@ process.on('SIGINT', () => gracefulExit('SIGINT'));
 // (mis. '0.0.0.0') kalau suatu saat perlu, tapi default aman.
 app.listen(PORT, process.env.BIND_HOST || '127.0.0.1', () => {
     console.log(`Bot Server listening on ${process.env.BIND_HOST || '127.0.0.1'}:${PORT}`);
+    // unref: pemantau tidak boleh jadi alasan proses menolak keluar saat shutdown.
+    setInterval(watchProlongedOutage, 60000).unref();
     startBot().catch((e) => {
         console.error('[startBot] gagal init:', e?.message || e);
         setTimeout(() => startBot().catch(() => {}), 10000); // coba lagi 10 dtk

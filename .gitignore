@@ -17,6 +17,7 @@ messages.json
 stats.json
 settings.json
 wa_version.json
+outage_guard.json
 
 # Cadangan manual era pra-git
 *.bak-*
