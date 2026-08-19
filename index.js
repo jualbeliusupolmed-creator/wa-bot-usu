@@ -786,6 +786,15 @@ app.get('/home', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'home.html'));
 });
 
+// ── Halaman catatan proyek (public) ──────────────────────────────────────────
+// Halaman baca panjang berisi detail proyek: masalah yang diangkat, arsitektur
+// dua-pintu (web + WhatsApp), keputusan desain gerbang titik, dan jejak perbaikan
+// keandalan. Sengaja disajikan dari bot, bukan dari situs utama — halaman yang
+// menceritakan bot ini pantas dilayani oleh bot itu sendiri.
+app.get('/projek', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'projek.html'));
+});
+
 // ── QR JSON endpoint (untuk admin panel web) ─────────────────────────────────
 app.get('/qr', requireAuth, async (req, res) => {
     if (!currentQR) return res.json({ qr: null, connected: true });

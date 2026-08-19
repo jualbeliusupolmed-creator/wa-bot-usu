@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catatan Proyek — Jual Beli USU Polmed</title>
+<meta name="description" content="Cerita di balik pembuatan Jual Beli USU Polmed: marketplace mahasiswa USU & Polmed yang dijalankan lewat website dan bot WhatsApp.">
+<meta property="og:title" content="Catatan Proyek — Jual Beli USU Polmed">
+<meta property="og:description" content="Marketplace mahasiswa yang bisa dipakai tanpa membuka websitenya.">
+<meta property="og:type" content="article">
+<style>
+:root{
+  --bg:#0f172a; --card:rgba(30,41,59,.66); --line:rgba(255,255,255,.1);
+  --text:#f1f5f9; --dim:#94a3b8; --em:#10b981; --blue:#3b82f6; --warn:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);
+  background-image:radial-gradient(circle at 12% 8%,rgba(16,185,129,.13) 0%,transparent 45%),
+                   radial-gradient(circle at 88% 22%,rgba(59,130,246,.12) 0%,transparent 45%);
+  background-attachment:fixed; color:var(--text);
+  font-family:'Plus Jakarta Sans','Inter',system-ui,-apple-system,sans-serif;
+  line-height:1.75; padding:0 20px 80px; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:720px;margin:0 auto}
+header{padding:64px 0 8px;border-bottom:1px solid var(--line);margin-bottom:44px}
+.kicker{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--em);font-weight:700}
+h1{font-size:clamp(1.9rem,5.5vw,2.7rem);line-height:1.2;font-weight:800;margin:14px 0 16px;letter-spacing:-.02em}
+.lead{font-size:1.09rem;color:#cbd5e1;margin-bottom:26px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:30px}
+.tag{font-size:.78rem;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:5px 13px}
+h2{font-size:1.42rem;font-weight:750;margin:52px 0 6px;letter-spacing:-.01em}
+h2 .no{color:var(--em);font-size:.83rem;font-weight:700;display:block;margin-bottom:7px;letter-spacing:.1em}
+h3{font-size:1.06rem;font-weight:700;margin:32px 0 8px;color:#e2e8f0}
+p{margin:16px 0;color:#dbe3ec}
+strong{color:#fff;font-weight:650}
+a{color:var(--em);text-decoration:none;border-bottom:1px solid rgba(16,185,129,.35)}
+a:hover{border-bottom-color:var(--em)}
+blockquote{border-left:3px solid var(--em);padding:4px 0 4px 20px;margin:26px 0;color:#cbd5e1;font-style:italic}
+.card{background:var(--card);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--line);border-radius:16px;padding:24px;margin:30px 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:14px}
+.stat .n{font-size:1.75rem;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.15}
+.stat .l{font-size:.79rem;color:var(--dim);margin-top:3px}
+.flow{display:flex;flex-direction:column;gap:11px;margin:22px 0}
+.step{display:flex;gap:14px;align-items:flex-start}
+.step .b{flex:0 0 27px;height:27px;border-radius:8px;background:rgba(16,185,129,.14);
+  border:1px solid rgba(16,185,129,.3);color:var(--em);font-size:.8rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin-top:3px}
+.step .t{font-size:.96rem;color:#dbe3ec}
+table{width:100%;border-collapse:collapse;margin:22px 0;font-size:.93rem;display:block;overflow-x:auto}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-weight:600;font-size:.79rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+td:first-child{color:#fff;font-weight:600;white-space:nowrap}
+code{background:rgba(148,163,184,.15);padding:2px 7px;border-radius:5px;font-size:.87em;
+  font-family:ui-monospace,'SF Mono',Menlo,monospace;color:#a7f3d0}
+.warnbox{border-left:3px solid var(--warn);background:rgba(245,158,11,.07);
+  padding:16px 20px;border-radius:0 12px 12px 0;margin:26px 0}
+.warnbox .h{color:var(--warn);font-weight:700;font-size:.88rem;margin-bottom:5px}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:22px}
+.links a{display:block;border:1px solid var(--line);border-radius:13px;padding:15px 17px;
+  background:rgba(15,23,42,.5);border-bottom:1px solid var(--line)}
+.links a:hover{border-color:rgba(16,185,129,.45)}
+.links .t{color:#fff;font-weight:650;font-size:.96rem}
+.links .d{color:var(--dim);font-size:.81rem;margin-top:2px}
+footer{margin-top:64px;padding-top:26px;border-top:1px solid var(--line);color:var(--dim);font-size:.87rem}
+@media(max-width:560px){body{padding:0 16px 60px}header{padding-top:44px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Catatan Proyek</div>
+  <h1>Marketplace yang bisa dipakai tanpa membuka websitenya</h1>
+  <p class="lead">Jual Beli USU Polmed dibangun untuk mahasiswa Universitas Sumatera Utara
+  dan Politeknik Negeri Medan. Ada dua pintu masuk: sebuah situs, dan sebuah nomor WhatsApp.
+  Halaman ini menceritakan bagaimana keduanya dibangun, dan kenapa keputusannya diambil.</p>
+  <div class="meta">
+    <span class="tag">Juni – Agustus 2026</span>
+    <span class="tag">Next.js 14 + Supabase</span>
+    <span class="tag">Node.js + Baileys</span>
+    <span class="tag">Medan, Indonesia</span>
+  </div>
+</header>
+
+<h2><span class="no">01</span>Masalah yang benar-benar ada</h2>
+<p>Jual beli barang bekas di kalangan mahasiswa itu ramai, tapi tempatnya salah. Semuanya
+menumpuk di grup WhatsApp. Kalau kamu memasang iklan laptop jam sembilan pagi, jam sepuluh
+iklanmu sudah tertimbun tiga puluh pesan lain. Tidak ada yang bisa mencarinya kembali.</p>
+<p>Yang lebih merepotkan, tidak ada cara tahu siapa yang menjual. Nomor asing muncul, menawarkan
+barang, lalu hilang. Tidak ada riwayat, tidak ada penilaian, tidak ada apa pun yang bisa dijadikan
+pegangan sebelum orang mentransfer uang.</p>
+<p>Pemecahan yang biasa dipakai adalah membangun website marketplace lalu meminta semua orang
+pindah ke sana. Masalahnya, orang tidak pindah. Mereka sudah nyaman di WhatsApp, dan meminta
+mahasiswa mendaftar akun baru hanya untuk menjual satu buku bekas adalah cara tercepat membuat
+proyek ini sepi.</p>
+
+<blockquote>Jadi pertanyaannya dibalik: bagaimana kalau penjual tidak perlu pindah sama sekali,
+tapi barangnya tetap masuk ke sistem yang rapi?</blockquote>
+
+<h2><span class="no">02</span>Dua pintu, satu database</h2>
+<p>Jawabannya jadi bentuk sistem ini. Website mengurus segala hal yang butuh tampilan: katalog,
+pencarian, halaman produk, profil penjual, pembayaran. Bot WhatsApp mengurus orang yang tidak
+mau membuka apa pun.</p>
+<p>Alur memasang iklan lewat WhatsApp berjalan seperti ini:</p>
+<div class="flow">
+  <div class="step"><div class="b">1</div><div class="t">Penjual mengirim foto barang beserta keterangannya ke nomor bot, persis seperti mengirim pesan biasa ke teman.</div></div>
+  <div class="step"><div class="b">2</div><div class="t">Bot mengunduh gambarnya, lalu meneruskan teks dan berkas ke website sebagai satu kiriman multipart.</div></div>
+  <div class="step"><div class="b">3</div><div class="t">Di sisi website, AI membaca keterangan itu dan menebak judul, harga, dan kategori barang.</div></div>
+  <div class="step"><div class="b">4</div><div class="t">Penjual membayar biaya iklan lewat QRIS, lalu memotret struknya dan mengirimkannya kembali ke chat yang sama.</div></div>
+  <div class="step"><div class="b">5</div><div class="t">Iklan tayang di website. Penjual tidak pernah membuka peramban sekali pun.</div></div>
+</div>
+<p>Karena keduanya menulis ke satu database Supabase yang sama, tidak ada penyalinan data.
+Apa yang terjadi di chat langsung terlihat di web, dan sebaliknya.</p>
+
+<h2><span class="no">03</span>Keputusan yang paling menentukan: gerbang titik</h2>
+<p>Ada satu hal yang membunuh hampir semua bot WhatsApp toko: bot yang menyahut setiap
+pesan masuk. Pelanggan mengetik "halo kak", bot membalas dengan menu. Pelanggan bertanya sesuatu
+yang rumit, bot membalas dengan menu lagi. Lama-lama pelanggan berhenti menulis, dan admin
+kehilangan percakapan yang seharusnya dia tangani sendiri.</p>
+<p>Karena itu aturannya dibalik. <strong>Chat pelanggan dianggap milik admin manusia</strong>,
+sampai pelanggan sendiri yang memanggil bot dengan mengawali pesannya memakai tanda titik.
+Pesan yang tidak berawalan titik tidak diteruskan ke webhook sama sekali — bukan diabaikan
+diam-diam, melainkan memang tidak pernah sampai ke otak balasan otomatis.</p>
+<p>Kalau seseorang mengetik <code>.JUAL</code>, bot terbuka dan sesi percakapan dimulai. Selama
+sesi itu berjalan, pesan lanjutannya tidak perlu bertitik lagi, supaya menjawab pertanyaan bot
+terasa wajar. Sekali pelanggan mengetik "admin" atau "selesai", sesi ditutup dan chat kembali
+menjadi milik manusia.</p>
+<p>Yang menurut saya lebih penting dari aturannya sendiri: bot menghitung berapa kali orang
+mengetik perintah <em>tanpa</em> titik. Angka itu disimpan terpisah supaya suatu saat keputusan
+melonggarkan gerbang bisa diambil berdasarkan data, bukan firasat.</p>
+
+<h2><span class="no">04</span>Ukuran pekerjaannya</h2>
+<div class="card">
+  <div class="stats">
+    <div class="stat"><div class="n">31.538</div><div class="l">baris kode website</div></div>
+    <div class="stat"><div class="n">2.483</div><div class="l">baris kode bot</div></div>
+    <div class="stat"><div class="n">323</div><div class="l">commit</div></div>
+    <div class="stat"><div class="n">68</div><div class="l">endpoint API web</div></div>
+    <div class="stat"><div class="n">43</div><div class="l">endpoint bot</div></div>
+    <div class="stat"><div class="n">19</div><div class="l">halaman publik</div></div>
+    <div class="stat"><div class="n">49</div><div class="l">komponen React</div></div>
+    <div class="stat"><div class="n">12</div><div class="l">tabel database</div></div>
+  </div>
+</div>
+<p>Sebarannya sendiri bercerita. Dari 323 commit, <strong>298 di antaranya jatuh di bulan Juni</strong> —
+kira-kira dua puluh hari kerja yang sangat padat untuk membangun seluruh sisi website. Juli
+melambat jadi 22 commit, karena perhatian pindah ke bot WhatsApp, yang dibangun terpisah
+mulai pertengahan Juli dan masih diperbaiki sampai sekarang.</p>
+
+<h2><span class="no">05</span>Apa saja yang bisa dilakukan</h2>
+<table>
+  <tr><th>Untuk penjual</th><th>Untuk pembeli</th></tr>
+  <tr>
+    <td>Pasang iklan lewat WhatsApp atau web</td>
+    <td>Cari barang dengan kategori dan harga</td>
+  </tr>
+  <tr>
+    <td>Dasbor iklan, statistik, dan tawaran masuk</td>
+    <td>Papan "Dicari" untuk barang yang belum ada</td>
+  </tr>
+  <tr>
+    <td>Upgrade iklan: Featured dan Bump</td>
+    <td>Langganan kategori, dapat notifikasi WhatsApp</td>
+  </tr>
+  <tr>
+    <td>Halaman profil publik berisi semua iklan aktif</td>
+    <td>Tawar harga langsung dari halaman produk</td>
+  </tr>
+  <tr>
+    <td>Negosiasi biaya iklan dengan admin</td>
+    <td>Rating dan ulasan penjual</td>
+  </tr>
+</table>
+<p>Sisi admin punya enam bagian: moderasi iklan, pengelolaan penjual, laporan keuangan,
+tren pencarian, jejak audit, dan siaran terjadwal. Tren pencarian menyimpan sesuatu yang
+menarik — kata kunci yang dicari orang tapi <strong>tidak menghasilkan apa pun</strong>, sehingga
+kekosongan barang bisa terlihat sebagai angka.</p>
+
+<h2><span class="no">06</span>Bagian yang tidak kelihatan: membuatnya tetap hidup</h2>
+<p>Fitur mudah dipamerkan. Yang jarang diceritakan orang adalah apa yang terjadi ketika
+sistemnya rusak. Bot ini sudah beberapa kali rusak, dan tiap kerusakan meninggalkan
+perbaikan yang alasannya ditulis langsung di dalam kode.</p>
+
+<h3>Sesi yang minta dipindai ulang terus-menerus</h3>
+<p>WhatsApp sesekali membalas kode 401 saat jabat tangan meski perangkatnya sebenarnya masih
+tertaut. Kode versi awal langsung menghapus sesi begitu menerima 401 pertama, jadi admin harus
+memindai kode QR lagi padahal cukup menyambung ulang. Lebih buruk lagi, memindai QR berulang kali
+adalah pola yang mencurigakan di mata WhatsApp dan berisiko membuat nomor diblokir. Sekarang
+kredensial yang sama dicoba beberapa kali dulu; sesi baru dilepas kalau penolakannya konsisten.</p>
+
+<h3>Diam total selama lima belas jam</h3>
+<p>Suatu malam bot berhenti membalas selama <strong>907 menit</strong>. Log menunjukkan 247 percobaan
+sambung ulang berturut-turut dengan kode 408, semuanya gagal. Penyebabnya ternyata di luar dugaan:
+alamat IPv6 server ini tidak sampai ke WhatsApp, sementara Node.js versi baru memakai urutan DNS
+apa adanya, sehingga alamat IPv6 dicoba lebih dulu dan koneksi menggantung sampai kehabisan waktu.
+Satu baris yang memaksa IPv4 didahulukan menyelesaikannya.</p>
+
+<div class="warnbox">
+  <div class="h">Pelajaran yang lebih berharga dari penyebabnya</div>
+  <p style="margin:0">Jeda sambung ulang yang berhenti di angka 60 detik memang tidak akan pernah
+  menyerah — tapi ia juga tidak pernah mencoba sesuatu yang berbeda. Sekarang, kalau bot padam
+  lebih lama dari ambang tertentu, prosesnya sengaja dimatikan supaya pengawas proses
+  menghidupkannya kembali dari nol. Ambangnya berlipat ganda tiap kali, karena menggedor
+  WhatsApp tiap dua puluh menit tanpa henti justru pola yang bikin nomor dicurigai.</p>
+</div>
+
+<h3>Kunci sesi yang nyaris bocor ke berkas log</h3>
+<p>Pustaka enkripsi yang dipakai mencetak beberapa baris log yang terlihat sekadar berisik.
+Setelah diperiksa, empat di antaranya mencetak objek sesi <strong>utuh, termasuk kunci privatnya</strong>,
+ke berkas log di disk. Baris-baris itu sekarang dibungkam, dan penyangga log yang disajikan lewat
+antarmuka menyensor apa pun yang tampak seperti kunci.</p>
+
+<h2><span class="no">07</span>Teknologi yang dipakai</h2>
+<table>
+  <tr><th>Bagian</th><th>Teknologi</th></tr>
+  <tr><td>Website</td><td>Next.js 14 App Router, React 18, Tailwind CSS, dijalankan di Vercel</td></tr>
+  <tr><td>Basis data</td><td>Supabase (PostgreSQL, Storage, Row Level Security)</td></tr>
+  <tr><td>Bot WhatsApp</td><td>Node.js dengan Baileys, berjalan sebagai proses terkelola di VPS</td></tr>
+  <tr><td>Kecerdasan buatan</td><td>Google Gemini 2.5 Flash, dengan OpenAI sebagai cadangan</td></tr>
+  <tr><td>Gambar</td><td>Sharp untuk konversi WebP otomatis, OG image dinamis</td></tr>
+  <tr><td>Aplikasi</td><td>PWA dengan notifikasi dorong</td></tr>
+  <tr><td>Pembayaran</td><td>QRIS</td></tr>
+</table>
+
+<h2><span class="no">08</span>Tampilannya</h2>
+<p>Temanya sengaja dibuat tenang. Latar putih bersih, teks nyaris hitam, dan satu warna aksen
+hijau zamrud. Hurufnya Plus Jakarta Sans. Semua ruang kosong dibiarkan lega, karena yang harus
+menonjol adalah foto barang jualan, bukan hiasan antarmukanya.</p>
+<p>Rancangannya mendahulukan layar kecil. Ini bukan pilihan gaya — hampir seluruh penggunanya
+membuka dari ponsel, seringkali sambil berjalan di antara gedung kuliah.</p>
+
+<h2><span class="no">09</span>Lihat sendiri</h2>
+<div class="links">
+  <a href="https://www.jualbeliusupolmed.web.id"><div class="t">Situs utama</div><div class="d">jualbeliusupolmed.web.id</div></a>
+  <a href="https://github.com/jualbeliusupolmed-creator/jualbeliusupolmed"><div class="t">Kode website</div><div class="d">GitHub — Next.js</div></a>
+  <a href="https://github.com/jualbeliusupolmed-creator/wa-bot-usu"><div class="t">Kode bot WhatsApp</div><div class="d">GitHub — Node.js</div></a>
+  <a href="/home"><div class="t">Panel bot</div><div class="d">Status dan kendali</div></a>
+</div>
+
+<footer>
+  <p style="margin:0">Dibangun oleh Ridho Robbi Pasi — Teknik Informatika, Universitas Sumatera Utara.<br>
+  Halaman ini disajikan langsung oleh bot WhatsApp-nya sendiri.</p>
+</footer>
+
+</div>
+</body>
+</html>
