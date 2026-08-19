@@ -225,15 +225,21 @@ const OWNER_NUMBER = process.env.OWNER_JID || '';
 // kegagalan (resolver DNS yang telanjur di-cache proses, handle socket bocor,
 // state Baileys yang rusak) cuma sembuh oleh proses yang benar-benar baru.
 // Jadi lewat ambang ini, proses dimatikan dan pm2 menghidupkannya dari nol.
-const OFFLINE_RESTART_MS = Number(process.env.OFFLINE_RESTART_MINUTES || 20) * 60 * 1000;
+const OFFLINE_RESTART_MS = Number(process.env.OFFLINE_RESTART_MINUTES || 8) * 60 * 1000;
 // Ambang digandakan tiap eskalasi beruntun sampai batas ini. Alasannya sama dengan
 // toleransi 401 di atas: kalau WhatsApp memang sedang menolak nomor ini, restart
-// tiap 20 menit tanpa henti justru pola handshake berulang yang bikin nomor
+// tiap delapan menit tanpa henti justru pola handshake berulang yang bikin nomor
 // dicurigai. Menyerah pelan-pelan lebih aman daripada menggedor terus.
-const OFFLINE_RESTART_MAX_MS = Number(process.env.OFFLINE_RESTART_MAX_MINUTES || 360) * 60 * 1000;
+//
+// Batasnya dulu 360 menit dan itu terbukti terlalu longgar: 19 Agu 2026 bot diam
+// 360 menit penuh karena jadwal coba-lagi-nya sendiri sudah melar sejauh itu.
+// Enam jam senyap bukan "mengalah dengan sopan", itu helpdesk yang mati seharian.
+// Satu jam adalah kompromi: cukup jarang untuk tidak terbaca menggedor, cukup
+// sering untuk padam paling lama satu jam, bukan satu hari kerja.
+const OFFLINE_RESTART_MAX_MS = Number(process.env.OFFLINE_RESTART_MAX_MINUTES || 60) * 60 * 1000;
 // Sambungan harus bertahan selama ini sebelum hitungan eskalasi dinolkan: 'open'
 // yang putus lagi semenit kemudian bukan pemulihan, dan menolkannya di situ bikin
-// bot menggedor WhatsApp tiap 20 menit selamanya.
+// bot menggedor WhatsApp tiap delapan menit selamanya.
 const ESCALATION_RESET_MS = Number(process.env.ESCALATION_RESET_MINUTES || 5) * 60 * 1000;
 const PROSES_MULAI = Date.now();
 let offlineEscalations = 0;

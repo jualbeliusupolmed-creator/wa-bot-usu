@@ -115,6 +115,72 @@ async function useFileAuthState(folder, opts = {}) {
         });
     }
 
+    // ── Pemetaan LID: satu berkas, bukan dua puluh ribu ───────────────────────
+    // WhatsApp memakai LID (id internal) berdampingan dengan nomor telepon, dan
+    // Baileys menyimpan tiap pasangannya lewat keys.set seperti kunci sesi biasa.
+    // Satu file per pasangan berarti 22.896 berkas @ ~14 byte — 0,3 MB data yang
+    // memakan 96 MB disk (tiap file tetap mengunci satu blok 4 KB), dan setiap
+    // sinkron kontak menjadi puluhan ribu tulis-atomik (open+write+rename) yang
+    // berebut disk persis saat handshake WhatsApp sedang dikejar tenggat.
+    //
+    // Pemetaan ini beda sifat dari kunci Signal: nilainya kecil, jumlahnya banyak,
+    // dan kehilangan satu tidak merusak sesi (paling-paling dipetakan ulang). Jadi
+    // ia disimpan sebagai SATU objek di memori, ditulis ke satu berkas dengan jeda
+    // — bukan per pasangan. Kuncinya memakai fixFileName supaya id yang mengandung
+    // karakter berkas tetap cocok dengan hasil migrasi dari format lama.
+    const LID_TYPE = 'lid-mapping';
+    const LID_FILE = 'lid-mapping.json';
+    const LID_WRITE_DELAY_MS = Number(opts.lidWriteDelayMs || process.env.AUTH_LID_WRITE_DELAY_MS || 3000);
+    let lidMap = new Map();
+    let lidDirty = false;
+    let lidTimer = null;
+
+    function lidWrite() {
+        if (lidTimer) { clearTimeout(lidTimer); lidTimer = null; }
+        if (!lidDirty) return Promise.resolve();
+        lidDirty = false;
+        const snapshot = Object.fromEntries(lidMap);
+        return enqueue(LID_FILE, async () => {
+            try { await writeAtomic(LID_FILE, snapshot); }
+            catch (e) { lidDirty = true; console.error(`[auth] Gagal simpan ${LID_FILE}: ${e.message}`); }
+        });
+    }
+    function lidTouch() {
+        lidDirty = true;
+        if (lidTimer) return;
+        lidTimer = setTimeout(() => { lidTimer = null; lidWrite(); }, LID_WRITE_DELAY_MS);
+        if (lidTimer.unref) lidTimer.unref();
+    }
+
+    // Migrasi sekali jalan dari format lama. Berkas lama baru dihapus SETELAH
+    // berkas gabungan mendarat — kalau proses mati di tengah migrasi, yang hilang
+    // cuma pekerjaan, bukan pemetaannya.
+    async function lidLoad() {
+        const gabungan = await readRaw(LID_FILE);
+        if (gabungan && typeof gabungan === 'object') lidMap = new Map(Object.entries(gabungan));
+        let lama = [];
+        try {
+            lama = (await fsp.readdir(folder))
+                .filter((n) => n.startsWith(`${LID_TYPE}-`) && n.endsWith('.json'));
+        } catch (_) { return; }
+        if (!lama.length) return;
+        for (const nama of lama) {
+            const kunci = nama.slice(LID_TYPE.length + 1, -'.json'.length);
+            if (lidMap.has(kunci)) continue;
+            const nilai = await readRaw(nama);
+            if (nilai !== null && nilai !== undefined) lidMap.set(kunci, nilai);
+        }
+        lidDirty = true;
+        await lidWrite();
+        let terhapus = 0;
+        for (const nama of lama) {
+            try { await fsp.unlink(path.join(folder, nama)); terhapus++; } catch (_) {}
+        }
+        console.warn(`[auth] ${terhapus} berkas ${LID_TYPE} lama disatukan ke ${LID_FILE} `
+            + `(${lidMap.size} pemetaan).`);
+    }
+    await lidLoad();
+
     // ── Muat creds, dengan pemulihan dari cadangan ────────────────────────────
     let creds = await readRaw(CREDS);
     if (creds === undefined || creds === null) {
@@ -148,6 +214,7 @@ async function useFileAuthState(folder, opts = {}) {
     // Tunggu semua tulisan yang masih di udara. Dipanggil sebelum proses keluar —
     // tanpa ini, pm2 restart bisa memotong penulisan creds terakhir.
     async function flush() {
+        await lidWrite();
         while (inflight.size) {
             await Promise.allSettled([...inflight]);
         }
@@ -160,6 +227,8 @@ async function useFileAuthState(folder, opts = {}) {
     async function clear() {
         await flush();
         cache.clear();
+        lidMap = new Map();
+        lidDirty = false;
         const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '');
         const backup = `${folder}.bak-${stamp}`;
         try {
@@ -187,6 +256,10 @@ async function useFileAuthState(folder, opts = {}) {
             keys: {
                 get: async (type, ids) => {
                     const data = {};
+                    if (type === LID_TYPE) {
+                        for (const id of ids) data[id] = lidMap.get(fixFileName(id)) ?? null;
+                        return data;
+                    }
                     await Promise.all(ids.map(async (id) => {
                         let value = await readData(`${type}-${id}.json`);
                         if (type === 'app-state-sync-key' && value) {
@@ -201,6 +274,12 @@ async function useFileAuthState(folder, opts = {}) {
                     for (const category in data) {
                         for (const id in data[category]) {
                             const value = data[category][id];
+                            if (category === LID_TYPE) {
+                                const kunci = fixFileName(id);
+                                if (value) lidMap.set(kunci, value); else lidMap.delete(kunci);
+                                lidTouch();
+                                continue;
+                            }
                             const file = `${category}-${id}.json`;
                             tasks.push(value ? writeData(file, value) : removeData(file));
                         }
