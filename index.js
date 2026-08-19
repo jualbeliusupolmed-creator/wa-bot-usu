@@ -1385,7 +1385,11 @@ function watchProlongedOutage() {
     // Menunggu manusia menyecan QR itu bukan kegagalan koneksi. Restart di sini
     // justru menghanguskan QR yang sedang dipelototi orang di dashboard, dan sesi
     // yang hilang tidak akan kembali oleh proses baru — itu butuh tangan admin.
-    if (currentQR || sessionLostAt) return;
+    // Sesi terkunci itu kategori yang sama: WhatsApp menolak creds ini dan yang
+    // dinanti adalah keputusan manusia, bukan socket baru. Restart di sini malah
+    // menghapus penanda kunci (ia cuma di memori) sehingga tiap proses baru
+    // mengulang ketukan login dari nol — persis pola yang bikin nomor dicurigai.
+    if (currentQR || sessionLostAt || sesiTerkunci) return;
     // Belum pernah tersambung sejak proses hidup pun terhitung padam: kalau
     // startBot() membeku sebelum socket lahir, tidak ada event 'close' yang
     // mengisi offlineSince dan pemantau ini akan tidur selamanya.
@@ -2169,7 +2173,11 @@ async function startBotInner(myGen) {
             // sinyal mencurigakan ke WhatsApp → risiko nomor diblokir.
             if (statusCode === 401) {
                 logoutStrikes++;
-                if (logoutStrikes < LOGOUT_STRIKES) {
+                // `!sesiTerkunci`: burst cepat itu untuk MENENTUKAN apakah 401-nya
+                // sungguhan. Setelah terkunci pertanyaan itu sudah terjawab, jadi
+                // mengulang 3 ketukan tiap siklus hanya melipattigakan percobaan
+                // login pada nomor yang sedang ditolak. Satu ketukan per jeda cukup.
+                if (logoutStrikes < LOGOUT_STRIKES && !sesiTerkunci) {
                     // Belum tentu benar-benar dilepas dari HP. Coba lagi dengan creds
                     // yang SAMA — kalau 401-nya cuma gangguan sementara, bot pulih
                     // sendiri dan tidak ada yang perlu scan apa pun.
