@@ -1,4 +1,9 @@
-const { default: makeWASocket, useMultiFileAuthState, downloadMediaMessage, Browsers, fetchLatestBaileysVersion, normalizeMessageContent } = require('@whiskeysockets/baileys');
+// IPv6 server ini tidak sampai ke WhatsApp (curl -6 timeout, -4 lancar), sedangkan
+// Node ≥17 memakai urutan DNS apa adanya — AAAA duluan berarti WebSocket Baileys
+// menggantung di alamat IPv6 sampai timeout 408, lalu loop reconnect tiap 60 detik.
+require('node:dns').setDefaultResultOrder('ipv4first');
+
+const { default: makeWASocket, downloadMediaMessage, Browsers, fetchLatestBaileysVersion, normalizeMessageContent, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const QRCode = require('qrcode');
@@ -7,6 +12,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./useSupabaseAuthState');
+const { useFileAuthState } = require('./waAuthState');
 
 // Baris log libsignal yang dibungkam. Bukan sekadar berisik: empat di antaranya
 // ("Closing session:" dkk) mencetak objek SessionEntry UTUH — termasuk `privKey` —
@@ -170,6 +176,19 @@ const supabase = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
     : null;
 // Diisi di startBot(): menghapus sesi aktif (Supabase atau file) saat logout/reset.
 let clearAuthState = async () => { try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {} };
+// Diisi di startBot(): menunggu tulisan sesi yang masih di udara selesai. Dipanggil
+// sebelum proses keluar — memotong penulisan creds = sesi rusak = scan QR lagi.
+let flushAuthState = async () => {};
+
+// ── Toleransi logout palsu ───────────────────────────────────────────────────
+// WhatsApp sesekali membalas 401 pada saat handshake meski perangkat sebenarnya
+// masih tertaut (versi protokol basi, jaringan kacau, server WA lagi rewel).
+// Dulu 401 pertama langsung menghapus sesi → admin wajib scan QR padahal cukup
+// sambung ulang. Sekarang creds yang sama dicoba ulang beberapa kali dulu;
+// sesi baru dilepas kalau WhatsApp konsisten menolak.
+const LOGOUT_STRIKES = Number(process.env.LOGOUT_STRIKES || 3);
+let logoutStrikes = 0;
+let sessionLostAt = null;
 
 
 const app = express();
@@ -748,6 +767,10 @@ app.get('/status', requireAuth, (req, res) => {
         lastOutage,
         outageCount,
         reconnectAttempts,
+        // Kapan perangkat terakhir benar-benar dilepas WhatsApp (butuh scan ulang).
+        // null artinya sesi masih utuh — putus koneksi biasa tidak mengisi ini.
+        sessionLostAt,
+        logoutStrikes,
         // Ringkasan hari ini, biar dashboard tidak perlu dua panggilan untuk kartu utama.
         today: stats.daily[statsDay()] || {},
         archiveCount: msgArchive.length,
@@ -1031,23 +1054,33 @@ app.get('/message-log', requireAuth, (req, res) => {
     res.json({ logs: messageLog });
 });
 
+// Keluar setelah tulisan sesi yang masih di udara selesai. process.exit() polos
+// bisa memotong penulisan creds.json di tengah jalan — file sesi jadi separuh dan
+// start berikutnya minta scan QR lagi.
+function exitAfterFlush(code) {
+    let done = false;
+    const bye = () => { if (!done) { done = true; process.exit(code); } };
+    flushAuthState().then(bye).catch(bye);
+    setTimeout(bye, 5000).unref();
+}
+
 // ── Restart endpoint ──────────────────────────────────────────────────────────
 app.post('/restart', requireAuth, requireRelink, (req, res) => {
     res.json({ ok: true, message: 'Bot akan restart dalam 1 detik...' });
-    setTimeout(() => process.exit(1), 1000);
+    setTimeout(() => exitAfterFlush(1), 1000);
 });
 
 // ── Reset / Hapus sesi ────────────────────────────────────────────────────────
 app.get('/reset', requireAuth, requireRelink, async (req, res) => {
     try { await clearAuthState(); } catch (e) { console.error('[reset] gagal hapus sesi:', e); }
     res.send('Sesi dihapus. Restarting...');
-    setTimeout(() => process.exit(1), 1000);
+    setTimeout(() => exitAfterFlush(1), 1000);
 });
 
 app.post('/reset', requireAuth, requireRelink, async (req, res) => {
     try { await clearAuthState(); } catch (e) { console.error('[reset] gagal hapus sesi:', e); }
     res.json({ ok: true, message: 'Sesi dihapus. Bot akan restart...' });
-    setTimeout(() => process.exit(1), 1000);
+    setTimeout(() => exitAfterFlush(1), 1000);
 });
 
 // ── Pairing Code endpoint ─────────────────────────────────────────────────────
@@ -1435,19 +1468,140 @@ function extractMessage(rawMessage) {
 }
 
 // ── Bot core ──────────────────────────────────────────────────────────────────
+// ── Versi protokol WhatsApp ──────────────────────────────────────────────────
+// Versi yang ikut paket Baileys cepat basi; kalau ketinggalan, WhatsApp menolak
+// handshake dengan kode 405 dan QR pun tidak pernah muncul. Jadi versinya diambil
+// saat runtime — tapi dengan dua pengaman:
+//
+//  1. Hasilnya DISIMPAN ke disk. Saat pengambilan gagal (GitHub down / kena rate
+//     limit karena loop reconnect menembaknya tiap 60 detik), kita pakai versi
+//     terakhir yang terbukti jalan, BUKAN bawaan paket yang basi. Persis kejadian
+//     18 Agu 2026: fetch gagal → jatuh ke versi bawaan → 405 beruntun 10 menit.
+//  2. Cache dianggap segar selama 6 jam, jadi reconnect beruntun tidak lagi
+//     memberondong raw.githubusercontent.com.
+//
+// fetch di dalam fetchLatestBaileysVersion() TIDAK punya timeout — kalau server
+// GitHub menggantung, await-nya tak pernah selesai dan bot membeku sebelum
+// makeWASocket, tanpa log apa pun. Timeoutnya harus kita bawa sendiri.
+const WA_VERSION_FILE = path.join(DATA_DIR, 'wa_version.json');
+const WA_VERSION_TTL_MS = Number(process.env.WA_VERSION_TTL_HOURS || 6) * 3600 * 1000;
+let waVersionCache = null;
+(function loadWaVersion() {
+    try {
+        const raw = JSON.parse(fs.readFileSync(WA_VERSION_FILE, 'utf-8'));
+        if (Array.isArray(raw?.version) && raw.version.length) waVersionCache = raw;
+    } catch (_) {}
+})();
+
+async function getWaVersion() {
+    const fresh = waVersionCache && (Date.now() - (waVersionCache.at || 0) < WA_VERSION_TTL_MS);
+    if (fresh) return waVersionCache.version;
+    try {
+        const { version, isLatest } = await Promise.race([
+            fetchLatestBaileysVersion(),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout 15s')), 15000).unref()),
+        ]);
+        // isLatest:false artinya fetch-nya gagal diam-diam dan Baileys mengembalikan
+        // versi bawaan paket — itu justru versi yang bikin 405. Jangan disimpan.
+        if (!isLatest && waVersionCache) {
+            console.warn(`[bot] Versi terbaru tak terbaca (dapat ${version.join('.')} basi). `
+                + `Pakai versi tersimpan ${waVersionCache.version.join('.')}.`);
+            return waVersionCache.version;
+        }
+        waVersionCache = { version, at: Date.now() };
+        try { fs.writeFileSync(WA_VERSION_FILE, JSON.stringify(waVersionCache)); } catch (_) {}
+        console.log(`[bot] Versi WA: ${version.join('.')} (terbaru: ${isLatest}).`);
+        return version;
+    } catch (e) {
+        if (waVersionCache) {
+            console.warn(`[bot] Gagal ambil versi WA (${e?.message || e}). `
+                + `Pakai versi tersimpan ${waVersionCache.version.join('.')}.`);
+            return waVersionCache.version;
+        }
+        console.error('[bot] Gagal ambil versi WA dan tidak ada cache, pakai bawaan Baileys:', e?.message || e);
+        return undefined;
+    }
+}
+
+// ── Simpanan pesan untuk permintaan kirim-ulang ──────────────────────────────
+// Kalau perangkat lawan gagal mendekripsi sebuah pesan, WhatsApp meminta pengirim
+// mengirimkannya ulang lewat getMessage(). Tanpa ini Baileys menjawab "tidak
+// punya" → lawan bicara melihat "Menunggu pesan ini" selamanya, dan sesi signal
+// ikut memburuk (gejalanya placeholderMessage yang muncul di log sebelum logout
+// 401 tanggal 18 Agu 2026). Cukup di memori: yang dibutuhkan cuma pesan menit-
+// menit terakhir.
+const sentMsgStore = new Map();   // `${jid}:${id}` → proto message
+const SENT_STORE_CAP = Number(process.env.SENT_STORE_CAP || 3000);
+function rememberMsgContent(key, message) {
+    if (!key?.id || !message) return;
+    const k = `${key.remoteJid}:${key.id}`;
+    if (sentMsgStore.has(k)) sentMsgStore.delete(k);
+    sentMsgStore.set(k, message);
+    while (sentMsgStore.size > SENT_STORE_CAP) sentMsgStore.delete(sentMsgStore.keys().next().value);
+}
+
+// Penghitung percobaan kirim-ulang milik Baileys. Tanpa cache ini, hitungannya
+// hilang tiap pesan dan pasangan yang bermasalah bisa saling minta ulang tanpa henti.
+const msgRetryCounterCache = {
+    store: new Map(),
+    get(key) { return this.store.get(key); },
+    set(key, value) {
+        if (this.store.has(key)) this.store.delete(key);
+        this.store.set(key, value);
+        while (this.store.size > 1000) this.store.delete(this.store.keys().next().value);
+    },
+    del(key) { this.store.delete(key); },
+    flushAll() { this.store.clear(); },
+};
+
+// Nomor generasi socket. startBot() bisa terpanggil lebih dari sekali (watchdog,
+// close handler, retry init); tanpa penanda ini, socket LAMA yang telat mengirim
+// event masih ikut menulis creds dan mengubah state milik socket baru. Dua socket
+// menulis creds yang sama = kunci sesi kacau = WhatsApp melepas perangkat.
+let botGeneration = 0;
+let startingBot = false;
+
 async function startBot() {
+    // Satu proses start pada satu waktu. Dua startBot() yang jalan bersamaan akan
+    // membuat dua socket dengan creds yang sama — persis yang bikin sesi dilepas.
+    if (startingBot) {
+        console.log('[bot] startBot() dilewati: masih ada proses penyambungan berjalan.');
+        // Jaring pengaman: kalau ternyata penyambungan itu gagal total dan tidak
+        // menyisakan socket, rantai sambung-ulang jangan ikut mati di sini.
+        setTimeout(() => { if (!waSocket) startBot().catch(() => {}); }, 10000).unref();
+        return;
+    }
+    startingBot = true;
+    const myGen = ++botGeneration;
+    // Socket lama (kalau masih ada) ditutup dulu, jangan dibiarkan hidup paralel.
+    if (waSocket) {
+        try { waSocket.end(new Error('digantikan socket baru')); } catch (_) {}
+        waSocket = null;
+    }
+    try {
+        return await startBotInner(myGen);
+    } finally {
+        startingBot = false;
+    }
+}
+
+async function startBotInner(myGen) {
     let state, saveCreds;
     if (supabase) {
         const authState = await useSupabaseAuthState(supabase, WA_SESSION_ID);
         state = authState.state;
         saveCreds = authState.saveCreds;
         clearAuthState = authState.clear;
+        flushAuthState = authState.flush;
         console.log(`[auth] Sesi WhatsApp dimuat dari Supabase (session_id=${WA_SESSION_ID}).`);
     } else {
-        const authState = await useMultiFileAuthState(AUTH_DIR);
+        // useFileAuthState (bukan useMultiFileAuthState bawaan): tulis atomik +
+        // creds cadangan + cache baca. Format foldernya sama, sesi lama tetap jalan.
+        const authState = await useFileAuthState(AUTH_DIR);
         state = authState.state;
         saveCreds = authState.saveCreds;
-        clearAuthState = async () => { try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (_) {} };
+        clearAuthState = authState.clear;
+        flushAuthState = authState.flush;
         console.log(`[auth] Sesi WhatsApp dimuat dari filesystem (${AUTH_DIR}).`);
     }
 
@@ -1485,34 +1639,46 @@ async function startBot() {
         }
     }
 
-    // Versi protokol WA yang ikut paket Baileys cepat basi; kalau ketinggalan,
-    // WhatsApp menolak handshake dengan kode 405 dan QR pun tidak pernah muncul.
-    // Jadi ambil versi terbaru saat runtime, fallback ke bawaan paket kalau gagal.
-    // fetchLatestBaileysVersion() memakai fetch TANPA timeout — kalau
-    // raw.githubusercontent.com menggantung (pernah terjadi 17 Agu 2026), await ini
-    // tidak pernah selesai dan bot membeku sebelum makeWASocket, tanpa log apa pun.
-    // Watchdog belum terpasang di titik ini, jadi timeout-nya harus kita bawa sendiri.
-    let waVersion;
-    try {
-        const { version, isLatest } = await Promise.race([
-            fetchLatestBaileysVersion(),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout 15s')), 15000).unref()),
-        ]);
-        waVersion = version;
-        console.log(`[bot] Versi WA: ${version.join('.')} (terbaru: ${isLatest}).`);
-    } catch (e) {
-        console.error('[bot] Gagal ambil versi WA terbaru, pakai bawaan Baileys:', e?.message || e);
-    }
+    const waVersion = await getWaVersion();
 
+    const waLogger = pino({ level: 'silent' });
     const sock = makeWASocket({
-        auth: state,
-        logger: pino({ level: 'silent' }),
+        auth: {
+            creds: state.creds,
+            // Kunci signal dibungkus cache: tiap dekripsi pesan membaca beberapa
+            // kunci, dan folder sesi di sini berisi puluhan ribu file. Baca dari
+            // disk terus-menerus bikin operasi signal telat → pesan gagal
+            // didekripsi → sesi memburuk.
+            keys: makeCacheableSignalKeyStore(state.keys, waLogger),
+        },
+        logger: waLogger,
         printQRInTerminal: false,
         browser: ['Mac OS', 'Chrome', '121.0.0.0'],
         ...(waVersion ? { version: waVersion } : {}),
+        // Jangan tandai "online" saat tersambung: kalau bot terus-terusan online,
+        // WhatsApp berhenti mengirim notifikasi ke HP admin.
+        markOnlineOnConnect: false,
+        // Riwayat lama tidak dipakai bot ini. Menariknya penuh = badai sinkronisasi
+        // ribuan penulisan kunci tiap kali tersambung.
+        syncFullHistory: false,
+        keepAliveIntervalMs: 25000,
+        connectTimeoutMs: 60000,
+        retryRequestDelayMs: 1000,
+        maxMsgRetryCount: 5,
+        msgRetryCounterCache,
+        // Dipakai Baileys saat lawan bicara minta kirim ulang pesan yang gagal
+        // ia dekripsi. Lihat catatan di sentMsgStore.
+        getMessage: async (key) => sentMsgStore.get(`${key.remoteJid}:${key.id}`) || undefined,
     });
     waSocket = sock;
     sock.ev.on('creds.update', saveCreds);
+
+    // Simpan isi pesan (masuk maupun keluar) untuk melayani permintaan kirim ulang.
+    sock.ev.on('messages.upsert', ({ messages }) => {
+        for (const m of messages || []) {
+            if (m?.key && m.message) rememberMsgContent(m.key, m.message);
+        }
+    });
 
     // Rantai sambung-ulang milik socket ini. Hanya BOLEH dijadwalkan sekali: entah
     // oleh handler 'close' atau oleh watchdog di bawah, jangan dua-duanya.
@@ -1520,6 +1686,9 @@ async function startBot() {
     let connectWatchdog = null;
     const scheduleRestart = (delayMs) => {
         if (reconnectScheduled) return;
+        // Socket generasi lama tidak boleh menjadwalkan apa pun: yang aktif sekarang
+        // sudah socket lain, dan menyambung ulang dari sini malah membunuhnya.
+        if (myGen !== botGeneration) return;
         reconnectScheduled = true;
         if (connectWatchdog) clearTimeout(connectWatchdog);
         setTimeout(() => startBot().catch((e) => {
@@ -1535,7 +1704,7 @@ async function startBot() {
     const armWatchdog = (ms, fase) => {
         if (connectWatchdog) clearTimeout(connectWatchdog);
         connectWatchdog = setTimeout(() => {
-            if (reconnectScheduled) return;
+            if (reconnectScheduled || myGen !== botGeneration) return;
             reconnectAttempts++;
             const backoff = Math.min(3000 * Math.pow(1.8, reconnectAttempts - 1), 60000);
             console.log(`[watchdog] Nyangkut di '${fase}' >${Math.round(ms / 1000)}s. `
@@ -1603,8 +1772,11 @@ async function startBot() {
         }
     });
 
-    sock.ev.on('connection.update', (update) => {
+    sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
+        // Event dari socket yang sudah digantikan: abaikan seluruhnya, jangan
+        // sampai ia menimpa state milik socket yang sekarang hidup.
+        if (myGen !== botGeneration) return;
         if (qr) {
             currentQR = qr;
             // Nunggu QR discan itu WAJAR, bukan nyangkut — jangan diputus watchdog
@@ -1637,10 +1809,28 @@ async function startBot() {
             // ulang dgn creds yang sama. Menghapus sesi → QR scan ulang berulang =
             // sinyal mencurigakan ke WhatsApp → risiko nomor diblokir.
             if (statusCode === 401) {
-                console.log('[reconnect] Sesi WA logout (401). Menghapus sesi, akan tampilkan QR...');
-                clearAuthState().then(() => console.log('[reconnect] Hapus sesi sukses.')).catch((e) => console.error('[reconnect] Gagal hapus sesi:', e));
-                reconnectAttempts = 0;
-                scheduleRestart(3000);
+                logoutStrikes++;
+                if (logoutStrikes < LOGOUT_STRIKES) {
+                    // Belum tentu benar-benar dilepas dari HP. Coba lagi dengan creds
+                    // yang SAMA — kalau 401-nya cuma gangguan sementara, bot pulih
+                    // sendiri dan tidak ada yang perlu scan apa pun.
+                    console.warn(`[reconnect] Dapat 401 (percobaan ${logoutStrikes}/${LOGOUT_STRIKES}). `
+                        + 'Sesi BELUM dihapus, coba sambung ulang dengan sesi yang sama...');
+                    reconnectAttempts = 0;
+                    scheduleRestart(5000 * logoutStrikes);
+                } else {
+                    console.warn(`[reconnect] 401 berturut-turut ${logoutStrikes}x — perangkat memang `
+                        + 'dilepas dari WhatsApp. Sesi dicadangkan, bot akan menampilkan QR.');
+                    sessionLostAt = new Date().toISOString();
+                    logoutStrikes = 0;
+                    bump('sesi_hilang');
+                    // WAJIB ditunggu: dulu penghapusan sesi berjalan berbarengan dengan
+                    // socket baru yang sudah mulai menulis creds, jadi creds baru ikut
+                    // terhapus dan QR yang barusan discan langsung hangus.
+                    try { await clearAuthState(); } catch (e) { console.error('[reconnect] Gagal cadangkan sesi:', e); }
+                    reconnectAttempts = 0;
+                    scheduleRestart(3000);
+                }
             } else if (statusCode === 515) {
                 // restartRequired — normal (mis. tepat setelah pairing). Sambung ulang cepat.
                 console.log('[reconnect] restartRequired (515). Sambung ulang tanpa hapus sesi...');
@@ -1660,6 +1850,8 @@ async function startBot() {
             connectedPhone = sock.user?.id?.split(':')[0] || '';
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
+            logoutStrikes = 0;   // sambungan sehat → hitungan 401 mulai dari nol lagi
+            sessionLostAt = null;
             console.log('[bot] Berhasil terhubung ke WhatsApp! Nomor:', connectedPhone);
             // Putus yang baru saja berakhir dicatat, dan yang lama dilaporkan ke pemilik.
             // Sengaja dilaporkan di sini (bukan saat putus): kanalnya sendiri baru hidup
@@ -2170,9 +2362,13 @@ function gracefulExit(sig) {
     Promise.allSettled([
         saveState('name_map', nameMap, NAME_MAP_FILE),
         saveState('lid_resolution_map', lidResolutionMap, LID_MAP_FILE),
+        // Penulisan creds yang masih di udara HARUS mendarat dulu. Memotongnya di
+        // tengah jalan meninggalkan file sesi separuh — dan sesi separuh itulah yang
+        // membuat bot start berikutnya mengira dirinya instalasi baru lalu minta QR.
+        flushAuthState(),
     ]).then(() => process.exit(0));
     // Kalau Supabase menggantung, jangan tahan proses selamanya.
-    setTimeout(() => process.exit(0), 3000).unref();
+    setTimeout(() => process.exit(0), 5000).unref();
 }
 process.on('SIGTERM', () => gracefulExit('SIGTERM'));
 process.on('SIGINT', () => gracefulExit('SIGINT'));

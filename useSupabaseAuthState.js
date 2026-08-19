@@ -3,7 +3,15 @@
 // permanen (mis. Render Free) — bot reconnect otomatis TANPA scan QR ulang.
 //
 // Interface-nya identik dengan useMultiFileAuthState: mengembalikan { state, saveCreds }
-// plus tambahan clear() untuk menghapus sesi (dipakai saat logout/reset).
+// plus tambahan flush() dan clear() (dipakai saat logout/reset).
+//
+// Pengaman yang sama seperti waAuthState.js versi file, karena sebabnya sama —
+// sesi yang hilang berarti admin harus scan QR lagi:
+//   • creds ditulis berantai (tidak saling menyalip) dan dicoba ulang saat gagal.
+//     Satu kegagalan jaringan yang lewat begitu saja = creds tertinggal versi lama.
+//   • Salinan creds disimpan di baris 'creds.bak'; kalau yang utama hilang/rusak,
+//     sesi dipulihkan dari situ alih-alih memulai sesi baru.
+//   • clear() menyalin sesi ke session_id cadangan dulu, baru menghapus.
 //
 // Skema tabel (lihat wa_auth.sql):
 //   create table public.wa_auth (
@@ -15,6 +23,10 @@
 const { initAuthCreds, BufferJSON, proto } = require('@whiskeysockets/baileys');
 
 const TABLE = 'wa_auth';
+const CREDS = 'creds';
+const CREDS_BAK = 'creds.bak';
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function useSupabaseAuthState(supabase, sessionId = 'default') {
     async function readData(key) {
@@ -30,7 +42,21 @@ async function useSupabaseAuthState(supabase, sessionId = 'default') {
         return JSON.parse(JSON.stringify(data.data), BufferJSON.reviver);
     }
 
-    async function writeData(key, value) {
+    // Sekali gagal bukan berarti selamanya gagal: jaringan ke Supabase sesekali
+    // meleset. Tanpa percobaan ulang, kunci sesi yang gagal ditulis hilang diam-diam.
+    async function withRetry(label, fn, tries = 3) {
+        let lastErr;
+        for (let i = 1; i <= tries; i++) {
+            try { return await fn(); } catch (e) {
+                lastErr = e;
+                if (i < tries) await sleep(300 * i);
+            }
+        }
+        console.error(`[auth] Gagal ${label} setelah ${tries} percobaan: ${lastErr?.message || lastErr}`);
+        return null;
+    }
+
+    async function writeRaw(key, value) {
         const payload = JSON.parse(JSON.stringify(value, BufferJSON.replacer));
         const { error } = await supabase
             .from(TABLE)
@@ -41,16 +67,65 @@ async function useSupabaseAuthState(supabase, sessionId = 'default') {
         if (error) throw error;
     }
 
-    async function removeData(key) {
-        const { error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('session_id', sessionId)
-            .eq('key', key);
-        if (error) throw error;
+    function writeData(key, value) {
+        return track(withRetry(`simpan ${key}`, () => writeRaw(key, value)));
     }
 
-    const creds = (await readData('creds')) || initAuthCreds();
+    function removeData(key) {
+        return track(withRetry(`hapus ${key}`, async () => {
+            const { error } = await supabase
+                .from(TABLE)
+                .delete()
+                .eq('session_id', sessionId)
+                .eq('key', key);
+            if (error) throw error;
+        }));
+    }
+
+    // Penulisan yang masih di udara — ditunggu sebelum proses keluar.
+    const inflight = new Set();
+    function track(p) {
+        const t = p.finally(() => inflight.delete(t));
+        inflight.add(t);
+        return t;
+    }
+    async function flush() {
+        while (inflight.size) await Promise.allSettled([...inflight]);
+    }
+
+    let creds = null;
+    try {
+        creds = await readData(CREDS);
+    } catch (e) {
+        console.error('[auth] Gagal baca creds dari Supabase:', e.message);
+    }
+    if (!creds) {
+        try {
+            const bak = await readData(CREDS_BAK);
+            if (bak) {
+                creds = bak;
+                console.warn('[auth] creds hilang/tak terbaca — sesi DIPULIHKAN dari cadangan. Tidak perlu scan ulang.');
+                await withRetry('pulihkan creds', () => writeRaw(CREDS, creds));
+            }
+        } catch (e) {
+            console.error('[auth] Gagal baca cadangan creds:', e.message);
+        }
+    }
+    if (!creds) {
+        creds = initAuthCreds();
+        console.warn('[auth] Tidak ada creds tersimpan — sesi BARU dibuat, bot akan meminta scan QR.');
+    }
+
+    // creds ditulis berantai supaya dua penyimpanan tidak saling menyalip, dan
+    // cadangannya diperbarui setelah yang utama sukses.
+    let credsChain = Promise.resolve();
+    function saveCreds() {
+        credsChain = credsChain.then(async () => {
+            const ok = await withRetry('simpan creds', () => writeRaw(CREDS, creds));
+            if (ok !== null) await withRetry('simpan cadangan creds', () => writeRaw(CREDS_BAK, creds), 2);
+        }, () => {});
+        return track(credsChain);
+    }
 
     return {
         state: {
@@ -60,7 +135,7 @@ async function useSupabaseAuthState(supabase, sessionId = 'default') {
                     const result = {};
                     await Promise.all(
                         ids.map(async (id) => {
-                            let value = await readData(`${type}-${id}`);
+                            let value = await withRetry(`baca ${type}-${id}`, () => readData(`${type}-${id}`), 2);
                             if (type === 'app-state-sync-key' && value) {
                                 value = proto.Message.AppStateSyncKeyData.fromObject(value);
                             }
@@ -82,9 +157,30 @@ async function useSupabaseAuthState(supabase, sessionId = 'default') {
                 },
             },
         },
-        saveCreds: () => writeData('creds', creds),
-        // Hapus seluruh sesi untuk sessionId ini (dipakai saat logout / /reset)
+        saveCreds,
+        flush,
+        // Buang sesi untuk sessionId ini. Barisnya disalin dulu ke session_id
+        // cadangan — kalau ternyata logout-nya palsu, sesinya masih bisa dipulihkan
+        // dengan menyalin balik baris-baris itu.
         clear: async () => {
+            await flush();
+            const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '');
+            const bakId = `${sessionId}__bak_${stamp}`;
+            try {
+                const { data, error } = await supabase
+                    .from(TABLE).select('key,data').eq('session_id', sessionId);
+                if (error) throw error;
+                if (data?.length) {
+                    const rows = data.map((r) => ({ session_id: bakId, key: r.key, data: r.data, updated_at: new Date().toISOString() }));
+                    for (let i = 0; i < rows.length; i += 500) {
+                        const { error: e2 } = await supabase.from(TABLE).upsert(rows.slice(i, i + 500), { onConflict: 'session_id,key' });
+                        if (e2) throw e2;
+                    }
+                    console.warn(`[auth] Sesi lama disalin ke session_id "${bakId}" sebelum dihapus.`);
+                }
+            } catch (e) {
+                console.error('[auth] Gagal cadangkan sesi ke Supabase:', e.message);
+            }
             const { error } = await supabase.from(TABLE).delete().eq('session_id', sessionId);
             if (error) throw error;
         },
