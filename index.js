@@ -190,6 +190,23 @@ const LOGOUT_STRIKES = Number(process.env.LOGOUT_STRIKES || 3);
 let logoutStrikes = 0;
 let sessionLostAt = null;
 
+// ── Kunci sesi ───────────────────────────────────────────────────────────────
+// Toleransi 401 di atas menunda pelepasan sesi, tapi ujungnya tetap melepas —
+// dan "ujung" itu ditentukan oleh tebakan bot soal apakah perangkat benar-benar
+// dilepas dari HP. Tebakan yang salah harganya mahal: sesi hangus, bot menganggur
+// menampilkan QR, dan tidak ada yang tahu sampai ada pelanggan mengeluh.
+//
+// Dengan kunci aktif, bot tidak pernah membuang sesinya sendiri. Setelah 401
+// beruntun ia MENAHAN creds yang ada, mencoba lagi dengan jeda panjang, dan
+// menunggu manusia memutuskan lewat POST /sesi/buka-kunci. Menyerah itu keputusan
+// yang cuma boleh diambil orang yang bisa mengecek daftar perangkat di HP.
+//
+// Jedanya sengaja panjang: kalau WhatsApp memang sedang menolak nomor ini,
+// mengetuk tiap beberapa detik justru pola yang bikin nomor makin dicurigai.
+const KUNCI_SESI = String(process.env.KUNCI_SESI ?? 'true') !== 'false';
+const KUNCI_RETRY_MS = Number(process.env.KUNCI_RETRY_MINUTES || 10) * 60 * 1000;
+let sesiTerkunci = false;
+
 
 const app = express();
 // Semua trafik masuk lewat nginx di loopback, jadi req.ip apa adanya selalu
@@ -796,6 +813,9 @@ app.get('/health', (req, res) => {
     res.status(isConnected ? 200 : 503).json({
         ok: isConnected,
         uptime: Math.floor(process.uptime()),
+        // Dibaca penjaga-bot.sh: sesi terkunci berarti yang dibutuhkan tangan
+        // manusia, dan restart proses hanya menambah ketukan yang sia-sia.
+        terkunci: sesiTerkunci,
     });
 });
 
@@ -857,6 +877,9 @@ app.get('/status', requireAuth, (req, res) => {
         // Kapan perangkat terakhir benar-benar dilepas WhatsApp (butuh scan ulang).
         // null artinya sesi masih utuh — putus koneksi biasa tidak mengisi ini.
         sessionLostAt,
+        sesiTerkunci,
+        kunciSesiAktif: KUNCI_SESI,
+        kunciRetryMenit: Math.round(KUNCI_RETRY_MS / 60000),
         logoutStrikes,
         // Ringkasan hari ini, biar dashboard tidak perlu dua panggilan untuk kartu utama.
         today: stats.daily[statsDay()] || {},
@@ -1235,6 +1258,21 @@ app.get('/reset', requireAuth, requireRelink, async (req, res) => {
 app.post('/reset', requireAuth, requireRelink, async (req, res) => {
     try { await clearAuthState(); } catch (e) { console.error('[reset] gagal hapus sesi:', e); }
     res.json({ ok: true, message: 'Sesi dihapus. Bot akan restart...' });
+    setTimeout(() => exitAfterFlush(1), 1000);
+});
+
+// ── Buka kunci sesi ──────────────────────────────────────────────────────────
+// Satu-satunya jalan sah membuang sesi yang sedang dikunci. Gerbangnya sama
+// dengan /reset (ALLOW_RELINK) karena akibatnya sama: bot logout dan siapa pun
+// yang memegang dashboard bisa menautkan perangkat baru.
+app.post('/sesi/buka-kunci', requireAuth, requireRelink, async (req, res) => {
+    if (!sesiTerkunci) return res.status(400).json({ error: 'Sesi sedang tidak terkunci.' });
+    console.warn('[sesi] Kunci dibuka dari dashboard — sesi dicadangkan, bot akan menampilkan QR.');
+    sessionLostAt = new Date().toISOString();
+    sesiTerkunci = false;
+    bump('sesi_hilang');
+    try { await clearAuthState(); } catch (e) { console.error('[sesi] gagal cadangkan sesi:', e); }
+    res.json({ ok: true, message: 'Kunci dibuka. Bot restart dan akan menampilkan QR.' });
     setTimeout(() => exitAfterFlush(1), 1000);
 });
 
@@ -1976,6 +2014,27 @@ async function startBotInner(myGen) {
                         + 'Sesi BELUM dihapus, coba sambung ulang dengan sesi yang sama...');
                     reconnectAttempts = 0;
                     scheduleRestart(5000 * logoutStrikes);
+                } else if (KUNCI_SESI) {
+                    // Sesi DITAHAN. Yang berubah cuma kecepatan mengetuk: dari detik
+                    // jadi belasan menit, karena mengetuk cepat pada nomor yang sedang
+                    // ditolak WhatsApp hanya menambah alasan untuk menolaknya.
+                    logoutStrikes = 0;
+                    if (!sesiTerkunci) {
+                        sesiTerkunci = true;
+                        bump('sesi_terkunci');
+                        console.warn(`[sesi] 401 berturut-turut ${LOGOUT_STRIKES}x — sesi TIDAK dihapus `
+                            + '(kunci sesi aktif). Bot akan terus mencoba dengan creds yang sama tiap '
+                            + `${Math.round(KUNCI_RETRY_MS / 60000)} menit. Kalau perangkat memang dilepas `
+                            + 'dari HP, buka kunci dari dashboard untuk scan QR baru.');
+                        notifyOwner('🔒 *Sesi WhatsApp terkunci*\n\nWhatsApp menolak sesi ini '
+                            + `${LOGOUT_STRIKES}× berturut-turut. Sesi sengaja TIDAK dihapus supaya bot `
+                            + 'tidak diam-diam minta scan QR ulang.\n\nCek daftar perangkat tertaut di HP: '
+                            + 'kalau bot masih terdaftar, biarkan saja — ia mencoba sendiri tiap '
+                            + `${Math.round(KUNCI_RETRY_MS / 60000)} menit. Kalau sudah tidak ada, buka kunci `
+                            + 'di dashboard lalu scan QR.');
+                    }
+                    reconnectAttempts = 0;
+                    scheduleRestart(KUNCI_RETRY_MS);
                 } else {
                     console.warn(`[reconnect] 401 berturut-turut ${logoutStrikes}x — perangkat memang `
                         + 'dilepas dari WhatsApp. Sesi dicadangkan, bot akan menampilkan QR.');
@@ -2009,6 +2068,13 @@ async function startBotInner(myGen) {
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
             logoutStrikes = 0;   // sambungan sehat → hitungan 401 mulai dari nol lagi
+            if (sesiTerkunci) {
+                sesiTerkunci = false;
+                console.log('[sesi] Tersambung lagi dengan sesi yang sama — kunci dilepas sendiri. '
+                    + '401 tadi memang palsu, dan tidak ada yang perlu scan apa pun.');
+                notifyOwner('✅ *Sesi WhatsApp pulih sendiri*\n\nBot tersambung lagi memakai sesi lama. '
+                    + 'Tidak perlu scan QR.');
+            }
             // Hitungan eskalasi baru boleh nol setelah sambungan terbukti bertahan
             // (lihat ESCALATION_RESET_MS), bukan pada detik 'open' ini.
             if (offlineEscalations > 0 && !escalationResetTimer) {

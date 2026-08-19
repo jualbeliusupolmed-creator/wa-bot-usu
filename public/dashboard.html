@@ -288,6 +288,12 @@
 
                 <div class="card glass">
                     <div class="card-header"><i class="fa-solid fa-qrcode"></i> Sambungan Perangkat</div>
+                    <div id="kunci-sesi" style="display:none;margin-bottom:16px;padding:12px;border-radius:10px;
+                         border:1px solid var(--danger,#e5484d);background:rgba(229,72,77,.08);">
+                        <p style="font-weight:600;margin-bottom:6px;"><i class="fa-solid fa-lock"></i> Sesi terkunci</p>
+                        <p class="tiny" id="kunci-sesi-teks" style="margin-bottom:10px;"></p>
+                        <button class="ghost small" onclick="bukaKunciSesi()">Buka kunci &amp; scan QR baru</button>
+                    </div>
                     <div id="qr-container" class="qr-container">
                         <p class="muted">Memuat…</p>
                     </div>
@@ -634,6 +640,17 @@
             $('t-diam').textContent = t.didiamkan || 0;
             $('t-sesi').textContent = t.sesi_bot || 0;
 
+            // Sesi terkunci bukan sekadar "terputus": bot menahan sesinya dengan
+            // sengaja dan tidak akan menampilkan QR sampai ada yang memutuskan.
+            // Kalau keadaan ini tidak terlihat di sini, ia cuma ada di log.
+            $('kunci-sesi').style.display = status.sesiTerkunci ? 'block' : 'none';
+            if (status.sesiTerkunci) {
+                $('kunci-sesi-teks').textContent = 'WhatsApp menolak sesi ini berulang kali. Sesi TIDAK dihapus — '
+                    + `bot mencoba lagi tiap ${status.kunciRetryMenit || 10} menit dengan sesi yang sama. `
+                    + 'Cek dulu daftar perangkat tertaut di HP: kalau bot masih terdaftar, biarkan saja. '
+                    + 'Buka kunci hanya kalau bot sudah tidak ada di daftar itu — sesi lama akan dibuang.';
+            }
+
             if (status.hasQR) {
                 $('pairing-container').style.display = 'block';
                 const qr = await api('/qr');
@@ -791,6 +808,14 @@
             if (r.error) return toast('Gagal: ' + r.error, false);
             toast('Sapaan dikembalikan ke bawaan.');
             loadGreeting();
+        }
+
+        async function bukaKunciSesi() {
+            if (!confirm('Buang sesi WhatsApp yang sekarang dan minta scan QR baru?\n\n'
+                + 'Lakukan ini HANYA kalau bot sudah tidak ada di daftar perangkat tertaut di HP.')) return;
+            const r = await post('/sesi/buka-kunci', {});
+            if (r.error) return toast('Gagal: ' + r.error, false);
+            toast('Kunci dibuka. Bot restart, QR akan muncul sebentar lagi.');
         }
 
         /* ── nomor penting ──────────────────────────────────────────────── */

@@ -34,8 +34,19 @@ catat() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG"
 }
 
-kode=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$URL" 2>/dev/null)
+jawaban=$(curl -s -m 10 -w '\n%{http_code}' "$URL" 2>/dev/null)
 rc=$?
+kode=$(printf '%s' "$jawaban" | tail -n1)
+badan=$(printf '%s' "$jawaban" | sed '$d')
+
+# Sesi terkunci = WhatsApp menolak sesi ini dan bot sengaja menahannya sampai ada
+# orang yang memeriksa daftar perangkat di HP. Restart tidak menyembuhkan itu; ia
+# cuma menambah ketukan ke nomor yang sedang ditolak. Jadi penjaga mundur.
+if printf '%s' "$badan" | grep -q '"terkunci":true'; then
+    catat "Sesi TERKUNCI — butuh tindakan manusia (buka kunci di dashboard). Penjaga tidak me-restart."
+    echo 0 > "$HITUNG_FILE"
+    exit 0
+fi
 
 if [ "$rc" -eq 0 ] && [ "$kode" = "200" ]; then
     # Sehat: hitungan dinolkan, dan pemulihan dicatat hanya kalau sempat gagal.
