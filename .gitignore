@@ -28,3 +28,4 @@ push-ke-github.sh
 .penjaga-restart-terakhir
 penjaga-bot.log
 .bot.lock
+outbox.json

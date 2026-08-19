@@ -411,8 +411,71 @@ function notifyOwner(text) {
     const nomor = nomorAlarm();
     const target = nomor ? toJid(nomor) : (connectedPhone ? `${connectedPhone}@s.whatsapp.net` : '');
     if (!target) return;
-    messageQueue.push({ jid: target, message: text, ts: Date.now() });
+    // TTL panjang: alarm padam justru lahir SAAT bot bermasalah, jadi kalau ia
+    // ikut kedaluwarsa dalam tiga menit, pemilik tidak pernah diberi tahu tentang
+    // satu-satunya kejadian yang paling perlu ia ketahui.
+    messageQueue.push({ jid: target, message: text, ts: Date.now(), ttl: OUTBOX_TTL_MS });
+    simpanOutbox();
     kickQueue();
+}
+
+// ── Kotak keluar tahan-mati ──────────────────────────────────────────────────
+// Antrean ini dulu hidup di memori saja, dan itu berarti dua kehilangan diam:
+// pesan lenyap tiap proses restart, DAN aturan "buang yang menunggu >3 menit" di
+// bawah membuang notifikasi penjualan yang menunggu bot pulih — padahal website
+// sudah terlanjur memberi tahu penjualnya bahwa pemberitahuan sudah dikirim.
+//
+// Sekarang antreannya ikut ditulis ke disk dan dimuat lagi saat proses hidup,
+// dan masa berlakunya per pesan, bukan tiga menit untuk semuanya:
+//   - balasan percakapan tetap 3 menit — balasan yang datang sejam kemudian
+//     membingungkan pelanggan, bukan menolongnya;
+//   - notifikasi (penjualan, tawaran, pengingat) bertahan berhari-hari, karena
+//     terlambat masih jauh lebih baik daripada tidak pernah sampai.
+const OUTBOX_FILE = path.join(DATA_DIR, 'outbox.json');
+const OUTBOX_TTL_MS = Number(process.env.OUTBOX_TTL_HOURS || 72) * 60 * 60 * 1000;
+const TTL_BALASAN_MS = 3 * 60 * 1000;
+// Batas atas antrean. Bukan cuma penjaga memori: menyemburkan ribuan pesan
+// sekaligus begitu tersambung adalah pola spam yang bisa membuat nomornya
+// dibatasi lagi — persis masalah yang sedang kita alami.
+const OUTBOX_MAX = Number(process.env.OUTBOX_MAX || 500);
+
+let outboxTimer = null;
+function simpanOutbox() {
+    // Ditunda 500 ms: satu balasan bisa memicu beberapa mutasi antrean beruntun,
+    // dan menulis berkas tiap mutasi berarti puluhan tulisan untuk satu kejadian.
+    if (outboxTimer) return;
+    outboxTimer = setTimeout(() => {
+        outboxTimer = null;
+        try {
+            const isi = JSON.stringify(messageQueue);
+            // Tulis ke berkas sementara lalu rename: kalau proses mati di tengah
+            // penulisan, yang tersisa outbox.json lama yang utuh, bukan JSON
+            // separuh yang membuat seluruh antrean tak terbaca saat hidup lagi.
+            fs.writeFileSync(`${OUTBOX_FILE}.tmp`, isi, { mode: 0o600 });
+            fs.renameSync(`${OUTBOX_FILE}.tmp`, OUTBOX_FILE);
+        } catch (e) {
+            console.error('[outbox] gagal simpan:', e.message);
+        }
+    }, 500);
+    outboxTimer.unref?.();
+}
+
+function muatOutbox() {
+    try {
+        if (!fs.existsSync(OUTBOX_FILE)) return;
+        const isi = JSON.parse(fs.readFileSync(OUTBOX_FILE, 'utf8'));
+        if (!Array.isArray(isi)) return;
+        const sekarang = Date.now();
+        const hidup = isi.filter((t) => t && t.jid
+            && sekarang - (t.ts || 0) < (t.ttl || TTL_BALASAN_MS));
+        messageQueue.push(...hidup.slice(0, OUTBOX_MAX));
+        const dibuang = isi.length - hidup.length;
+        console.log(`[outbox] ${messageQueue.length} pesan tertunda dimuat`
+            + (dibuang > 0 ? `, ${dibuang} kedaluwarsa dibuang.` : '.'));
+        if (messageQueue.length) kickQueue();
+    } catch (e) {
+        console.error('[outbox] gagal muat:', e.message);
+    }
 }
 
 let queueTimer = null;
@@ -461,8 +524,9 @@ async function processQueue() {
         const task = messageQueue.shift();
         // Anti-burst: buang pesan yang sudah terlalu lama menunggu (mis. numpuk saat
         // bot offline). Kirim borongan pesan basi = pola spam → risiko blokir WA.
-        if (task.ts && Date.now() - task.ts > 3 * 60 * 1000) {
-            console.warn(`[Queue] Buang pesan basi (>3mnt) ke ${task.jid}`);
+        const ttlTugas = task.ttl || TTL_BALASAN_MS;
+        if (task.ts && Date.now() - task.ts > ttlTugas) {
+            console.warn(`[Queue] Buang pesan kedaluwarsa (${Math.round(ttlTugas / 60000)}mnt) ke ${task.jid}`);
         }
         // Jangan kirim gelembung kosong (teks kosong tanpa gambar/poll) — pernah
         // muncul pesan kosong ke pelanggan.
@@ -508,6 +572,10 @@ async function processQueue() {
         }
     } finally {
         queueBusy = false;
+        // Menutup satu putaran: entah terkirim, dikembalikan ke antrean, atau
+        // dibuang — keadaan terbaru harus mendarat di disk, kalau tidak restart
+        // berikutnya akan mengirim ulang yang sudah sampai.
+        simpanOutbox();
     }
     nextSendAt = Date.now() + gap;
     scheduleQueue(gap);
@@ -1520,27 +1588,44 @@ app.post('/send', requireAuth, async (req, res) => {
     const jid = toJid(target);
     const message = enrichDicariMessage(swapLegacyGreeting(req.body.message, jid), jid);
 
-    // Sesi terkunci = WhatsApp menolak nomor ini dan yang ditunggu keputusan
-    // manusia, bukan detik berikutnya. Mengantre di keadaan itu adalah janji yang
-    // tidak bisa ditepati: antrean hidup di memori, jadi ia ikut hilang pada
-    // restart berikutnya. Situs memakai endpoint ini untuk mengirim OTP — dan
-    // 'status: true' yang tidak pernah mendarat berarti pendaftar menunggu kode
-    // yang tidak akan datang, sambil situs bilang kodenya sudah terkirim.
-    // Lebih baik gagal terang-terangan supaya pemanggilnya bisa memilih jalan lain.
-    if (sesiTerkunci) {
+    // Masa berlaku ditentukan PEMANGGIL, karena hanya dia yang tahu pesannya
+    // masih berguna atau tidak kalau terlambat. Notifikasi penjualan: berhari-hari.
+    // Kode OTP: beberapa menit, lewat dari itu ia sampah yang membingungkan.
+    const ttlDetik = Number(req.body.ttlDetik);
+    const ttl = Number.isFinite(ttlDetik) && ttlDetik > 0
+        ? Math.min(ttlDetik * 1000, OUTBOX_TTL_MS)
+        : OUTBOX_TTL_MS;
+
+    // Sesi terkunci = yang ditunggu keputusan manusia, bisa berjam-jam. Untuk
+    // pesan berumur pendek (OTP) mengantre di sini adalah janji yang tidak bisa
+    // ditepati, dan 'status: true' yang tidak pernah mendarat membuat situs
+    // memberi tahu pendaftar bahwa kodenya sudah terkirim. Tolak terang-terangan
+    // supaya pemanggilnya bisa memilih jalan lain. Pesan berumur panjang tetap
+    // diterima — ia memang dibuat untuk menunggu.
+    if (sesiTerkunci && ttl <= 15 * 60 * 1000) {
         return res.status(503).json({
-            error: 'Sesi WhatsApp terkunci — bot tidak bisa mengirim pesan sekarang.',
+            error: 'Sesi WhatsApp terkunci — pesan berumur pendek tidak bisa dijanjikan sekarang.',
             terkunci: true,
         });
     }
 
-    // Cap antrean: kalau menumpuk (bot lama offline), tolak daripada burst nanti.
-    if (messageQueue.length > 200) {
+    // Cap antrean. Bukan cuma penjaga memori: menyemburkan ribuan pesan sekaligus
+    // begitu tersambung adalah pola spam yang bisa membuat nomornya dibatasi lagi.
+    if (messageQueue.length >= OUTBOX_MAX) {
         return res.status(503).json({ error: 'Antrean penuh, bot sedang tidak stabil' });
     }
-    messageQueue.push({ jid, message, url, ts: Date.now() });
+    messageQueue.push({ jid, message, url, ts: Date.now(), ttl });
+    simpanOutbox();
     kickQueue();
-    res.json({ status: true, detail: 'Pesan ditambahkan ke antrean (Queue)' });
+    const tertunda = !socketAlive();
+    res.json({
+        status: true,
+        tertunda,
+        antre: messageQueue.length,
+        detail: tertunda
+            ? 'Bot sedang tidak tersambung — pesan disimpan dan dikirim otomatis begitu tersambung lagi.'
+            : 'Pesan ditambahkan ke antrean (Queue)',
+    });
 });
 
 // ── Broadcast terbatas ────────────────────────────────────────────────────────
@@ -1987,6 +2072,10 @@ async function startBotInner(myGen) {
         greetedMap = await loadState('greeted_map', GREETED_FILE);
         stateLoaded = true;
         console.log(`[state] Dimuat: ${nameMap.size} nama, ${lidResolutionMap.size} resolusi @lid, ${greetedMap.size} kontak tersapa`);
+        // Pesan yang belum sempat terkirim sebelum proses ini mati dimuat di sini,
+        // bukan di awal berkas: memuatnya sebelum antrean punya socket cuma
+        // membuatnya berputar sia-sia sampai sambungan ada.
+        muatOutbox();
 
         // Bersihkan nama sampah warisan versi lama (alur tangkap-nama dulu menyimpan
         // kata biasa/kalimat utuh sebagai nama: "min", "Ntar saya kabari...", "Iya").
