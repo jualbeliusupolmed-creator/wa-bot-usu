@@ -313,7 +313,8 @@ function socketAlive() { return !!(waSocket && waSocket.ws?.isOpen); }
 // Laporan ke pemilik lewat WhatsApp. Tanpa OWNER_JID, dikirim ke nomor bot sendiri
 // (chat "pesan ke diri sendiri") — tetap sampai dan tidak mengganggu pelanggan.
 function notifyOwner(text) {
-    const target = OWNER_NUMBER ? toJid(OWNER_NUMBER) : (connectedPhone ? `${connectedPhone}@s.whatsapp.net` : '');
+    const nomor = nomorAlarm();
+    const target = nomor ? toJid(nomor) : (connectedPhone ? `${connectedPhone}@s.whatsapp.net` : '');
     if (!target) return;
     messageQueue.push({ jid: target, message: text, ts: Date.now() });
     kickQueue();
@@ -474,6 +475,24 @@ function saveSettings() {
     catch (e) { console.error('[settings] gagal simpan:', e.message); }
 }
 loadSettings();
+
+// ── Nomor penting: penerima alarm & admin cadangan ───────────────────────────
+// Dulu penerima alarm hanya bisa diatur lewat env OWNER_JID, artinya tiap ganti
+// nomor harus SSH ke VPS lalu restart bot. Ini keputusan operasi biasa, bukan
+// rahasia teknis, jadi sekarang bisa diisi dari dashboard: env tinggal jadi
+// nilai awal, dan yang tersimpan di settings.json yang menang.
+//
+// Nomor cadangan bukan untuk bot — ia dipegang manusia, dan dipublikasikan lewat
+// /kontak-admin supaya situs bisa mengalihkan tombol "Hubungi Admin" ke sana
+// selama bot padam. Percuma tombolnya tetap menunjuk nomor yang tidak menjawab.
+function normalisasiNomor(v) {
+    const digit = String(v ?? '').replace(/\D/g, '');
+    if (!digit) return '';                                   // '' = kosongkan, sah
+    const nomor = digit.startsWith('0') ? '62' + digit.slice(1) : digit;
+    return (nomor.length >= 9 && nomor.length <= 15) ? nomor : null;   // null = tidak sah
+}
+function nomorAlarm()    { return settings.ownerNumber || OWNER_NUMBER || ''; }
+function nomorCadangan() { return settings.backupAdmin || ''; }
 
 // ── Arsip pesan (persisten) ───────────────────────────────────────────────────
 // messageLog lama cuma 100 entri di memori, tanpa arah pesan, dan lenyap tiap
@@ -1018,6 +1037,46 @@ app.get('/settings', requireAuth, (req, res) => {
         adminCallWords: [...ADMIN_CALL_WORDS],
         botPrefix: BOT_PREFIX,
         max: GREETING_MAX,
+        ownerNumber: nomorAlarm(),
+        // Dibedakan supaya dashboard bisa jujur: kotak yang terlihat terisi tapi
+        // nilainya datang dari env bukan berarti sudah pernah disimpan di sini.
+        ownerFromEnv: !settings.ownerNumber && !!OWNER_NUMBER,
+        backupAdmin: nomorCadangan(),
+    });
+});
+
+// Kedua nomor disimpan lewat satu endpoint: keduanya bagian dari satu keputusan
+// ("siapa yang dihubungi kalau bot bermasalah"), dan menyimpannya sekali jalan
+// menghindari keadaan setengah tersimpan.
+app.post('/settings/nomor', requireAuth, (req, res) => {
+    const hasil = {};
+    for (const [field, kunci, label] of [
+        ['owner', 'ownerNumber', 'Nomor alarm'],
+        ['cadangan', 'backupAdmin', 'Nomor cadangan'],
+    ]) {
+        if (!(field in (req.body || {}))) continue;
+        const nomor = normalisasiNomor(req.body[field]);
+        if (nomor === null) return res.status(400).json({ error: `${label} tidak sah — pakai format 62xxx atau 08xxx.` });
+        if (nomor) settings[kunci] = nomor; else delete settings[kunci];
+        hasil[kunci] = nomor;
+    }
+    saveSettings();
+    console.log(`[settings] Nomor penting diubah dari dashboard: ${JSON.stringify(hasil)}`);
+    res.json({ ok: true, ownerNumber: nomorAlarm(), backupAdmin: nomorCadangan() });
+});
+
+// ── Kontak admin untuk situs (publik) ────────────────────────────────────────
+// Situs jualbeliusupolmed dipasang di Vercel, jadi ia tidak bisa mengintip
+// proses ini; endpoint inilah jendelanya. Sengaja TIDAK memuat nomor utama —
+// situs sudah tahu nomornya sendiri, dan /health pun dijaga tidak membocorkan
+// nomor bot. Yang dibagikan cuma dua hal yang memang perlu diketahui publik:
+// bot sedang sehat atau tidak, dan ke mana harus lari kalau tidak.
+app.get('/kontak-admin', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');   // dibaca dari domain situs
+    res.set('Cache-Control', 'no-store');          // situs yang mengatur cache-nya
+    res.json({
+        sehat: !!(waSocket && connectedPhone && !currentQR),
+        cadangan: nomorCadangan() || null,
     });
 });
 

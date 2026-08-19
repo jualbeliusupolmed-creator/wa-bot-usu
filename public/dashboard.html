@@ -368,6 +368,29 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card glass" style="margin-top:20px;">
+                <div class="card-header"><i class="fa-solid fa-phone-volume"></i> Nomor penting</div>
+                <p class="tiny" style="margin-bottom:16px;">
+                    Dua nomor untuk keadaan bot bermasalah. Berlaku langsung, tanpa restart bot.
+                    Format bebas — <b>0812…</b> atau <b>62812…</b> sama saja.
+                </p>
+                <label class="tiny" for="nomor-owner">Nomor alarm — dikabari lewat WA setiap kali bot sempat padam</label>
+                <input type="text" id="nomor-owner" placeholder="Contoh: 62812…" style="margin:6px 0 4px;">
+                <p class="tiny" id="nomor-owner-catatan" style="margin-bottom:16px;opacity:.75;"></p>
+
+                <label class="tiny" for="nomor-cadangan">Nomor admin cadangan — dipajang situs selama bot padam</label>
+                <input type="text" id="nomor-cadangan" placeholder="Contoh: 62812…" style="margin:6px 0 4px;">
+                <p class="tiny" style="margin-bottom:16px;opacity:.75;">
+                    Dipegang manusia, bukan bot. Kosongkan kalau belum ada — situs akan tetap
+                    memakai nomor utama.
+                </p>
+
+                <div class="row" style="justify-content:flex-end">
+                    <button class="ghost small" onclick="loadNomor()">Muat ulang</button>
+                    <button class="small" onclick="simpanNomor()">Simpan nomor</button>
+                </div>
+            </div>
         </div>
 
         <!-- ── BROADCAST ────────────────────────────────────────────────── -->
@@ -574,7 +597,7 @@
         function muatTab(tab) {
             if (tab === 'inbox') loadChats();
             if (tab === 'statistik') loadStats();
-            if (tab === 'sapaan') loadGreeting();
+            if (tab === 'sapaan') { loadGreeting(); loadNomor(); }
             if (tab === 'broadcast') loadTargets();
             if (tab === 'blokir') loadBlocklist();
             if (tab === 'story') loadStories();
@@ -768,6 +791,30 @@
             if (r.error) return toast('Gagal: ' + r.error, false);
             toast('Sapaan dikembalikan ke bawaan.');
             loadGreeting();
+        }
+
+        /* ── nomor penting ──────────────────────────────────────────────── */
+        async function loadNomor() {
+            const s = await api('/settings');
+            if (!s) return;
+            $('nomor-owner').value = s.ownerNumber || '';
+            $('nomor-cadangan').value = s.backupAdmin || '';
+            // Bedanya penting saat menelusuri masalah: kotak yang terisi dari env
+            // belum tentu pernah disimpan dari sini, dan env kalah kalau disimpan.
+            $('nomor-owner-catatan').textContent = s.ownerNumber
+                ? (s.ownerFromEnv ? 'Sekarang diambil dari env OWNER_JID di server.'
+                                  : 'Tersimpan di dashboard.')
+                : 'Belum diisi — alarm padam sementara dikirim ke nomor bot sendiri.';
+        }
+
+        async function simpanNomor() {
+            const r = await post('/settings/nomor', {
+                owner: $('nomor-owner').value,
+                cadangan: $('nomor-cadangan').value,
+            });
+            if (r.error) return toast('Gagal: ' + r.error, false);
+            toast('Nomor disimpan dan langsung berlaku.');
+            loadNomor();
         }
 
         /* ── broadcast ──────────────────────────────────────────────────── */
