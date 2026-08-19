@@ -76,6 +76,17 @@ code{background:rgba(148,163,184,.15);padding:2px 7px;border-radius:5px;font-siz
 .links a:hover{border-color:rgba(16,185,129,.45)}
 .links .t{color:#fff;font-weight:650;font-size:.96rem}
 .links .d{color:var(--dim);font-size:.81rem;margin-top:2px}
+details.rinci{border:1px solid var(--line);border-radius:14px;background:rgba(15,23,42,.5);margin:14px 0}
+details.rinci summary{cursor:pointer;padding:14px 18px;font-weight:650;font-size:.95rem;color:#e2e8f0;
+ list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+details.rinci summary::-webkit-details-marker{display:none}
+details.rinci summary::after{content:'+';color:var(--em);font-weight:700;font-size:1.2rem;line-height:1}
+details.rinci[open] summary::after{content:'\2212'}
+details.rinci summary:hover{color:#fff}
+details.rinci .isi-rinci{padding:0 18px 16px}
+details.rinci .isi-rinci p:first-child{margin-top:6px}
+details.rinci table{margin:8px 0 0}
+.jml{color:var(--em);font-weight:700;font-variant-numeric:tabular-nums}
 footer{margin-top:64px;padding-top:26px;border-top:1px solid var(--line);color:var(--dim);font-size:.87rem}
 @media(max-width:560px){body{padding:0 16px 60px}header{padding-top:44px}}
 </style>
@@ -202,6 +213,113 @@ Catatan perubahan: https://bot.jualbeliusupolmed.web.id/update</div>
 apakah ini proyek yang benar-benar dikerjakan, atau templat yang diganti namanya. Riwayat
 perubahannya terbuka dan bisa ditelusuri commit demi commit di
 <a href="/update">halaman catatan perubahan</a>.</p>
+
+<p>Angka tanpa rincian cuma klaim. Empat panel di bawah ini membuka isinya satu per satu,
+supaya siapa pun bisa mencocokkannya sendiri dengan kedua repositori — termasuk menemukan
+kalau ada yang meleset.</p>
+
+<details class="rinci">
+  <summary>69 endpoint API situs &mdash; <span class="jml">rinciannya</span></summary>
+  <div class="isi-rinci">
+  <p>Satu berkas <code>route.js</code> di <code>src/app/api/</code> sama dengan satu endpoint.</p>
+  <table>
+    <tr><th>Kelompok</th><th>Jml</th><th>Contoh</th></tr>
+    <tr><td>Admin</td><td>22</td><td><code>/admin/keuangan</code>, <code>/admin/broadcast</code>, <code>/admin/tren</code>, <code>/admin/audit</code>, <code>/admin/baileys</code></td></tr>
+    <tr><td>Pembayaran</td><td>9</td><td><code>/payments/bump</code>, <code>/payments/featured</code>, <code>/payments/subscribe</code>, <code>/payments/verify-receipt</code></td></tr>
+    <tr><td>Otentikasi</td><td>7</td><td><code>/auth/otp/send</code>, <code>/auth/otp/verify</code>, <code>/auth/pin/verify</code></td></tr>
+    <tr><td>Iklan</td><td>6</td><td><code>/listings/search</code>, <code>/listings/browse</code>, <code>/listings/[id]/view</code></td></tr>
+    <tr><td>Cron terjadwal</td><td>4</td><td><code>/cron/auto-bump</code>, <code>/cron/expire</code>, <code>/cron/distributor-digest</code></td></tr>
+    <tr><td>Papan "Dicari"</td><td>2</td><td><code>/wanted</code>, <code>/wanted/[id]</code></td></tr>
+    <tr><td>Tawar-menawar</td><td>2</td><td><code>/offers</code>, <code>/offers/[id]</code></td></tr>
+    <tr><td>Notifikasi push</td><td>2</td><td><code>/push/subscribe</code></td></tr>
+    <tr><td>Distributor</td><td>2</td><td><code>/distributor/invite/[token]</code></td></tr>
+    <tr><td>Analitik</td><td>2</td><td><code>/analytics/seller</code>, <code>/analytics/pwa-install</code></td></tr>
+    <tr><td>Satuan</td><td>11</td><td><code>/minat</code>, <code>/ratings</code>, <code>/report</code>, <code>/config</code>, <code>/upload</code>, <code>/google-feed.xml</code>, <code>/wa/baileys</code></td></tr>
+  </table>
+  <p>Dua kelompok yang paling menjelaskan sifat proyek ini: <code>/cron/*</code> berarti situsnya
+  punya pekerjaan yang berjalan sendiri tanpa ada orang membukanya — iklan kedaluwarsa, auto-bump,
+  ringkasan distributor — dan <code>/wa/baileys</code> adalah titik tempat situs berbicara langsung
+  ke bot WhatsApp.</p>
+  </div>
+</details>
+
+<details class="rinci">
+  <summary>50 endpoint bot &mdash; <span class="jml">rinciannya</span></summary>
+  <div class="isi-rinci">
+  <p>Semuanya di satu berkas <code>index.js</code>, dan sebagian sedang Anda pakai: halaman ini
+  sendiri salah satu di antaranya.</p>
+  <table>
+    <tr><th>Kelompok</th><th>Jml</th><th>Contoh</th></tr>
+    <tr><td>Sesi &amp; pemulihan</td><td>9</td><td><code>/health</code>, <code>/status</code>, <code>/qr</code>, <code>/pairing-code</code>, <code>/sesi/buka-kunci</code>, <code>/kontak-admin</code></td></tr>
+    <tr><td>Kirim &amp; percakapan</td><td>9</td><td><code>/send</code>, <code>/send-poll</code>, <code>/broadcast</code>, <code>/chats</code>, <code>/messages</code>, <code>/context</code></td></tr>
+    <tr><td>Halaman publik</td><td>9</td><td><code>/home</code>, <code>/projek</code>, <code>/update</code>, <code>/lomba</code>, <code>/laporan</code>, <code>/riwayat</code></td></tr>
+    <tr><td>Identitas &amp; peta <code>@lid</code></td><td>6</td><td><code>/profile/name</code>, <code>/lid-map</code>, <code>/resolve-lid</code></td></tr>
+    <tr><td>Grup</td><td>4</td><td><code>/groups/create</code>, <code>/groups/:jid/invite</code>, <code>/groups/:jid/participants</code></td></tr>
+    <tr><td>Story &amp; saluran</td><td>4</td><td><code>/story</code>, <code>/newsletters/add</code></td></tr>
+    <tr><td>Pengaturan</td><td>4</td><td><code>/settings/greeting</code>, <code>/settings/nomor</code></td></tr>
+    <tr><td>Blokir</td><td>3</td><td><code>/blocklist/block</code>, <code>/blocklist/unblock</code></td></tr>
+    <tr><td>Statistik &amp; log</td><td>2</td><td><code>/stats</code>, <code>/logs</code></td></tr>
+  </table>
+  <p>Kelompok "sesi &amp; pemulihan" yang paling banyak makan waktu, dan bukan karena rumit
+  secara teknis: ia hasil dari kejadian nyata di bagian berikutnya halaman ini.</p>
+  </div>
+</details>
+
+<details class="rinci">
+  <summary>38 halaman dan 51 komponen &mdash; <span class="jml">rinciannya</span></summary>
+  <div class="isi-rinci">
+  <p><strong>Halaman:</strong> 17 halaman admin (<code>/admin/keuangan</code>,
+  <code>/admin/tren</code>, <code>/admin/penjual/[wa]</code>, <code>/admin/moderasi</code>, …) dan
+  21 halaman pengguna: beranda, <code>/produk/[slug]</code>, <code>/penjual/[wa]</code>,
+  <code>/jual</code>, <code>/edit/[id]</code>, <code>/dicari</code>, <code>/jasa</code>,
+  <code>/dashboard</code>, <code>/favorit</code>, <code>/blog/[slug]</code>,
+  <code>/daftar-harga</code>, <code>/cara-bergabung</code>, <code>/faq</code>, ditambah empat
+  halaman legal (kebijakan privasi, syarat &amp; ketentuan, refund, retur).</p>
+  <p><strong>Komponen:</strong> 33 di akar — <code>ProductCard</code>, <code>QRISModal</code>,
+  <code>OTPModal</code>, <code>MediaUploader</code>, <code>RatingWidget</code>,
+  <code>InstallPrompt</code>, <code>PushNotificationButton</code> — 3 komponen admin, dan 15 di
+  folder <code>baileys/</code>: 13 tab panel bot (<code>TabKirim</code>, <code>TabGrup</code>,
+  <code>TabStory</code>, <code>TabLidMap</code>, …) plus dua berkas pembantu
+  (<code>api.js</code>, <code>ui.jsx</code>).</p>
+  <p>Dua berkas terakhir itu sebenarnya bukan komponen React. Hitungan ketatnya:
+  <strong>49 komponen + 2 pembantu</strong>.</p>
+  </div>
+</details>
+
+<details class="rinci">
+  <summary>28 tabel basis data &mdash; <span class="jml">rinciannya, termasuk yang tidak rapi</span></summary>
+  <div class="isi-rinci">
+  <p><code>listings</code>, <code>wanted_listings</code>, <code>wanted_unlocks</code>,
+  <code>seller_profiles</code>, <code>seller_ratings</code>, <code>payments</code>,
+  <code>price_offers</code>, <code>otps</code>, <code>categories</code>,
+  <code>category_subscriptions</code>, <code>blogs</code>, <code>reports</code>,
+  <code>blacklist</code>, <code>admin_logs</code>, <code>error_logs</code>,
+  <code>search_logs</code>, <code>push_subscriptions</code>, <code>pwa_installs</code>,
+  <code>profile_change_requests</code>, <code>scheduled_broadcasts</code>,
+  <code>group_posts</code>, <code>distributor_invites</code>,
+  <code>distributor_categories</code>, <code>wa_conversations</code>,
+  <code>wa_listing_drafts</code>, <code>settings</code>, <code>verified_sellers</code>,
+  <code>referrals</code>, <code>wa_state</code>.</p>
+  <div class="warnbox">
+    <div class="h">Yang belum rapi, dan saya cantumkan sendiri</div>
+    Kode memanggil 28 tabel, sementara berkas migrasi di repo cuma membuat 27.
+    <code>referrals</code> dan <code>wa_state</code> dipakai kode tapi tidak punya
+    <code>CREATE TABLE</code> di repo — keduanya dibuat langsung di Supabase, jadi repo ini belum
+    bisa dipasang ulang dari nol tanpa dua tabel itu ditambahkan. Sebaliknya
+    <code>verified_sellers</code> dibuat di migrasi tapi tidak pernah dipanggil satu kali pun:
+    tabel mati, sisa fitur yang berubah arah.
+  </div>
+  </div>
+</details>
+
+<div class="warnbox">
+  <div class="h">Dua angka yang perlu dibaca apa adanya</div>
+  <strong>2.794 baris kode bot</strong> itu <code>index.js</code> saja; dashboard dan halaman
+  laporannya 3.843 baris lagi yang sengaja tidak ikut dihitung — jadi angka botnya merendahkan
+  diri, bukan melebihkan. Dan <strong>330 commit</strong> itu repo situs; repo bot hanya
+  memperlihatkan 20 karena riwayat lamanya dihapus pada Agustus 2026. Kalau juri membandingkan
+  dengan GitHub, dua angka itu akan cocok.
+</div>
 
 <h2><span class="no">04</span>Kenapa ini bukan situs pajangan</h2>
 
