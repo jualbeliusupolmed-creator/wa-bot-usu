@@ -21,3 +21,4 @@ outage_guard.json
 
 # Cadangan manual era pra-git
 *.bak-*
+push-ke-github.sh
