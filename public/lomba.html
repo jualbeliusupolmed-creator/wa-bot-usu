@@ -127,7 +127,7 @@ TEMA DESAIN
 Tenang dan mendahulukan layar kecil. Latar bersih, teks nyaris hitam, satu warna aksen hijau zamrud, huruf Plus Jakarta Sans, dan ruang kosong yang lega — karena yang harus menonjol adalah foto barang jualan, bukan hiasan antarmukanya. Hampir seluruh penggunanya membuka dari ponsel, seringkali sambil berjalan di antara gedung kuliah.
 
 UKURAN PEKERJAAN
-348 commit, 31.815 baris kode situs dan 3.192 baris kode bot, 68 endpoint API web, 47 endpoint bot, 38 halaman, 50 komponen React, 28 tabel basis data. Dibangun sejak Juni 2026 dan masih berjalan melayani pengguna sungguhan sampai hari ini.</div>
+32.003 baris kode situs dalam 330 commit, dan 2.794 baris kode bot. 69 endpoint API web, 50 endpoint bot, 38 halaman, 51 komponen React, 28 tabel basis data. Dibangun sejak Juni 2026 dan masih berjalan melayani pengguna sungguhan sampai hari ini. Angka-angka ini bisa dihitung ulang sendiri dari kedua repositori yang tautannya tercantum di atas.</div>
 </div>
 
 <h2><span class="no">02</span>Tutorial penggunaan</h2>
@@ -188,13 +188,13 @@ Catatan perubahan: https://bot.jualbeliusupolmed.web.id/update</div>
 <h2><span class="no">03</span>Angka pekerjaannya</h2>
 <div class="card">
   <div class="stats">
-    <div class="stat"><div class="n">31.815</div><div class="l">baris kode situs</div></div>
-    <div class="stat"><div class="n">3.192</div><div class="l">baris kode bot</div></div>
-    <div class="stat"><div class="n">348</div><div class="l">commit</div></div>
-    <div class="stat"><div class="n">68</div><div class="l">endpoint API web</div></div>
-    <div class="stat"><div class="n">47</div><div class="l">endpoint bot</div></div>
+    <div class="stat"><div class="n">32.003</div><div class="l">baris kode situs</div></div>
+    <div class="stat"><div class="n">2.794</div><div class="l">baris kode bot</div></div>
+    <div class="stat"><div class="n">330</div><div class="l">commit repo situs</div></div>
+    <div class="stat"><div class="n">69</div><div class="l">endpoint API web</div></div>
+    <div class="stat"><div class="n">50</div><div class="l">endpoint bot</div></div>
     <div class="stat"><div class="n">38</div><div class="l">halaman</div></div>
-    <div class="stat"><div class="n">50</div><div class="l">komponen React</div></div>
+    <div class="stat"><div class="n">51</div><div class="l">komponen React</div></div>
     <div class="stat"><div class="n">28</div><div class="l">tabel basis data</div></div>
   </div>
 </div>
@@ -220,6 +220,22 @@ kunci sesi yang membuat bot tidak boleh membuang login-nya sendiri berdasarkan t
 sesi harian yang diverifikasi isinya, dan pengalihan otomatis tombol "Hubungi Admin" ke nomor
 cadangan selama bot padam. Semuanya tercatat lengkap dengan alasannya di
 <a href="/update">catatan perubahan</a>.</p>
+
+<p>Sore harinya, hari yang sama, datang kegagalan kelas lain: nomor WhatsApp botnya
+<strong>dibatasi oleh WhatsApp sendiri</strong>. Tidak ada kode yang bisa memperbaiki itu — dan
+justru di situ rancangannya diuji. Kunci sesi menahan bot agar tidak membuang login-nya lalu
+meminta scan QR berulang, yang persis pola yang membuat sebuah nomor makin dicurigai. Pemeriksaan
+sesudahnya menemukan bot masih mengetuk login sekitar 144 kali sehari sambil menunggu; sekarang
+sekali sejam, dan penjaga padam-berkepanjangan tidak lagi me-restart proses yang sedang menunggu
+keputusan manusia. Pemulihannya pun tidak menuntut siapa pun berjaga: begitu pembatasan dicabut,
+bot menyambung sendiri.</p>
+
+<p>Yang lahir dari kejadian kedua ini adalah pemisahan yang membuat sistemnya tahan pukulan
+seperti itu: seluruh berkas kerja bot — sesi, kunci proses, pengaturan, arsip pesan — sudah
+bergantung pada satu variabel <code>DATA_DIR</code>, sehingga <strong>instance kedua dengan nomor
+WhatsApp berbeda bisa dijalankan dari kode yang sama persis tanpa mengubah satu baris pun</strong>.
+Bot cadangan itu sekarang hidup berdampingan dengan yang pertama di server ini. Ketahanan yang
+tidak menambah kode adalah ketahanan yang tidak menambah bug.</p>
 
 <h3>Keputusan rancangan yang berani</h3>
 <p>Bot ini <strong>sengaja tidak menjawab</strong> sebagian besar pesan. Chat pelanggan dianggap
