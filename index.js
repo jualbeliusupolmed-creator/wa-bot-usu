@@ -1520,6 +1520,20 @@ app.post('/send', requireAuth, async (req, res) => {
     const jid = toJid(target);
     const message = enrichDicariMessage(swapLegacyGreeting(req.body.message, jid), jid);
 
+    // Sesi terkunci = WhatsApp menolak nomor ini dan yang ditunggu keputusan
+    // manusia, bukan detik berikutnya. Mengantre di keadaan itu adalah janji yang
+    // tidak bisa ditepati: antrean hidup di memori, jadi ia ikut hilang pada
+    // restart berikutnya. Situs memakai endpoint ini untuk mengirim OTP — dan
+    // 'status: true' yang tidak pernah mendarat berarti pendaftar menunggu kode
+    // yang tidak akan datang, sambil situs bilang kodenya sudah terkirim.
+    // Lebih baik gagal terang-terangan supaya pemanggilnya bisa memilih jalan lain.
+    if (sesiTerkunci) {
+        return res.status(503).json({
+            error: 'Sesi WhatsApp terkunci — bot tidak bisa mengirim pesan sekarang.',
+            terkunci: true,
+        });
+    }
+
     // Cap antrean: kalau menumpuk (bot lama offline), tolak daripada burst nanti.
     if (messageQueue.length > 200) {
         return res.status(503).json({ error: 'Antrean penuh, bot sedang tidak stabil' });
