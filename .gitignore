@@ -16,6 +16,7 @@ greeted_map.json
 messages.json
 stats.json
 settings.json
+wa_version.json
 
 # Cadangan manual era pra-git
 *.bak-*
