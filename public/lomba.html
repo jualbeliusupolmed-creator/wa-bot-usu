@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Website Competition 2026 — Jual Beli USU Polmed</title>
+<meta name="description" content="Berkas peserta Website Competition Agustusan 2026 (.ID Community Medan × PANDI): Jual Beli USU Polmed, marketplace mahasiswa USU & Polmed yang berjalan lewat situs dan bot WhatsApp.">
+<meta property="og:title" content="Website Competition 2026 — Jual Beli USU Polmed">
+<meta property="og:description" content="Marketplace mahasiswa yang bisa dipakai tanpa membuka websitenya.">
+<meta property="og:type" content="article">
+<style>
+:root{
+  --bg:#0f172a; --card:rgba(30,41,59,.66); --line:rgba(255,255,255,.1);
+  --text:#f1f5f9; --dim:#94a3b8; --em:#10b981; --blue:#3b82f6; --warn:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);
+  background-image:radial-gradient(circle at 12% 8%,rgba(16,185,129,.13) 0%,transparent 45%),
+                   radial-gradient(circle at 88% 22%,rgba(59,130,246,.12) 0%,transparent 45%);
+  background-attachment:fixed; color:var(--text);
+  font-family:'Plus Jakarta Sans','Inter',system-ui,-apple-system,sans-serif;
+  line-height:1.75; padding:0 20px 80px; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:760px;margin:0 auto}
+header{padding:64px 0 8px;border-bottom:1px solid var(--line);margin-bottom:40px}
+.kicker{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--em);font-weight:700}
+h1{font-size:clamp(1.9rem,5.5vw,2.7rem);line-height:1.2;font-weight:800;margin:14px 0 16px;letter-spacing:-.02em}
+.lead{font-size:1.09rem;color:#cbd5e1;margin-bottom:26px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:30px}
+.tag{font-size:.78rem;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:5px 13px}
+h2{font-size:1.42rem;font-weight:750;margin:54px 0 6px;letter-spacing:-.01em}
+h2 .no{color:var(--em);font-size:.83rem;font-weight:700;display:block;margin-bottom:7px;letter-spacing:.1em}
+h3{font-size:1.06rem;font-weight:700;margin:30px 0 8px;color:#e2e8f0}
+p{margin:16px 0;color:#dbe3ec}
+strong{color:#fff;font-weight:650}
+a{color:var(--em);text-decoration:none;border-bottom:1px solid rgba(16,185,129,.35)}
+a:hover{border-bottom-color:var(--em)}
+blockquote{border-left:3px solid var(--em);padding:4px 0 4px 20px;margin:26px 0;color:#cbd5e1;font-style:italic}
+.card{background:var(--card);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--line);border-radius:16px;padding:24px;margin:30px 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px}
+.stat .n{font-size:1.7rem;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.15}
+.stat .l{font-size:.78rem;color:var(--dim);margin-top:3px}
+.flow{display:flex;flex-direction:column;gap:11px;margin:22px 0}
+.step{display:flex;gap:14px;align-items:flex-start}
+.step .b{flex:0 0 27px;height:27px;border-radius:8px;background:rgba(16,185,129,.14);
+  border:1px solid rgba(16,185,129,.3);color:var(--em);font-size:.8rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin-top:3px}
+.step .t{font-size:.96rem;color:#dbe3ec}
+table{width:100%;border-collapse:collapse;margin:22px 0;font-size:.93rem;display:block;overflow-x:auto}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-weight:600;font-size:.79rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+td:first-child{color:#fff;font-weight:600;white-space:nowrap}
+code{background:rgba(148,163,184,.15);padding:2px 7px;border-radius:5px;font-size:.87em;
+  font-family:ui-monospace,'SF Mono',Menlo,monospace;color:#a7f3d0}
+.warnbox{border-left:3px solid var(--warn);background:rgba(245,158,11,.07);
+  padding:16px 20px;border-radius:0 12px 12px 0;margin:26px 0}
+.warnbox .h{color:var(--warn);font-weight:700;font-size:.88rem;margin-bottom:5px}
+.salin{border:1px solid var(--line);border-radius:14px;background:rgba(15,23,42,.55);margin:22px 0}
+.salin .kepala{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:12px 16px;border-bottom:1px solid var(--line)}
+.salin .judul{font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:700}
+.salin button{font:inherit;font-size:.82rem;font-weight:650;cursor:pointer;color:#a7f3d0;
+  background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.4);border-radius:999px;padding:6px 15px}
+.salin button:hover{background:rgba(16,185,129,.2)}
+.salin .isi{padding:18px;white-space:pre-wrap;word-wrap:break-word;font-size:.95rem;color:#dbe3ec;line-height:1.7}
+.cek{list-style:none;margin:18px 0 0}
+.cek li{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.95rem;color:#dbe3ec}
+.cek li:last-child{border-bottom:0}
+.cek .kotak{flex:0 0 20px;height:20px;border-radius:6px;border:1px solid var(--line);margin-top:4px}
+.cek .kotak.ok{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.16)}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:22px}
+.links a{display:block;border:1px solid var(--line);border-radius:13px;padding:15px 17px;
+  background:rgba(15,23,42,.5);border-bottom:1px solid var(--line)}
+.links a:hover{border-color:rgba(16,185,129,.45)}
+.links .t{color:#fff;font-weight:650;font-size:.96rem}
+.links .d{color:var(--dim);font-size:.81rem;margin-top:2px}
+footer{margin-top:64px;padding-top:26px;border-top:1px solid var(--line);color:var(--dim);font-size:.87rem}
+@media(max-width:560px){body{padding:0 16px 60px}header{padding-top:44px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Website Competition — Agustusan 2026</div>
+  <h1>Jual Beli USU Polmed</h1>
+  <p class="lead">Marketplace mahasiswa Universitas Sumatera Utara dan Politeknik Negeri Medan
+  yang punya dua pintu masuk: sebuah situs, dan sebuah nomor WhatsApp. Halaman ini adalah berkas
+  peserta untuk challenge <strong>.ID Community Medan</strong> bersama <strong>PANDI</strong> —
+  sekaligus tempat menyimpan jawaban formulirnya supaya tidak ditulis ulang tiap kali.</p>
+  <div class="meta">
+    <span class="tag">jualbeliusupolmed.web.id</span>
+    <span class="tag">Batas kirim 26 Agustus 2026</span>
+    <span class="tag">Ridho Robbi Pasi</span>
+    <span class="tag">Teknik Informatika USU</span>
+  </div>
+</header>
+
+<h2><span class="no">01</span>Deskripsi website</h2>
+<p>Teks di bawah ini yang dipakai untuk isian <em>"Deskripsi Website"</em> di formulir
+pendaftaran. Isinya menjawab keempat hal yang diminta: tentang apa, tujuan dan manfaatnya,
+teknologinya, dan tema rancangannya.</p>
+
+<div class="salin">
+  <div class="kepala">
+    <span class="judul">Deskripsi Website</span>
+    <button data-salin="teks-deskripsi">Salin</button>
+  </div>
+  <div class="isi" id="teks-deskripsi">Jual Beli USU Polmed (jualbeliusupolmed.web.id) adalah marketplace jual-beli khusus mahasiswa Universitas Sumatera Utara dan Politeknik Negeri Medan.
+
+MASALAH YANG DIPECAHKAN
+Jual-beli barang bekas antar mahasiswa selama ini menumpuk di grup WhatsApp. Iklan yang dipasang pagi hari sudah tertimbun puluhan pesan pada siang hari, tidak bisa dicari kembali, dan tidak ada jejak apa pun tentang penjualnya sebelum uang berpindah. Solusi biasanya adalah membangun marketplace lalu meminta semua orang pindah ke sana — dan orang tidak pindah. Pertanyaannya karena itu dibalik: bagaimana kalau penjual tidak perlu pindah sama sekali, tapi barangnya tetap masuk ke sistem yang rapi?
+
+CARA KERJANYA: DUA PINTU, SATU DATABASE
+Situs mengurus semua yang butuh tampilan — katalog, pencarian, halaman produk, profil penjual, pembayaran, dasbor iklan. Bot WhatsApp mengurus orang yang tidak mau membuka apa pun: penjual cukup mengirim foto barang beserta keterangannya ke nomor bot seperti mengirim pesan biasa, AI membaca keterangan itu dan menyusun judul, harga, serta kategori, penjual membayar biaya iklan lewat QRIS dan memotret struknya di chat yang sama, lalu iklannya tayang di situs tanpa ia pernah membuka peramban. Karena keduanya menulis ke satu basis data yang sama, tidak ada penyalinan data: apa yang terjadi di chat langsung terlihat di web, dan sebaliknya.
+
+TUJUAN DAN MANFAAT
+Bagi penjual: iklan yang tidak tenggelam, dasbor berisi statistik dan tawaran masuk, serta biaya yang transparan dan kecil. Bagi pembeli: pencarian berdasarkan kategori, harga, dan area, halaman profil penjual berisi riwayat dan penilaian, papan "Dicari" untuk barang yang belum ada, dan transaksi COD di sekitar kampus. Bagi keduanya: admin manusia tetap bisa mengambil alih percakapan kapan saja — bot sengaja dirancang tidak menyahut setiap pesan.
+
+TEKNOLOGI
+Situs: Next.js 14 (App Router) dengan React dan Tailwind CSS, di-hosting di Vercel. Basis data PostgreSQL lewat Supabase, 28 tabel. Pembacaan iklan otomatis memakai Google Gemini. Pembayaran QRIS dengan verifikasi struk. Progressive Web App: bisa dipasang di layar utama dan mengirim notifikasi web-push. Seluruh gambar dilayani dalam format WebP.
+Bot WhatsApp: Node.js dengan Baileys (protokol WhatsApp multi-device) dan Express, berjalan di VPS sendiri di bawah pm2, di belakang nginx dengan TLS Let's Encrypt, memakai subdomain bot.jualbeliusupolmed.web.id sebagai panel operasionalnya.
+
+TEMA DESAIN
+Tenang dan mendahulukan layar kecil. Latar bersih, teks nyaris hitam, satu warna aksen hijau zamrud, huruf Plus Jakarta Sans, dan ruang kosong yang lega — karena yang harus menonjol adalah foto barang jualan, bukan hiasan antarmukanya. Hampir seluruh penggunanya membuka dari ponsel, seringkali sambil berjalan di antara gedung kuliah.
+
+UKURAN PEKERJAAN
+348 commit, 31.815 baris kode situs dan 3.192 baris kode bot, 68 endpoint API web, 47 endpoint bot, 38 halaman, 50 komponen React, 28 tabel basis data. Dibangun sejak Juni 2026 dan masih berjalan melayani pengguna sungguhan sampai hari ini.</div>
+</div>
+
+<h2><span class="no">02</span>Tutorial penggunaan</h2>
+<p>Isian <em>"Tutorial / Demo Penggunaan"</em> di formulir. Tiga alur yang paling sering dipakai,
+ditulis supaya bisa diikuti tanpa penjelasan tambahan.</p>
+
+<h3>Memasang iklan lewat WhatsApp — tanpa membuka situs</h3>
+<div class="flow">
+  <div class="step"><div class="b">1</div><div class="t">Kirim <code>.JUAL</code> ke nomor bot. Tanda titik di depan itu yang membangunkan bot; tanpa titik, chat dianggap milik admin manusia.</div></div>
+  <div class="step"><div class="b">2</div><div class="t">Kirim foto barang beserta keterangannya — apa adanya, seperti menulis ke teman: "jual keyboard mekanik second, mulus, 250rb, nego tipis".</div></div>
+  <div class="step"><div class="b">3</div><div class="t">Bot membaca keterangan itu dan menyodorkan judul, harga, serta kategori hasil bacaannya untuk dikoreksi.</div></div>
+  <div class="step"><div class="b">4</div><div class="t">Bayar biaya iklan lewat QRIS, lalu potret strukmu dan kirim ke chat yang sama.</div></div>
+  <div class="step"><div class="b">5</div><div class="t">Iklan tayang di situs. Penjual tidak pernah membuka peramban sekali pun.</div></div>
+</div>
+
+<h3>Memasang iklan lewat situs</h3>
+<div class="flow">
+  <div class="step"><div class="b">1</div><div class="t">Buka <code>jualbeliusupolmed.web.id/jual</code>, isi judul, harga, kategori, dan area, lalu unggah foto.</div></div>
+  <div class="step"><div class="b">2</div><div class="t">Verifikasi nomor WhatsApp lewat kode OTP yang dikirim bot ke chat.</div></div>
+  <div class="step"><div class="b">3</div><div class="t">Bayar lewat QRIS, iklan aktif, dan pantau tampilan serta tawaran masuk dari menu Dashboard.</div></div>
+</div>
+
+<h3>Mencari dan membeli</h3>
+<div class="flow">
+  <div class="step"><div class="b">1</div><div class="t">Telusuri beranda atau saring berdasarkan kategori, rentang harga, dan area kampus.</div></div>
+  <div class="step"><div class="b">2</div><div class="t">Buka halaman produk, periksa profil penjualnya: jumlah iklan, jumlah terjual, dan penilaian.</div></div>
+  <div class="step"><div class="b">3</div><div class="t">Tekan tombol minat untuk membuka percakapan WhatsApp dengan penjual, atau ajukan tawaran harga lewat situs.</div></div>
+  <div class="step"><div class="b">4</div><div class="t">Belum ketemu barangnya? Pasang di papan <strong>Dicari</strong>, dan penjual yang punya akan menghubungi.</div></div>
+</div>
+
+<div class="salin">
+  <div class="kepala">
+    <span class="judul">Versi singkat untuk formulir</span>
+    <button data-salin="teks-tutorial">Salin</button>
+  </div>
+  <div class="isi" id="teks-tutorial">A. MEMASANG IKLAN LEWAT WHATSAPP (tanpa membuka situs)
+1. Kirim ".JUAL" ke nomor bot WhatsApp. Tanda titik di depan yang membangunkan bot; pesan tanpa titik dianggap milik admin manusia dan tidak dijawab otomatis.
+2. Kirim foto barang beserta keterangannya apa adanya, contoh: "jual keyboard mekanik second, mulus, 250rb, nego tipis".
+3. Bot membaca keterangan itu dan menyodorkan judul, harga, dan kategori hasil bacaannya untuk dikoreksi.
+4. Bayar biaya iklan lewat QRIS, lalu kirim foto struknya ke chat yang sama.
+5. Iklan tayang di situs. Penjual tidak pernah membuka peramban.
+
+B. MEMASANG IKLAN LEWAT SITUS
+1. Buka jualbeliusupolmed.web.id/jual, isi judul, harga, kategori, area, dan unggah foto.
+2. Verifikasi nomor WhatsApp lewat kode OTP yang dikirim bot.
+3. Bayar lewat QRIS. Iklan aktif, dan tampilan serta tawaran masuk bisa dipantau dari menu Dashboard.
+
+C. MENCARI DAN MEMBELI
+1. Telusuri beranda atau saring berdasarkan kategori, rentang harga, dan area kampus.
+2. Buka halaman produk dan periksa profil penjualnya: jumlah iklan, jumlah terjual, dan penilaian.
+3. Tekan tombol minat untuk membuka percakapan WhatsApp dengan penjual, atau ajukan tawaran harga lewat situs.
+4. Kalau barangnya belum ada, pasang permintaan di papan "Dicari" supaya penjual yang punya menghubungi.
+
+Halaman penjelasan lengkap: https://bot.jualbeliusupolmed.web.id/projek
+Catatan perubahan: https://bot.jualbeliusupolmed.web.id/update</div>
+</div>
+
+<h2><span class="no">03</span>Angka pekerjaannya</h2>
+<div class="card">
+  <div class="stats">
+    <div class="stat"><div class="n">31.815</div><div class="l">baris kode situs</div></div>
+    <div class="stat"><div class="n">3.192</div><div class="l">baris kode bot</div></div>
+    <div class="stat"><div class="n">348</div><div class="l">commit</div></div>
+    <div class="stat"><div class="n">68</div><div class="l">endpoint API web</div></div>
+    <div class="stat"><div class="n">47</div><div class="l">endpoint bot</div></div>
+    <div class="stat"><div class="n">38</div><div class="l">halaman</div></div>
+    <div class="stat"><div class="n">50</div><div class="l">komponen React</div></div>
+    <div class="stat"><div class="n">28</div><div class="l">tabel basis data</div></div>
+  </div>
+</div>
+<p>Angka-angka itu bukan tujuan, tapi ia menjawab satu pertanyaan yang wajar ditanyakan juri:
+apakah ini proyek yang benar-benar dikerjakan, atau templat yang diganti namanya. Riwayat
+perubahannya terbuka dan bisa ditelusuri commit demi commit di
+<a href="/update">halaman catatan perubahan</a>.</p>
+
+<h2><span class="no">04</span>Kenapa ini bukan situs pajangan</h2>
+
+<h3>Domain .web.id-nya dipakai bekerja, bukan cuma dipasang</h3>
+<p>Domainnya bukan sekadar alamat etalase. <code>jualbeliusupolmed.web.id</code> melayani seluruh
+marketplace, dan <code>bot.jualbeliusupolmed.web.id</code> — subdomain yang sedang Anda buka —
+adalah panel operasional bot WhatsApp-nya: status sambungan, kotak masuk, statistik, dan halaman
+ini sendiri. Keduanya beralamat kanonik di domain .id yang sama, punya sitemap, data terstruktur
+schema.org, dan sertifikat TLS masing-masing.</p>
+
+<h3>Ada pengguna sungguhan, dan karena itu ada kegagalan sungguhan</h3>
+<p>Sistem ini melayani orang, bukan demo. Konsekuensinya nyata: 19 Agustus 2026 bot sempat diam
+enam jam karena badai sambung-ulang WhatsApp. Yang lahir dari kejadian itu justru bagian yang
+paling saya banggakan — penjaga di luar proses yang menelepon <code>/health</code> tiap dua menit,
+kunci sesi yang membuat bot tidak boleh membuang login-nya sendiri berdasarkan tebakan, cadangan
+sesi harian yang diverifikasi isinya, dan pengalihan otomatis tombol "Hubungi Admin" ke nomor
+cadangan selama bot padam. Semuanya tercatat lengkap dengan alasannya di
+<a href="/update">catatan perubahan</a>.</p>
+
+<h3>Keputusan rancangan yang berani</h3>
+<p>Bot ini <strong>sengaja tidak menjawab</strong> sebagian besar pesan. Chat pelanggan dianggap
+milik admin manusia sampai pelanggan sendiri memanggil bot dengan tanda titik. Bot toko yang
+menyahut setiap pesan terasa pintar selama seminggu, lalu membuat pelanggan berhenti menulis.
+Menahan diri itu lebih sulit dibangun daripada membalas semuanya.</p>
+
+<h3>Terbuka untuk diperiksa</h3>
+<p>Dua repositorinya publik, dan pesan commit-nya ditulis untuk menjelaskan <em>kenapa</em>, bukan
+sekadar <em>apa</em>. Siapa pun bisa menelusuri keputusan teknisnya tanpa bertanya kepada saya.</p>
+
+<h2><span class="no">05</span>Lihat sendiri</h2>
+<div class="links">
+  <a href="https://www.jualbeliusupolmed.web.id"><div class="t">Situs utama</div><div class="d">jualbeliusupolmed.web.id</div></a>
+  <a href="/projek"><div class="t">Catatan proyek</div><div class="d">Cerita &amp; keputusan teknisnya</div></a>
+  <a href="/update"><div class="t">Catatan perubahan</div><div class="d">Riwayat langsung dari git</div></a>
+  <a href="https://github.com/jualbeliusupolmed-creator/jualbeliusupolmed"><div class="t">Kode situs</div><div class="d">GitHub — Next.js</div></a>
+  <a href="https://github.com/jualbeliusupolmed-creator/wa-bot-usu"><div class="t">Kode bot</div><div class="d">GitHub — Node.js</div></a>
+  <a href="https://www.jualbeliusupolmed.web.id/cara-bergabung"><div class="t">Cara bergabung</div><div class="d">Panduan untuk pengguna baru</div></a>
+</div>
+
+<h2><span class="no">06</span>Berkas pendaftaran</h2>
+<table>
+  <tr><th>Isian formulir</th><th>Jawaban</th></tr>
+  <tr><td>Nama lengkap</td><td>Ridho Robbi Pasi</td></tr>
+  <tr><td>Status profesi</td><td>Mahasiswa</td></tr>
+  <tr><td>Kampus</td><td>Universitas Sumatera Utara</td></tr>
+  <tr><td>Jurusan</td><td>Teknik Informatika</td></tr>
+  <tr><td>Situs (domain .id)</td><td>jualbeliusupolmed.web.id</td></tr>
+  <tr><td>Repositori</td><td>github.com/jualbeliusupolmed-creator/jualbeliusupolmed<br>github.com/jualbeliusupolmed-creator/wa-bot-usu</td></tr>
+  <tr><td>Deskripsi &amp; tutorial</td><td>Bagian 01 dan 02 di halaman ini</td></tr>
+</table>
+<p style="font-size:.9rem;color:#94a3b8">Nomor WhatsApp dan alamat surel pendaftaran sengaja
+tidak dicantumkan di halaman publik ini — keduanya cukup diisi langsung di formulir.</p>
+
+<div class="warnbox">
+  <div class="h">Yang masih harus disiapkan sendiri</div>
+  <ul class="cek">
+    <li><span class="kotak ok"></span><span>Situs berdomain .web.id — <strong>sudah</strong>, hidup dan dipakai.</span></li>
+    <li><span class="kotak ok"></span><span>Tautan repositori GitHub — <strong>sudah</strong>, dua-duanya publik.</span></li>
+    <li><span class="kotak ok"></span><span>Deskripsi website &amp; tutorial penggunaan — <strong>sudah</strong>, tinggal salin dari halaman ini.</span></li>
+    <li><span class="kotak"></span><span>Akun Instagram yang tidak dikunci, dan tautan bukti posting portofolio di IG.</span></li>
+    <li><span class="kotak"></span><span>Tangkapan layar bukti follow <strong>@idcommunity.medan</strong> (berkas maksimal 10 MB).</span></li>
+    <li><span class="kotak"></span><span>Kirim formulir sebelum <strong>26 Agustus 2026</strong>.</span></li>
+  </ul>
+</div>
+
+<footer>
+  <p style="margin:0">Dibangun oleh Ridho Robbi Pasi — Teknik Informatika, Universitas Sumatera Utara.<br>
+  Halaman ini disajikan langsung oleh bot WhatsApp-nya sendiri, di VPS-nya sendiri.</p>
+</footer>
+
+</div>
+
+<script>
+for (const tombol of document.querySelectorAll('[data-salin]')) {
+  tombol.addEventListener('click', async () => {
+    const teks = document.getElementById(tombol.dataset.salin).textContent;
+    const semula = tombol.textContent;
+    try {
+      await navigator.clipboard.writeText(teks);
+      tombol.textContent = 'Tersalin ✓';
+    } catch (e) {
+      // clipboard API butuh konteks aman dan izin; kalau ditolak, jangan diam —
+      // pilih sendiri teksnya supaya pengguna tinggal menekan Ctrl+C.
+      const rentang = document.createRange();
+      rentang.selectNodeContents(document.getElementById(tombol.dataset.salin));
+      const pilihan = window.getSelection();
+      pilihan.removeAllRanges();
+      pilihan.addRange(rentang);
+      tombol.textContent = 'Tekan Ctrl+C';
+    }
+    setTimeout(() => { tombol.textContent = semula; }, 2500);
+  });
+}
+</script>
+</body>
+</html>

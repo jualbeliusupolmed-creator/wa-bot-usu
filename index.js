@@ -10,6 +10,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { execFile } = require('node:child_process');
 const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./useSupabaseAuthState');
 const { useFileAuthState } = require('./waAuthState');
@@ -915,6 +916,91 @@ app.get('/home', (req, res) => {
 // menceritakan bot ini pantas dilayani oleh bot itu sendiri.
 app.get('/projek', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'projek.html'));
+});
+
+app.get('/update', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'update.html'));
+});
+
+app.get('/lomba', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'lomba.html'));
+});
+
+// ── Riwayat perubahan (publik) ───────────────────────────────────────────────
+// Halaman /update tidak boleh jadi daftar yang harus diingat manusia untuk
+// diperbarui — daftar semacam itu selalu berhenti diperbarui pada minggu ketiga.
+// Sumbernya riwayat git yang memang sudah ditulis tiap kali ada perubahan: repo
+// bot dibaca langsung dari salinan di server ini, repo situs lewat API GitHub.
+//
+// Keduanya di-cache 10 menit. Tanpa cache, satu halaman yang di-refresh berulang
+// berarti satu proses `git log` per muat dan jatah 60 permintaan per jam ke
+// GitHub habis dalam hitungan menit.
+const REPO_BOT = 'jualbeliusupolmed-creator/wa-bot-usu';
+const REPO_SITUS = 'jualbeliusupolmed-creator/jualbeliusupolmed';
+const RIWAYAT_TTL_MS = Number(process.env.RIWAYAT_TTL_MENIT || 10) * 60 * 1000;
+let riwayatCache = { pada: 0, data: null };
+
+function riwayatBot(batas = 200) {
+    return new Promise((resolve) => {
+        // %x1f dan %x1e: pemisah unit & rekaman ASCII. Baris commit di repo ini
+        // memuat baris kosong, tanda hubung, dan tabel — pemisah yang "kelihatan"
+        // seperti --- pasti cepat atau lambat muncul di dalam pesan commit sendiri.
+        execFile('git', ['-C', __dirname, 'log', `-n${batas}`, '--no-color',
+            '--pretty=format:%H%x1f%aI%x1f%s%x1f%b%x1e'],
+        { maxBuffer: 8 * 1024 * 1024, timeout: 8000 }, (err, stdout) => {
+            if (err) return resolve([]);
+            resolve(String(stdout).split('\x1e').map((e) => e.trim()).filter(Boolean).map((entri) => {
+                const [sha, tanggal, judul, isi] = entri.split('\x1f');
+                return {
+                    sha: (sha || '').slice(0, 7), tanggal, judul,
+                    isi: (isi || '').trim(), repo: 'bot',
+                    url: `https://github.com/${REPO_BOT}/commit/${sha}`,
+                };
+            }));
+        });
+    });
+}
+
+async function riwayatSitus(batas = 100) {
+    // Tanpa token: 60 permintaan per jam per IP. Cukup, karena hasilnya di-cache.
+    const res = await fetch(`https://api.github.com/repos/${REPO_SITUS}/commits?per_page=${batas}`, {
+        headers: { 'User-Agent': 'wa-bot-usu', Accept: 'application/vnd.github+json' },
+        signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`GitHub ${res.status}`);
+    const data = await res.json();
+    return (Array.isArray(data) ? data : []).map((c) => {
+        const pesan = String(c?.commit?.message || '');
+        const pisah = pesan.indexOf('\n');
+        return {
+            sha: String(c.sha || '').slice(0, 7),
+            tanggal: c?.commit?.author?.date || c?.commit?.committer?.date || null,
+            judul: pisah === -1 ? pesan : pesan.slice(0, pisah),
+            isi: pisah === -1 ? '' : pesan.slice(pisah + 1).trim(),
+            repo: 'situs',
+            url: c.html_url || `https://github.com/${REPO_SITUS}/commit/${c.sha}`,
+        };
+    });
+}
+
+app.get('/riwayat', async (req, res) => {
+    if (riwayatCache.data && Date.now() - riwayatCache.pada < RIWAYAT_TTL_MS) {
+        return res.json({ ...riwayatCache.data, dariCache: true });
+    }
+    const bot = await riwayatBot();
+    let situs = [];
+    let galatSitus = null;
+    try {
+        situs = await riwayatSitus();
+    } catch (e) {
+        galatSitus = e.message;
+        // GitHub mati bukan alasan menampilkan halaman kosong: riwayat situs yang
+        // terakhir berhasil diambil masih jauh lebih berguna daripada tidak ada.
+        if (riwayatCache.data?.situs?.length) situs = riwayatCache.data.situs;
+    }
+    const data = { bot, situs, galatSitus, diambil: new Date().toISOString() };
+    riwayatCache = { pada: Date.now(), data };
+    res.json({ ...data, dariCache: false });
 });
 
 // ── QR JSON endpoint (untuk admin panel web) ─────────────────────────────────

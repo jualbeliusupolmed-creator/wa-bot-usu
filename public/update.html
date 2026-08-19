@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catatan Perubahan — Jual Beli USU Polmed</title>
+<meta name="description" content="Semua perubahan pada situs dan bot WhatsApp Jual Beli USU Polmed, diambil langsung dari riwayat git kedua repositori.">
+<meta property="og:title" content="Catatan Perubahan — Jual Beli USU Polmed">
+<meta property="og:description" content="Setiap perubahan tercatat, lengkap dengan alasan kenapa diambil.">
+<meta property="og:type" content="article">
+<style>
+:root{
+  --bg:#0f172a; --card:rgba(30,41,59,.66); --line:rgba(255,255,255,.1);
+  --text:#f1f5f9; --dim:#94a3b8; --em:#10b981; --blue:#3b82f6; --warn:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);
+  background-image:radial-gradient(circle at 12% 8%,rgba(16,185,129,.13) 0%,transparent 45%),
+                   radial-gradient(circle at 88% 22%,rgba(59,130,246,.12) 0%,transparent 45%);
+  background-attachment:fixed; color:var(--text);
+  font-family:'Plus Jakarta Sans','Inter',system-ui,-apple-system,sans-serif;
+  line-height:1.75; padding:0 20px 80px; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:760px;margin:0 auto}
+header{padding:64px 0 8px;border-bottom:1px solid var(--line);margin-bottom:36px}
+.kicker{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--em);font-weight:700}
+h1{font-size:clamp(1.9rem,5.5vw,2.7rem);line-height:1.2;font-weight:800;margin:14px 0 16px;letter-spacing:-.02em}
+.lead{font-size:1.09rem;color:#cbd5e1;margin-bottom:26px}
+h2{font-size:1.42rem;font-weight:750;margin:52px 0 6px;letter-spacing:-.01em}
+h2 .no{color:var(--em);font-size:.83rem;font-weight:700;display:block;margin-bottom:7px;letter-spacing:.1em}
+p{margin:16px 0;color:#dbe3ec}
+strong{color:#fff;font-weight:650}
+a{color:var(--em);text-decoration:none;border-bottom:1px solid rgba(16,185,129,.35)}
+a:hover{border-bottom-color:var(--em)}
+.card{background:var(--card);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--line);border-radius:16px;padding:24px;margin:30px 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:14px}
+.stat .n{font-size:1.75rem;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.15}
+.stat .l{font-size:.79rem;color:var(--dim);margin-top:3px}
+code{background:rgba(148,163,184,.15);padding:2px 7px;border-radius:5px;font-size:.87em;
+  font-family:ui-monospace,'SF Mono',Menlo,monospace;color:#a7f3d0}
+
+/* ── penyaring ── */
+.filter{display:flex;gap:8px;flex-wrap:wrap;margin:26px 0 6px}
+.filter button{font:inherit;font-size:.86rem;font-weight:600;color:var(--dim);cursor:pointer;
+  background:rgba(15,23,42,.5);border:1px solid var(--line);border-radius:999px;padding:7px 16px}
+.filter button:hover{border-color:rgba(16,185,129,.45);color:#e2e8f0}
+.filter button[aria-pressed="true"]{background:rgba(16,185,129,.14);border-color:rgba(16,185,129,.45);color:#a7f3d0}
+
+/* ── linimasa ── */
+.hari{margin-top:38px}
+.hari .tgl{font-size:.79rem;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);
+  font-weight:700;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.entri{display:flex;gap:14px;padding:18px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.entri .pita{flex:0 0 auto;margin-top:4px;font-size:.68rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;border-radius:999px;padding:3px 10px;border:1px solid}
+.pita.bot{color:#a7f3d0;border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.1)}
+.pita.situs{color:#bfdbfe;border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.1)}
+.entri .badan{min-width:0;flex:1}
+.entri .judul{color:#fff;font-weight:650;font-size:1rem;line-height:1.5}
+.entri .kaki{font-size:.79rem;color:var(--dim);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.entri .kaki a{border:0;font-family:ui-monospace,Menlo,monospace}
+.entri details{margin-top:10px}
+.entri summary{cursor:pointer;font-size:.82rem;color:var(--em);list-style:none}
+.entri summary::-webkit-details-marker{display:none}
+.entri summary::before{content:"▸ ";}
+.entri details[open] summary::before{content:"▾ ";}
+.entri pre{white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:.93rem;
+  color:#cbd5e1;margin-top:10px;padding-left:14px;border-left:2px solid var(--line)}
+
+/* ── daftar tunggu ── */
+.todo{list-style:none;margin:18px 0 0}
+.todo li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.96rem;color:#dbe3ec}
+.todo li:last-child{border-bottom:0}
+.todo .kotak{flex:0 0 20px;height:20px;border-radius:6px;border:1px solid var(--line);margin-top:4px}
+.todo .kotak.siapa{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.12)}
+.todo .siapa-l{font-size:.74rem;color:var(--warn);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:22px}
+.links a{display:block;border:1px solid var(--line);border-radius:13px;padding:15px 17px;
+  background:rgba(15,23,42,.5);border-bottom:1px solid var(--line)}
+.links a:hover{border-color:rgba(16,185,129,.45)}
+.links .t{color:#fff;font-weight:650;font-size:.96rem}
+.links .d{color:var(--dim);font-size:.81rem;margin-top:2px}
+footer{margin-top:64px;padding-top:26px;border-top:1px solid var(--line);color:var(--dim);font-size:.87rem}
+.muted{color:var(--dim);font-size:.9rem}
+@media(max-width:560px){body{padding:0 16px 60px}header{padding-top:44px}.entri{gap:10px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Catatan Perubahan</div>
+  <h1>Semua yang pernah berubah, beserta alasannya</h1>
+  <p class="lead">Halaman ini tidak ditulis tangan. Isinya diambil langsung dari riwayat
+  <code>git</code> kedua repositori — bot dibaca dari salinan di server ini, situs lewat API
+  GitHub. Daftar perubahan yang harus diperbarui manusia selalu berhenti diperbarui pada
+  minggu ketiga; yang ini tidak bisa ketinggalan karena sumbernya adalah pekerjaannya sendiri.</p>
+</header>
+
+<div class="card">
+  <div class="stats">
+    <div class="stat"><div class="n" id="n-total">—</div><div class="l">perubahan tercatat</div></div>
+    <div class="stat"><div class="n" id="n-bot">—</div><div class="l">di bot WhatsApp</div></div>
+    <div class="stat"><div class="n" id="n-situs">—</div><div class="l">di situs</div></div>
+    <div class="stat"><div class="n" id="n-terakhir">—</div><div class="l">perubahan terakhir</div></div>
+  </div>
+</div>
+
+<h2><span class="no">01</span>Linimasa</h2>
+<div class="filter">
+  <button data-saring="semua" aria-pressed="true">Semua</button>
+  <button data-saring="bot" aria-pressed="false">Bot WhatsApp</button>
+  <button data-saring="situs" aria-pressed="false">Situs</button>
+</div>
+<p class="muted" id="catatan-sumber">Memuat…</p>
+<div id="linimasa"></div>
+
+<h2><span class="no">02</span>Yang belum selesai</h2>
+<p>Bagian ini ditulis tangan, karena tidak ada commit untuk pekerjaan yang belum dikerjakan.
+Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
+<div class="card">
+  <ul class="todo">
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Isi nomor alarm &amp; nomor admin cadangan</strong> di panel bot (tab Sapaan →
+      "Nomor penting"). Selama kosong, alarm padam mendarat di nomor bot sendiri — satu-satunya
+      nomor yang justru sedang bermasalah — dan pengalihan kontak di situs tidak punya tujuan.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Pemantau dari luar server</strong> (mis. UptimeRobot gratis) ke
+      <code>/health</code>, interval 5 menit. Penjaga yang ada sekarang berjalan di VPS yang
+      sama, jadi ia tidak bisa berteriak kalau VPS-nya sendiri yang mati.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Salinan sesi di luar server ini.</strong> Cadangan harian sudah jalan, tapi
+      semuanya duduk di disk yang sama dengan sesinya. Butuh tujuan (server lain atau
+      penyimpanan cloud) dan sebaiknya dienkripsi sebelum keluar dari mesin ini.
+    </span></li>
+    <li><span class="kotak"></span><span>
+      <strong>Nomor WhatsApp kedua</strong> — opsional. Rancangannya sudah siap: nomor cadangan
+      di panel bot bisa diisi nomor bot kedua, dan situs otomatis mengalihkan ke sana saat bot
+      pertama merah. Yang belum ada cuma nomornya sendiri.
+    </span></li>
+  </ul>
+</div>
+
+<h2><span class="no">03</span>Cara membacanya</h2>
+<p>Tiap baris adalah satu commit. Judulnya menjelaskan <em>apa</em> yang berubah; kalau ada
+tautan "lihat alasannya", di dalamnya ada penjelasan <em>kenapa</em> — masalah apa yang
+ditemukan, angka yang mendasarinya, dan apa yang ditukar untuk memperbaikinya. Kebiasaan itu
+dijaga karena kode bisa dibaca ulang kapan saja, sedangkan alasan hilang dalam hitungan minggu.</p>
+
+<div class="links">
+  <a href="/projek"><div class="t">Catatan proyek</div><div class="d">Cerita di balik pembuatannya</div></a>
+  <a href="/lomba"><div class="t">Halaman lomba</div><div class="d">Website Competition 2026</div></a>
+  <a href="https://www.jualbeliusupolmed.web.id"><div class="t">Situs utama</div><div class="d">jualbeliusupolmed.web.id</div></a>
+  <a href="/home"><div class="t">Panel bot</div><div class="d">Status dan kendali</div></a>
+</div>
+
+<footer>
+  <p style="margin:0">Dibangun oleh Ridho Robbi Pasi — Teknik Informatika, Universitas Sumatera Utara.<br>
+  Halaman ini disajikan langsung oleh bot WhatsApp-nya sendiri.</p>
+</footer>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let semua = [];
+let saring = 'semua';
+
+// Pesan commit itu teks dari luar halaman ini. Dirakit lewat createElement dan
+// textContent, bukan innerHTML: satu tanda kurung sudut di judul commit sudah cukup
+// untuk merusak halaman kalau ditempel mentah.
+function elemen(tag, kelas, teks) {
+  const el = document.createElement(tag);
+  if (kelas) el.className = kelas;
+  if (teks != null) el.textContent = teks;
+  return el;
+}
+
+const HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+function kunciHari(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? 'Tanggal tidak diketahui'
+    : `${HARI[d.getDay()]}, ${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}`;
+}
+function jam(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+}
+function jarak(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  const menit = Math.round((Date.now() - d.getTime()) / 60000);
+  if (menit < 60) return menit + ' mnt lalu';
+  if (menit < 1440) return Math.round(menit / 60) + ' jam lalu';
+  return Math.round(menit / 1440) + ' hari lalu';
+}
+
+function gambar() {
+  const wadah = $('linimasa');
+  wadah.textContent = '';
+  const daftar = semua.filter((c) => saring === 'semua' || c.repo === saring);
+  if (!daftar.length) { wadah.appendChild(elemen('p', 'muted', 'Belum ada yang bisa ditampilkan.')); return; }
+
+  let hariBerjalan = '';
+  let kotakHari = null;
+  for (const c of daftar) {
+    const hari = kunciHari(c.tanggal);
+    if (hari !== hariBerjalan) {
+      hariBerjalan = hari;
+      kotakHari = elemen('div', 'hari');
+      kotakHari.appendChild(elemen('div', 'tgl', hari));
+      wadah.appendChild(kotakHari);
+    }
+    const entri = elemen('div', 'entri');
+    entri.appendChild(elemen('span', 'pita ' + c.repo, c.repo === 'bot' ? 'Bot' : 'Situs'));
+
+    const badan = elemen('div', 'badan');
+    badan.appendChild(elemen('div', 'judul', c.judul || '(tanpa judul)'));
+
+    const kaki = elemen('div', 'kaki');
+    kaki.appendChild(elemen('span', null, jam(c.tanggal)));
+    const tautan = elemen('a', null, c.sha);
+    tautan.href = c.url; tautan.target = '_blank'; tautan.rel = 'noreferrer';
+    kaki.appendChild(tautan);
+    badan.appendChild(kaki);
+
+    if (c.isi) {
+      const rinci = elemen('details');
+      rinci.appendChild(elemen('summary', null, 'lihat alasannya'));
+      rinci.appendChild(elemen('pre', null, c.isi));
+      badan.appendChild(rinci);
+    }
+    entri.appendChild(badan);
+    kotakHari.appendChild(entri);
+  }
+}
+
+async function muat() {
+  try {
+    const res = await fetch('/riwayat');
+    const data = await res.json();
+    const bot = data.bot || [], situs = data.situs || [];
+    semua = [...bot, ...situs].sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+
+    $('n-total').textContent = semua.length;
+    $('n-bot').textContent = bot.length;
+    $('n-situs').textContent = situs.length;
+    $('n-terakhir').textContent = semua.length ? jarak(semua[0].tanggal) : '—';
+
+    // Kalau riwayat situs gagal diambil, katakan — jangan biarkan halaman terlihat
+    // lengkap padahal separuh sumbernya diam-diam hilang.
+    $('catatan-sumber').textContent = data.galatSitus
+      ? `Riwayat situs tidak bisa diambil dari GitHub (${data.galatSitus}) — yang tampil mungkin data lama.`
+      : `Diambil ${new Date(data.diambil).toLocaleString('id-ID')}${data.dariCache ? ' (dari cache 10 menit)' : ''}.`;
+    gambar();
+  } catch (e) {
+    $('catatan-sumber').textContent = 'Gagal memuat riwayat: ' + e.message;
+  }
+}
+
+for (const b of document.querySelectorAll('.filter button')) {
+  b.addEventListener('click', () => {
+    saring = b.dataset.saring;
+    for (const lain of document.querySelectorAll('.filter button')) {
+      lain.setAttribute('aria-pressed', String(lain === b));
+    }
+    gambar();
+  });
+}
+muat();
+</script>
+</body>
+</html>
