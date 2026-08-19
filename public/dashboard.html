@@ -306,6 +306,26 @@
                         <div id="pairing-result" style="margin-top:12px;font-size:24px;font-weight:bold;color:var(--success);text-align:center;letter-spacing:2px;"></div>
                     </div>
                 </div>
+
+                <!-- Perangkat kedua. Prosesnya terpisah (wa-bot-2, port 3001, folder
+                     data sendiri) dan hanya mendengar di loopback; dashboard ini
+                     menjangkaunya lewat /perangkat2/* di bot pertama. Kartunya
+                     disembunyikan sendiri kalau bot kedua memang belum dipasang. -->
+                <div class="card glass" id="kartu-perangkat2" style="display:none">
+                    <div class="card-header"><i class="fa-solid fa-mobile-screen"></i> Sambungan Perangkat 2 <span class="tiny muted" style="font-weight:400">(nomor cadangan)</span></div>
+                    <p class="tiny muted" style="margin-bottom:12px">Bot kedua dengan nomor WhatsApp berbeda. Berguna saat nomor utama bermasalah — dan bisa mengambil alih pengiriman OTP situs.</p>
+                    <div id="qr2-container" class="qr-container">
+                        <p class="muted">Memuat…</p>
+                    </div>
+                    <div id="pairing2-container" style="display:none; margin-top:16px; border-top:1px solid var(--card-border); padding-top:16px;">
+                        <p class="tiny" style="margin-bottom:8px;">Lebih mudah daripada scan: masukkan nomor kedua, lalu ketik kodenya di HP (WhatsApp &rarr; Perangkat tertaut &rarr; Tautkan dengan nomor telepon).</p>
+                        <div class="row">
+                            <input type="text" id="pairing2-phone" placeholder="Contoh: 62812..." class="mb0" style="flex:1;padding:8px;font-size:14px;">
+                            <button class="small" onclick="requestPairing2()">Minta Kode</button>
+                        </div>
+                        <div id="pairing2-result" style="margin-top:12px;font-size:24px;font-weight:bold;color:var(--success);text-align:center;letter-spacing:2px;"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -664,6 +684,41 @@
             }
         }
 
+        // Perangkat kedua. Gagal di sini tidak boleh mengganggu apa pun di atas:
+        // bot kedua itu tambahan, dan dashboard harus tetap berguna tanpanya.
+        async function loadStatus2() {
+            const st = await api('/perangkat2/status');
+            if (!st || st.adaBot2 === false) { $('kartu-perangkat2').style.display = 'none'; return; }
+            $('kartu-perangkat2').style.display = '';
+
+            if (st.hidup === false) {
+                $('pairing2-container').style.display = 'none';
+                $('qr2-container').innerHTML = '<p class="muted">Bot kedua tidak berjalan. Hidupkan dengan <code>/root/wa-bot-2/jalankan.sh</code>.</p>';
+                return;
+            }
+            if (st.hasQR) {
+                $('pairing2-container').style.display = 'block';
+                const qr = await api('/perangkat2/qr');
+                if (qr && qr.qr) $('qr2-container').innerHTML = `<img src="${qr.qr}" alt="QR perangkat 2">`;
+            } else if (st.connected) {
+                $('pairing2-container').style.display = 'none';
+                $('qr2-container').innerHTML = '<p style="color:var(--success);font-weight:600"><i class="fa-solid fa-circle-check"></i> Perangkat 2 tersambung'
+                    + (st.connectedPhone ? ` (${st.connectedPhone})` : '') + '</p>';
+            } else {
+                $('pairing2-container').style.display = 'none';
+                $('qr2-container').innerHTML = '<p class="muted"><i class="fa-solid fa-spinner fa-spin"></i> Sedang menghubungkan…</p>';
+            }
+        }
+
+        async function requestPairing2() {
+            const phone = $('pairing2-phone').value.trim();
+            if (!phone) return alert('Isi nomor WhatsApp perangkat kedua dulu.');
+            $('pairing2-result').textContent = 'Memuat…';
+            const r = await post('/perangkat2/pairing-code', { phone });
+            $('pairing2-result').textContent = r && r.code ? r.code : '';
+            if (!r || r.error) toast(r && r.error ? r.error : 'Gagal meminta kode', false);
+        }
+
         async function loadGroups(fresh) {
             $('group-count').textContent = '…';
             const g = await api('/groups' + (fresh ? '?fresh=1' : ''));
@@ -1006,6 +1061,10 @@
         /* ── polling ────────────────────────────────────────────────────── */
         async function tick() {
             await updateStatus();
+            // Perangkat kedua disegarkan lebih jarang: ia cuma perlu diperhatikan
+            // saat sedang ditautkan, dan tiap panggilan di sini adalah dua lompatan
+            // (dashboard → bot pertama → bot kedua), bukan satu.
+            if (pollCount % 3 === 0) loadStatus2();
             if (activeTab === 'sistem') loadLogs();
             // Inbox disegarkan lebih jarang: yang penting statusnya hidup, bukan
             // daftar chat yang berkedip tiap dua detik saat admin sedang mengetik.

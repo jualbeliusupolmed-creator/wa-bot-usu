@@ -1511,6 +1511,55 @@ app.post('/sesi/buka-kunci', requireAuth, requireRelink, async (req, res) => {
     setTimeout(() => exitAfterFlush(1), 1000);
 });
 
+// ── Jendela ke bot kedua ─────────────────────────────────────────────────────
+// Bot kedua adalah proses terpisah dengan folder data dan nomor WhatsApp sendiri,
+// mendengar hanya di loopback. Ia TIDAK dipasang di nginx dengan sengaja: dashboard
+// memanggil endpoint-nya dengan path absolut (/status, /qr), jadi proxy lewat
+// awalan path akan nyasar ke bot pertama, sementara subdomain sendiri berarti DNS
+// dan sertifikat baru untuk sesuatu yang cuma dilihat satu orang.
+//
+// Jalan tengahnya: bot pertama meneruskan tiga endpoint saja — cukup untuk melihat
+// status dan menautkan perangkat — dengan gerbang token yang sama. Satu dashboard,
+// satu token, satu permukaan publik.
+const BOT2_URL = (process.env.BOT2_URL || 'http://127.0.0.1:3001').replace(/\/$/, '');
+const BOT2_TOKEN = process.env.BOT2_TOKEN || '';
+
+async function teruskanKeBot2(jalur, opsi = {}) {
+    if (!BOT2_TOKEN) {
+        return { status: 503, body: { error: 'Bot kedua belum dikonfigurasi (BOT2_TOKEN kosong).', adaBot2: false } };
+    }
+    try {
+        const res = await fetch(`${BOT2_URL}${jalur}`, {
+            method: opsi.method || 'GET',
+            headers: { Authorization: BOT2_TOKEN, 'Content-Type': 'application/json' },
+            body: opsi.body ? JSON.stringify(opsi.body) : undefined,
+            // Bot kedua ada di mesin yang sama; kalau ia tidak menjawab dalam 8 detik
+            // ia memang mati, dan dashboard tidak boleh ikut menggantung karenanya.
+            signal: AbortSignal.timeout(8000),
+        });
+        const teks = await res.text();
+        let body; try { body = JSON.parse(teks); } catch { body = { error: teks.slice(0, 200) }; }
+        return { status: res.status, body };
+    } catch (e) {
+        return { status: 502, body: { error: `Bot kedua tidak menjawab: ${e.message}`, adaBot2: true, hidup: false } };
+    }
+}
+
+app.get('/perangkat2/status', requireAuth, async (req, res) => {
+    const hasil = await teruskanKeBot2('/status');
+    res.status(hasil.status).json({ ...hasil.body, adaBot2: !!BOT2_TOKEN });
+});
+
+app.get('/perangkat2/qr', requireAuth, async (req, res) => {
+    const hasil = await teruskanKeBot2('/qr');
+    res.status(hasil.status).json(hasil.body);
+});
+
+app.post('/perangkat2/pairing-code', requireAuth, async (req, res) => {
+    const hasil = await teruskanKeBot2('/pairing-code', { method: 'POST', body: { phone: req.body?.phone } });
+    res.status(hasil.status).json(hasil.body);
+});
+
 // ── Pairing Code endpoint ─────────────────────────────────────────────────────
 app.post('/pairing-code', requireAuth, requireRelink, async (req, res) => {
     try {
