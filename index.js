@@ -91,6 +91,83 @@ const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Volume/Disk k
 const AUTH_DIR = process.env.AUTH_DIR || path.join(DATA_DIR, 'auth_info_baileys');
 const MARKETPLACE_GROUP_JID = process.env.GROUP_JID || '';
 
+// ── Kunci proses tunggal ─────────────────────────────────────────────────────
+// Semua berkas bot — sesi, settings, arsip pesan — berpatokan ke DATA_DIR. Dua
+// proses yang menunjuk DATA_DIR yang sama akan menulis creds.json bergantian,
+// dan hasilnya bukan "dua bot" melainkan satu sesi rusak yang minta scan QR.
+// Kesalahan itu gampang dibuat: `node index.js` di terminal sementara pm2 sudah
+// menjalankannya, atau instans kedua yang lupa diberi DATA_DIR sendiri.
+//
+// Kuncinya berkas biasa yang dibuat dengan flag 'wx' — pembuatannya atomik di
+// tingkat kernel, jadi dua proses yang start berbarengan tidak bisa dua-duanya
+// menang. Kunci milik proses yang sudah mati (mis. VPS reboot mendadak) diambil
+// alih: kunci yang tidak bisa dilepas sendiri cuma menghadirkan cara baru untuk
+// membuat bot tidak mau hidup.
+const LOCK_FILE = path.join(DATA_DIR, '.bot.lock');
+let lockDipegang = false;
+
+function prosesHidup(pid) {
+    if (!Number.isInteger(pid) || pid <= 1) return false;
+    try {
+        process.kill(pid, 0);
+    } catch (e) {
+        return e.code === 'EPERM';   // ada, tapi milik pengguna lain
+    }
+    // PID dipakai ulang oleh sistem. Tanpa pemeriksaan ini, kunci basi bisa
+    // "dimiliki" oleh proses cron acak yang kebetulan mewarisi nomornya.
+    try {
+        const cmd = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf-8');
+        if (cmd && !cmd.includes('node')) return false;
+    } catch (_) { /* bukan Linux atau proses sudah pergi — percaya kill(0) saja */ }
+    return true;
+}
+
+function ambilKunciProses() {
+    for (let percobaan = 0; percobaan < 2; percobaan++) {
+        try {
+            const fd = fs.openSync(LOCK_FILE, 'wx', 0o600);
+            fs.writeSync(fd, JSON.stringify({
+                pid: process.pid,
+                sejak: new Date().toISOString(),
+                dataDir: path.resolve(DATA_DIR),
+            }));
+            fs.closeSync(fd);
+            lockDipegang = true;
+            return;
+        } catch (e) {
+            if (e.code !== 'EEXIST') {
+                console.warn(`[kunci] Tidak bisa membuat ${LOCK_FILE}: ${e.message}. Bot lanjut tanpa kunci.`);
+                return;
+            }
+            let pemilik = null;
+            try { pemilik = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf-8')); } catch (_) {}
+            if (pemilik && prosesHidup(pemilik.pid)) {
+                console.error(`[FATAL] Folder data ${path.resolve(DATA_DIR)} sedang dipakai proses lain `
+                    + `(PID ${pemilik.pid}, sejak ${pemilik.sejak}). Dua proses pada satu folder sesi `
+                    + 'akan merusak creds.json dan memaksa scan QR ulang. Hentikan yang itu dulu, atau '
+                    + 'jalankan instans ini dengan DATA_DIR + PORT sendiri.');
+                process.exit(1);
+            }
+            console.warn(`[kunci] Kunci basi milik PID ${pemilik?.pid ?? '?'} (prosesnya sudah tidak ada) — diambil alih.`);
+            try { fs.unlinkSync(LOCK_FILE); } catch (_) {}
+        }
+    }
+}
+
+function lepasKunciProses() {
+    if (!lockDipegang) return;
+    lockDipegang = false;
+    try {
+        // Jangan pernah menghapus kunci milik orang lain: kalau isinya bukan PID
+        // kita, berarti proses lain sudah mengambil alih dan dia yang berhak.
+        const pemilik = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf-8'));
+        if (pemilik?.pid === process.pid) fs.unlinkSync(LOCK_FILE);
+    } catch (_) {}
+}
+
+ambilKunciProses();
+process.on('exit', lepasKunciProses);
+
 // ── Gerbang bot ───────────────────────────────────────────────────────────────
 // Default percakapan pelanggan adalah dengan ADMIN (manusia). Bot baru ikut campur
 // kalau pesan diawali tanda ini. Tanpa gerbang, bot menyahut tiap chat masuk dan
@@ -488,7 +565,7 @@ function loadSettings() {
     } catch (e) { console.error('[settings] gagal baca:', e.message); }
 }
 function saveSettings() {
-    try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2)); }
+    try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), { mode: 0o600 }); }
     catch (e) { console.error('[settings] gagal simpan:', e.message); }
 }
 loadSettings();
@@ -1209,7 +1286,7 @@ app.get('/message-log', requireAuth, (req, res) => {
 // start berikutnya minta scan QR lagi.
 function exitAfterFlush(code) {
     let done = false;
-    const bye = () => { if (!done) { done = true; process.exit(code); } };
+    const bye = () => { if (!done) { done = true; lepasKunciProses(); process.exit(code); } };
     flushAuthState().then(bye).catch(bye);
     setTimeout(bye, 5000).unref();
 }

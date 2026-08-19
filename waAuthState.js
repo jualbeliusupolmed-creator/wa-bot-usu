@@ -31,7 +31,12 @@ async function useFileAuthState(folder, opts = {}) {
     const cacheMax = Number(opts.cacheMax || process.env.AUTH_CACHE_MAX || 4000);
     const keepBackups = Number(opts.keepBackups || process.env.AUTH_KEEP_BACKUPS || 3);
 
-    await fsp.mkdir(folder, { recursive: true });
+    // 0700: isi folder ini adalah kunci Signal dan creds WhatsApp. Bisa dibaca
+    // berarti sesi bisa dibajak tanpa menyentuh HP siapa pun, jadi jangan pernah
+    // mengandalkan izin bawaan (0755) yang membuatnya terbuka untuk semua akun
+    // di server.
+    await fsp.mkdir(folder, { recursive: true, mode: 0o700 });
+    try { await fsp.chmod(folder, 0o700); } catch (_) { /* folder lama milik proses lain */ }
 
     // ── Antrean tulis per-file ────────────────────────────────────────────────
     // Dua penulisan ke file yang sama tidak boleh saling menyalip (creds ditulis
@@ -65,7 +70,7 @@ async function useFileAuthState(folder, opts = {}) {
         const target = path.join(folder, fixFileName(file));
         const tmp = `${target}.tmp${process.pid}`;
         const json = JSON.stringify(data, BufferJSON.replacer);
-        const fh = await fsp.open(tmp, 'w');
+        const fh = await fsp.open(tmp, 'w', 0o600);   // sama alasannya dengan 0700 di folder
         try {
             await fh.writeFile(json, 'utf-8');
             if (sync) await fh.sync();   // creds saja: pastikan benar-benar mendarat di disk
@@ -204,7 +209,7 @@ async function useFileAuthState(folder, opts = {}) {
                 const json = await writeAtomic(CREDS, creds, { sync: true });
                 // Cadangan ditulis dari isi yang BARU SAJA sukses, bukan hasil baca
                 // ulang — kalau yang utama rusak setelah ini, cadangannya tetap sah.
-                await fsp.writeFile(path.join(folder, CREDS_BAK), json, 'utf-8');
+                await fsp.writeFile(path.join(folder, CREDS_BAK), json, { encoding: 'utf-8', mode: 0o600 });
             } catch (e) {
                 console.error(`[auth] Gagal simpan creds: ${e.message}`);
             }

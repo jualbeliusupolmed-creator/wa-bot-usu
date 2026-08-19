@@ -27,3 +27,4 @@ push-ke-github.sh
 .penjaga-hitung
 .penjaga-restart-terakhir
 penjaga-bot.log
+.bot.lock
