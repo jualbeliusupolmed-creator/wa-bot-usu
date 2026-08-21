@@ -334,6 +334,15 @@ app.use(express.json());
 // Satu jam saja: cukup untuk berpindah-pindah halaman, cukup pendek supaya
 // perbaikan tampilan tidak tertahan lama di peramban yang sudah terlanjur.
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), { maxAge: '1h' }));
+// Berkas migrasi disajikan sebagai teks biasa, bukan application/sql — kalau
+// tipenya dibiarkan apa adanya, peramban mengunduhnya alih-alih menampilkannya,
+// dan halaman /jalankan yang mengambilnya lewat fetch() jadi satu-satunya cara
+// melihat isinya. Harus di ATAS express.static supaya static tidak keburu
+// melayaninya dengan tipe bawaan.
+app.get('/migrasi.sql', (req, res) => {
+    res.type('text/plain; charset=utf-8');
+    res.sendFile(path.join(__dirname, 'public', 'migrasi.sql'));
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 let waSocket = null;
@@ -1194,6 +1203,20 @@ app.get('/update', (req, res) => {
 
 app.get('/lomba', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'lomba.html'));
+});
+
+// ── Migrasi database, siap salin (public) ────────────────────────────────────
+// Berkas migrasi gabungan itu 1.469 baris; menyalinnya dari terminal atau dari
+// tampilan berkas di GitHub selalu meleset sebagian. Halaman ini menyajikannya
+// dengan satu tombol salin, dan mengambil isinya dari /migrasi.sql saat dibuka
+// supaya tidak ada salinan kedua yang perlahan berbeda dari yang di repo.
+//
+// Sengaja tanpa token: yang dibawanya cuma DDL — nama tabel dan kolom, tanpa
+// satu pun kunci atau data orang — dan gerbang token di ponsel justru membuat
+// halaman ini gagal pada satu-satunya hal yang jadi alasan ia dibuat. Diberi
+// noindex supaya tetap tidak ikut nongol di hasil pencarian.
+app.get('/jalankan', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'jalankan.html'));
 });
 
 // ── Riwayat perubahan (publik) ───────────────────────────────────────────────
