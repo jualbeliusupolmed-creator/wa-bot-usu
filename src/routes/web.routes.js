@@ -18,12 +18,13 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('node:child_process');
 
+const { amanTujuan } = require('../lib/utils');
+
 module.exports = function pasangRuteHalaman(app, ctx) {
     const {
         AKAR, WEBHOOK_URL, API_TOKEN, REPO_BOT, REPO_SITUS,
         PANEL_PASSWORD, KUKI_NAMA,
-        requireAuthPage, bolehMasuk, halamanMasuk, amanTujuan,
-        authBlocked, noteAuthFail, passwordMatches, kukiSah,
+        requireAuthPage, bolehMasuk, halamanMasuk,         authBlocked, noteAuthFail, passwordMatches, kukiSah,
     } = ctx;
 
     const RIWAYAT_TTL_MS = Number(process.env.RIWAYAT_TTL_MENIT || 10) * 60 * 1000;
