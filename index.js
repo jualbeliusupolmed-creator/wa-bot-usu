@@ -329,6 +329,9 @@ const app = express();
 // tetap tidak dipercaya.
 app.set('trust proxy', 'loopback');
 app.use(express.json());
+// Formulir masuk mengirim application/x-www-form-urlencoded, bukan JSON —
+// tanpa ini req.body-nya undefined dan sandi yang benar pun ditolak.
+app.use(express.urlencoded({ extended: false, limit: '16kb' }));
 // Berkas tampilan bersama (/assets/ui.css, /assets/ui.js) dipakai SEMUA halaman,
 // jadi ia sebaiknya cuma diunduh sekali per kunjungan, bukan sekali per halaman.
 // Satu jam saja: cukup untuk berpindah-pindah halaman, cukup pendek supaya
@@ -1067,6 +1070,63 @@ function tokenMatches(given) {
     if (a.length !== b.length) return false;
     return crypto.timingSafeEqual(a, b);
 }
+// ── Sandi panel (manusia) di samping token (mesin) ───────────────────────────
+// Token 48 karakter itu dipakai DUA hal: manusia menempelkannya ke kolom token
+// di tiap halaman, dan mesin memakainya untuk saling memanggil (situs → bot, dan
+// bot → webhook situs di lima tempat). Menggantinya dengan sandi berarti ikut
+// menurunkan autentikasi antar-server jadi satu kata yang bisa ditebak, dan
+// nilainya harus diganti serentak di Vercel atau sambungannya putus.
+//
+// Jadi keduanya hidup berdampingan: sandi untuk manusia, token tetap untuk
+// mesin. Di mana pun token diterima, sandi juga diterima.
+//
+// Nilainya HANYA dari environment. Repo ini publik — sandi yang di-commit sama
+// saja dengan diumumkan. Kalau variabelnya kosong, jalur sandi mati total dan
+// yang tersisa cuma token: gagal-tertutup, bukan gagal-terbuka.
+const PANEL_PASSWORD = (process.env.PANEL_PASSWORD || '').trim();
+
+// Dibandingkan lewat digest, bukan string mentah: panjang sandi tidak boleh
+// bocor lewat lama waktu pembandingan, dan timingSafeEqual menuntut dua
+// penyangga berukuran sama.
+const cap = (v) => crypto.createHash('sha256').update(String(v ?? '')).digest();
+function passwordMatches(given) {
+    if (!PANEL_PASSWORD) return false;
+    return crypto.timingSafeEqual(cap(given), cap(PANEL_PASSWORD));
+}
+
+// Kuki sesi supaya sandi cukup diketik SEKALI, bukan di tiap halaman. Nilainya
+// diturunkan dari API_TOKEN + sandi: tidak ada yang perlu disimpan di disk, dan
+// mengganti salah satunya otomatis mementahkan semua sesi lama.
+const KUKI_NAMA = 'panel_sesi';
+function kukiSah() {
+    return crypto.createHmac('sha256', String(API_TOKEN))
+        .update('panel-v1:' + PANEL_PASSWORD).digest('hex');
+}
+function kukiDari(req) {
+    const mentah = req.headers.cookie || '';
+    for (const bagian of mentah.split(';')) {
+        const [k, ...v] = bagian.trim().split('=');
+        if (k === KUKI_NAMA) return decodeURIComponent(v.join('='));
+    }
+    return '';
+}
+function sesiSah(req) {
+    if (!PANEL_PASSWORD) return false;
+    const punya = kukiDari(req);
+    if (!punya) return false;
+    try { return crypto.timingSafeEqual(cap(punya), cap(kukiSah())); } catch { return false; }
+}
+
+// Satu jawaban untuk pertanyaan "boleh masuk?", dipakai gerbang halaman maupun
+// gerbang API. Tiga jalan: kuki sesi (manusia yang sudah masuk), sandi/token di
+// header (mesin, dan curl), atau ?token= di alamat (tautan yang sudah tersebar).
+function bolehMasuk(req) {
+    if (sesiSah(req)) return true;
+    const h = req.headers.authorization;
+    const q = req.query ? req.query.token : undefined;
+    return tokenMatches(h) || tokenMatches(q) || passwordMatches(h) || passwordMatches(q);
+}
+
 // ── Rem percobaan token ──────────────────────────────────────────────────────
 // Satu token statis tanpa pembatasan laju artinya token boleh ditebak secepat
 // jaringan mengizinkan. Ini tidak mengubah kekuatan tokennya, tapi mengubah
@@ -1100,7 +1160,7 @@ function noteAuthFail(ip) {
 function requireAuth(req, res, next) {
     const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     if (authBlocked(ip)) return res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.' });
-    if (!tokenMatches(req.headers.authorization)) {
+    if (!bolehMasuk(req)) {
         noteAuthFail(ip);
         return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -1167,16 +1227,97 @@ app.get('/health', (req, res) => {
     });
 });
 
+// ── Pintu masuk panel ────────────────────────────────────────────────────────
+// Sebelum ini setiap halaman meminta token 48 karakter ditempel sendiri-sendiri.
+// Sekarang sandi diketik SEKALI di sini dan kukinya berlaku untuk semua halaman
+// maupun semua panggilan API dari halaman itu.
+//
+// Rutenya sendiri publik — pintu yang butuh kunci untuk dilihat bukan pintu.
+app.get('/masuk', (req, res) => {
+    if (bolehMasuk(req)) return res.redirect(302, amanTujuan(req.query.next));
+    res.type('html').send(halamanMasuk(req.query.next, null));
+});
+
+app.post('/masuk', (req, res) => {
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    if (authBlocked(ip)) return res.status(429).type('html').send(halamanMasuk(req.body?.next, 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.'));
+
+    if (!PANEL_PASSWORD) {
+        return res.status(503).type('html').send(halamanMasuk(req.body?.next, 'Sandi panel belum dipasang di server (PANEL_PASSWORD kosong). Sementara ini pakai token.'));
+    }
+    if (!passwordMatches(req.body?.sandi)) {
+        noteAuthFail(ip);
+        return res.status(401).type('html').send(halamanMasuk(req.body?.next, 'Sandi salah.'));
+    }
+    res.cookie(KUKI_NAMA, kukiSah(), {
+        httpOnly: true,          // JavaScript halaman tidak perlu membacanya
+        sameSite: 'strict',      // kuki tidak ikut permintaan dari situs lain (anti-CSRF)
+        secure: true,            // hanya lewat https; seluruh panel memang di balik nginx TLS
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        path: '/',
+    });
+    res.redirect(302, amanTujuan(req.body?.next));
+});
+
+app.get('/keluar', (req, res) => {
+    res.clearCookie(KUKI_NAMA, { path: '/' });
+    res.redirect(302, '/masuk');
+});
+
+// Tujuan setelah masuk datang dari alamat, artinya dari luar. Terima HANYA jalur
+// internal: tanpa ini, /masuk?next=https://situs-jahat berubah jadi pengalihan
+// terbuka yang meminjam kredibilitas domain ini.
+function amanTujuan(n) {
+    const t = String(n || '/');
+    if (!t.startsWith('/') || t.startsWith('//')) return '/';
+    return t;
+}
+
+function halamanMasuk(next, galat) {
+    const tujuan = amanTujuan(next);
+    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Masuk — Bot USU Polmed</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="/assets/ui.css">
+<script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head><body>
+<div class="wrap doc" style="max-width:26rem;margin-top:14vh">
+  <header style="text-align:center">
+    <div class="kicker">Panel Bot</div>
+    <h1 style="font-size:1.4rem">Masuk</h1>
+    <p class="muted">Satu sandi untuk semua halaman panel.</p>
+  </header>
+  <div class="card">
+    <form method="POST" action="/masuk">
+      <input type="hidden" name="next" value="${esc(tujuan)}">
+      <label for="sandi" class="muted" style="display:block;margin-bottom:6px;font-size:.85rem">Sandi</label>
+      <input id="sandi" name="sandi" type="password" autocomplete="current-password" autofocus required
+             style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+                    background:var(--sunk);color:var(--ink);font-size:1rem">
+      ${galat ? `<p style="color:var(--bad);font-size:.85rem;margin:10px 0 0">${esc(galat)}</p>` : ''}
+      <button class="btn primary wide" type="submit" style="margin-top:14px">Masuk</button>
+    </form>
+  </div>
+  <p class="muted tiny" style="text-align:center">
+    Satu-satunya halaman yang bisa dibuka tanpa sandi: <a href="/lomba">/lomba</a>.
+  </p>
+</div>
+</body></html>`;
+}
+
 // ── QR Page (public) ─────────────────────────────────────────────────────────
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+app.get('/', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'halaman', 'dashboard.html'));
 });
 
 // ── Beranda (public) ─────────────────────────────────────────────────────────
 // Daftar tombol ke semua halaman & endpoint. Halamannya sendiri publik; data
 // yang butuh token tetap diambil lewat fetch ber-Authorization dari browser.
-app.get('/home', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'home.html'));
+app.get('/home', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'halaman', 'home.html'));
 });
 
 // ── Halaman catatan proyek (public) ──────────────────────────────────────────
@@ -1184,12 +1325,12 @@ app.get('/home', (req, res) => {
 // dua-pintu (web + WhatsApp), keputusan desain gerbang titik, dan jejak perbaikan
 // keandalan. Sengaja disajikan dari bot, bukan dari situs utama — halaman yang
 // menceritakan bot ini pantas dilayani oleh bot itu sendiri.
-app.get('/projek', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'projek.html'));
+app.get('/projek', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'halaman', 'projek.html'));
 });
 
-app.get('/update', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'update.html'));
+app.get('/update', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'halaman', 'update.html'));
 });
 
 app.get('/lomba', (req, res) => {
@@ -1332,7 +1473,7 @@ async function riwayatSitus(batas = 100) {
     });
 }
 
-app.get('/riwayat', async (req, res) => {
+app.get('/riwayat', requireAuthPage, async (req, res) => {
     if (riwayatCache.data && Date.now() - riwayatCache.pada < RIWAYAT_TTL_MS) {
         return res.json({ ...riwayatCache.data, dariCache: true });
     }
@@ -1441,33 +1582,44 @@ app.get('/logs', requireAuth, (req, res) => {
 function requireAuthPage(req, res, next) {
     const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     if (authBlocked(ip)) return res.status(429).type('html').send('<!doctype html><meta charset="utf-8"><title>429</title><body style="font:16px/1.6 system-ui;max-width:34rem;margin:18vh auto"><h1 style="font-size:1.25rem">Terlalu banyak percobaan</h1><p>Coba lagi beberapa menit lagi.</p></body>');
-    if (tokenMatches(req.headers.authorization) || tokenMatches(req.query.token)) return next();
-    noteAuthFail(ip);
-    res.status(401).type('html').send(
-        '<!doctype html><meta charset="utf-8">'
-        + '<title>401 — token salah</title>'
-        + '<body style="font:16px/1.6 system-ui;max-width:34rem;margin:18vh auto;padding:0 1.5rem">'
-        + '<h1 style="font-size:1.25rem">Token tidak cocok</h1>'
-        + '<p>Halaman ini butuh token bot. Buka lewat tombol <b>Laporan analisis</b> di dashboard, '
-        + 'atau tambahkan <code>?token=…</code> di alamatnya.</p></body>'
-    );
+    if (bolehMasuk(req)) {
+        // Masuk lewat ?token= / sandi di alamat: tukar jadi kuki sekalian.
+        // Tanpa ini halaman lolos gerbang tapi fetch()-nya sendiri tidak —
+        // /update mengambil /riwayat lewat JavaScript, dan JavaScript tidak
+        // ikut membawa ?token= milik halamannya. Hasilnya halaman terbuka
+        // dengan linimasa kosong, yang jauh lebih membingungkan daripada
+        // ditolak terang-terangan.
+        if (PANEL_PASSWORD && !sesiSah(req)) {
+            res.cookie(KUKI_NAMA, kukiSah(), {
+                httpOnly: true, sameSite: 'strict', secure: true,
+                maxAge: 30 * 24 * 60 * 60 * 1000, path: '/',
+            });
+        }
+        return next();
+    }
+    // Belum masuk bukan kesalahan yang perlu diomeli — antar saja ke pintunya,
+    // sambil mengingat halaman yang tadi dituju supaya ia tidak hilang.
+    // noteAuthFail() TIDAK dipanggil di sini: yang barusan terjadi cuma
+    // "belum punya kuki", dan menghitungnya sebagai percobaan gagal akan
+    // memblokir orang yang bahkan belum sempat mengetik apa pun.
+    const tujuan = encodeURIComponent(req.originalUrl || '/');
+    res.redirect(302, '/masuk?next=' + tujuan);
 }
 // Versi lengkap — admin saja.
 app.get('/laporan/penuh', requireAuthPage, (req, res) => {
     res.sendFile(path.join(__dirname, 'laporan.html'));
 });
 // Versi publik — tanpa token, boleh dibagikan.
-app.get('/laporan', (req, res) => {
-    // Token yang sudah terlanjur ditempel di tautan lama tetap dihormati: kalau
-    // cocok, langsung sajikan yang lengkap daripada memaksa pindah alamat.
-    if (tokenMatches(req.headers.authorization) || tokenMatches(req.query.token)) {
-        return res.sendFile(path.join(__dirname, 'laporan.html'));
-    }
-    res.sendFile(path.join(__dirname, 'laporan-publik.html'));
+app.get('/laporan', requireAuthPage, (req, res) => {
+    // Dulu di sini ada percabangan tamu/admin, karena halamannya publik. Sejak
+    // seluruh panel butuh sandi, siapa pun yang sampai ke baris ini SUDAH admin —
+    // percabangan itu tinggal jebakan: sesi berkuki lolos gerbang lalu gagal di
+    // pemeriksaan token dan disuguhi versi publik seolah ia orang asing.
+    res.sendFile(path.join(__dirname, 'laporan.html'));
 });
 // Menebak '/laporan.html' itu refleks yang wajar — dan tanpa ini jawabannya cuma
 // "Cannot GET" dari Express, yang bikin orang mengira halamannya belum ada.
-app.get('/laporan.html', (req, res) => {
+app.get('/laporan.html', requireAuthPage, (req, res) => {
     const q = req.query.token ? '?token=' + encodeURIComponent(req.query.token) : '';
     res.redirect(301, '/laporan' + q);
 });

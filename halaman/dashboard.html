@@ -17,8 +17,8 @@
     <div id="auth-screen">
         <div class="auth-card glass">
             <h2><i class="fa-brands fa-whatsapp"></i> Dashboard Bot</h2>
-            <p class="muted" style="margin-bottom: 24px;">Masukkan API Token untuk masuk</p>
-            <input type="password" id="token-input" placeholder="API Token Rahasia" onkeydown="if(event.key==='Enter')login()">
+            <p class="muted" style="margin-bottom: 24px;">Masukkan sandi panel untuk masuk</p>
+            <input type="password" id="token-input" placeholder="Sandi panel" onkeydown="if(event.key==='Enter')login()">
             <button class="wide" onclick="login()">Masuk Dashboard</button>
         </div>
     </div>
@@ -377,7 +377,7 @@
         /* ── auth & tab ─────────────────────────────────────────────────── */
         function login() {
             const input = $('token-input').value.trim();
-            if (!input) return alert('Masukkan token!');
+            if (!input) return alert('Masukkan sandi!');
             token = input;
             localStorage.setItem('bot_api_token', token);
             showDashboard();

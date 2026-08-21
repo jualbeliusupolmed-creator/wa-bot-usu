@@ -22,10 +22,10 @@
         </header>
 
         <div class="glass" id="token-card">
-            <div class="section-title">Token Admin <span id="token-status" class="pill no">belum tersimpan</span></div>
-            <p class="muted">Token disimpan di browser ini saja (sama dengan login dashboard). Isi sekali, selanjutnya otomatis.</p>
+            <div class="section-title">Sandi Panel <span id="token-status" class="pill no">belum tersimpan</span></div>
+            <p class="muted">Sejak masuk pakai sandi, kolom ini biasanya tidak perlu diisi — sesimu sudah dikenali. Ia disimpan di browser ini saja, dan token lama juga masih diterima di sini.</p>
             <div class="token-row">
-                <input type="password" id="token-input" placeholder="Tempel API Token di sini" onkeydown="if(event.key==='Enter')simpanToken()">
+                <input type="password" id="token-input" placeholder="Sandi panel (atau token lama)" onkeydown="if(event.key==='Enter')simpanToken()">
                 <button class="btn small" onclick="simpanToken()">💾 Simpan</button>
                 <button class="btn small danger" onclick="hapusToken()">🗑️ Hapus</button>
             </div>
