@@ -15,39 +15,39 @@
     <div class="wrap">
         <header class="bar">
             <div>
-                <h1>Beranda WA Bot</h1>
+                <h1>Panel Bot</h1>
                 <p class="muted">Semua halaman dan data bot dalam satu tempat.</p>
             </div>
             <div class="live"><span class="dot" id="live-dot"></span><span id="live-text">memeriksa…</span></div>
         </header>
 
-        <div class="glass" id="token-card">
-            <div class="section-title">Sandi Panel <span id="token-status" class="pill no">belum tersimpan</span></div>
-            <p class="muted">Sejak masuk pakai sandi, kolom ini biasanya tidak perlu diisi — sesimu sudah dikenali. Ia disimpan di browser ini saja, dan token lama juga masih diterima di sini.</p>
-            <div class="token-row">
-                <input type="password" id="token-input" placeholder="Sandi panel (atau token lama)" onkeydown="if(event.key==='Enter')simpanToken()">
-                <button class="btn small" onclick="simpanToken()">💾 Simpan</button>
-                <button class="btn small danger" onclick="hapusToken()">🗑️ Hapus</button>
+        <!-- Ringkasan keadaan bot. Dulu halaman ini membuka dengan kotak isian
+             sandi — hal paling tidak berguna di layar, karena sejak masuk pakai
+             sandi kukinya sudah cukup — dan keadaan botnya sendiri baru terlihat
+             setelah menekan salah satu tombol. Sekarang dibalik. -->
+        <div class="card">
+            <div class="card-header">Keadaan sekarang</div>
+            <div class="stats" id="ringkas">
+                <div class="stat"><div class="n">…</div><div class="l">memuat</div></div>
             </div>
         </div>
 
-        <div class="glass">
-            <div class="section-title">Halaman</div>
-            <div class="grid">
-                <a class="btn" href="/"><span class="emoji">🖥️</span> Dashboard Admin</a>
-                <a class="btn" href="/antrean"><span class="emoji">📥</span> Antrean Notifikasi</a>
-                <a class="btn" href="/laporan"><span class="emoji">📄</span> Laporan</a>
-                <a class="btn" href="#" onclick="return bukaLaporanPenuh()"><span class="emoji">🔐</span> Laporan Lengkap</a>
-                <a class="btn" href="/jalankan"><span class="emoji">🗄️</span> Migrasi Database</a>
-                <a class="btn" href="/update"><span class="emoji">📝</span> Catatan Perubahan</a>
-                <a class="btn" href="/keluar"><span class="emoji">🚪</span> Keluar</a>
-            </div>
+        <div class="section-title" style="margin-top:26px">Halaman</div>
+        <div class="links">
+            <a href="/"><div class="t">🖥️ Dashboard</div><div class="d">Status, chat, kirim pesan, pengaturan</div></a>
+            <a href="/antrean"><div class="t">📥 Antrean notifikasi</div><div class="d">Pesan gagal kirim, siap dikirim ulang</div></a>
+            <a href="/laporan"><div class="t">📄 Laporan</div><div class="d">Ringkasan keadaan bot hari ini</div></a>
+            <a href="#" onclick="return bukaLaporanPenuh()"><div class="t">🔐 Laporan lengkap</div><div class="d">Versi panjang berisi angka internal</div></a>
+            <a href="/jalankan"><div class="t">🗄️ Migrasi database</div><div class="d">SQL siap salin ke Supabase</div></a>
+            <a href="/update"><div class="t">📝 Catatan perubahan</div><div class="d">Riwayat perbaikan, dibaca dari git</div></a>
+            <a href="/projek"><div class="t">📘 Catatan proyek</div><div class="d">Cerita dan keputusan teknisnya</div></a>
+            <a href="/lomba"><div class="t">🏆 Halaman lomba</div><div class="d">Presentasi &amp; berkas peserta — boleh dibuka siapa saja</div></a>
+            <a href="/keluar"><div class="t">🚪 Keluar</div><div class="d">Hapus sesi panel di browser ini</div></a>
         </div>
 
-        <div class="glass">
-            <div class="section-title">Data Bot <span class="pill info">butuh token</span></div>
-            <div class="grid" id="json-buttons"></div>
-        </div>
+        <div class="section-title" style="margin-top:26px">Data bot</div>
+        <p class="muted" style="margin:6px 0 12px;font-size:.88rem">Tekan salah satu untuk melihat isinya di bawah.</p>
+        <div class="grid" id="json-buttons"></div>
 
         <div class="glass" id="output">
             <div id="output-head">
@@ -56,6 +56,24 @@
             </div>
             <div id="output-body"></div>
         </div>
+
+        <!-- Token disimpan di paling bawah dan tertutup: yang membukanya dari
+             peramban tidak membutuhkannya sama sekali (kukinya sudah dipakai),
+             dan yang benar-benar butuh token adalah mesin — bukan orang yang
+             sedang melihat halaman ini. -->
+        <details class="rinci" id="token-card" style="margin-top:26px">
+            <summary>Token untuk mesin <span class="jml" id="token-status">belum tersimpan</span></summary>
+            <div class="isi-rinci">
+                <p class="muted" style="font-size:.88rem">Kamu tidak perlu mengisi ini untuk memakai
+                panel — sesi login-mu sudah dikenali. Kolom ini hanya untuk menyimpan token tetap
+                di peramban ini, misalnya supaya tautan berisi <code>?token=</code> tetap bisa dibuka.</p>
+                <div class="token-row">
+                    <input type="password" id="token-input" placeholder="Sandi panel (atau token lama)" onkeydown="if(event.key==='Enter')simpanToken()">
+                    <button class="btn small" onclick="simpanToken()">💾 Simpan</button>
+                    <button class="btn small danger" onclick="hapusToken()">🗑️ Hapus</button>
+                </div>
+            </div>
+        </details>
     </div>
 
     <script>
@@ -139,8 +157,8 @@
         /* ── token ──────────────────────────────────────────────────────── */
         function refreshTokenStatus() {
             const s = $('token-status');
-            if (getToken()) { s.textContent = 'tersimpan ✓'; s.className = 'pill ok'; }
-            else { s.textContent = 'belum tersimpan'; s.className = 'pill no'; }
+            s.textContent = getToken() ? 'tersimpan ✓' : 'tidak perlu diisi';
+            s.style.color = getToken() ? 'var(--ok)' : '';
         }
         function simpanToken() {
             const v = $('token-input').value.trim();
@@ -150,14 +168,12 @@
             refreshTokenStatus();
         }
         function hapusToken() { localStorage.removeItem(TOKEN_KEY); refreshTokenStatus(); }
-        function butuhToken() {
-            alert('Token belum tersimpan. Tempel token di kolom atas dulu (sekali saja).');
-            $('token-input').focus();
-        }
+        // Laporan lengkap dibuka apa adanya: gerbangnya menerima kuki sesi, dan
+        // kuki ikut sendiri di tab baru yang seasal. ?token= cuma ditempelkan
+        // kalau memang ada token tersimpan — untuk sesi yang masuk lewat token.
         function bukaLaporanPenuh() {
             const t = getToken();
-            if (!t) { butuhToken(); return false; }
-            window.open('/laporan/penuh?token=' + encodeURIComponent(t), '_blank', 'noopener');
+            window.open('/laporan/penuh' + (t ? '?token=' + encodeURIComponent(t) : ''), '_blank', 'noopener');
             return false;
         }
 
@@ -174,8 +190,9 @@
         }
 
         async function ambil(path) {
-            const res = await fetch(path, { headers: { 'Authorization': getToken() } });
-            if (res.status === 401) throw new Error('Token salah atau kedaluwarsa — periksa lagi di kolom atas.');
+            const t = getToken();
+            const res = await fetch(path, { headers: t ? { 'Authorization': t } : {}, cache: 'no-store' });
+            if (res.status === 401) throw new Error('Sesimu sudah kedaluwarsa. Buka /masuk lalu masukkan sandi panel lagi.');
             if (res.status === 429) throw new Error('Terlalu banyak percobaan token. Tunggu beberapa menit.');
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error === 'Bot not connected' ? 'Bot sedang tidak tersambung ke WhatsApp.' : (data.error || 'HTTP ' + res.status));
@@ -183,7 +200,6 @@
         }
 
         async function buka(ep, btn) {
-            if (!getToken()) return butuhToken();
             document.querySelectorAll('#json-buttons .btn').forEach(b => b.classList.remove('active'));
             if (btn) btn.classList.add('active');
             tampilkan(ep.emoji + ' ' + esc(ep.label), '<div class="spinner"></div>');
@@ -365,6 +381,52 @@
             } catch (e) { dot.className = 'dot no'; txt.textContent = 'Server tidak merespons'; }
         }
 
+        /* ── ringkasan keadaan ──────────────────────────────────────────── */
+        function petak(nilai, label, warna) {
+            return '<div class="stat"><div class="n"' + (warna ? ' style="color:' + warna + '"' : '')
+                 + '>' + nilai + '</div><div class="l">' + label + '</div></div>';
+        }
+
+        async function muatRingkasan() {
+            const el = $('ringkas');
+            let d;
+            try {
+                d = await ambil('/status');
+            } catch (e) {
+                // Satu petak berisi sebabnya, bukan enam petak berisi nol. Angka
+                // nol yang keliru di sini berarti orang mengira botnya sepi,
+                // padahal yang terjadi halamannya tidak bisa membaca apa pun.
+                el.innerHTML = petak('—', esc(e.message), 'var(--ink-faint)');
+                return;
+            }
+            const t = d.today || {};
+            el.innerHTML =
+                  petak(d.connected ? 'Tersambung' : 'Terputus',
+                        d.connected ? 'sambungan WhatsApp' : 'sedang mencoba menyambung',
+                        d.connected ? 'var(--ok)' : 'var(--bad)')
+                + petak(esc(d.phone || '—'), 'nomor bot')
+                + petak(formatUptime(d.uptime), 'server hidup')
+                + petak((t.masuk ?? 0) + ' / ' + (t.keluar ?? 0), 'pesan masuk / keluar hari ini')
+                + petak(esc(d.queueLength ?? 0), 'antre di server ini')
+                + petak('<span id="ringkas-outbox">…</span>', 'butuh dikirim manual');
+            muatOutbox();
+        }
+
+        // Angka yang datang dari database lewat situs — bisa gagal sendiri tanpa
+        // ikut merusak lima petak lainnya.
+        async function muatOutbox() {
+            const el = $('ringkas-outbox');
+            if (!el) return;
+            try {
+                const d = await ambil('/antrean/data');
+                el.textContent = d.tertunda ?? 0;
+                el.parentElement.style.color = d.tertunda ? 'var(--warn)' : '';
+            } catch (e) {
+                el.textContent = '?';
+                el.parentElement.style.color = 'var(--ink-faint)';
+            }
+        }
+
         /* ── init ───────────────────────────────────────────────────────── */
         const grid = $('json-buttons');
         for (const ep of ENDPOINTS) {
@@ -380,6 +442,8 @@
         refreshTokenStatus();
         cekHidup();
         setInterval(cekHidup, 10000);
+        muatRingkasan();
+        setInterval(muatRingkasan, 30000);
     </script>
 </body>
 </html>
