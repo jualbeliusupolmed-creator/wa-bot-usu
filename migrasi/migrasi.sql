@@ -1359,6 +1359,54 @@ ALTER TABLE otps ENABLE ROW LEVEL SECURITY;
 -- jadi tidak ada lagi statement yang perlu dilewati.
 -- ============================================================
 
+-- ---------------------------------------------------------------------
+-- BAGIAN 24 — Antrean notifikasi WhatsApp yang belum sampai
+--
+-- BARU. Sampai sekarang, notifikasi dari situs (iklan tayang, bump, iklan
+-- terjual) dikirim dengan sekali tembak ke bot lalu dilupakan. Kalau bot
+-- masih hidup tapi WhatsApp-nya putus, bot menyimpannya sendiri di
+-- outbox.json dan itu selesai. Tapi kalau bot ATAU VPS-nya yang mati,
+-- fetch dari situs gagal, dan pemanggilnya cuma `.catch(console.error)` —
+-- pesannya lenyap tanpa seorang pun tahu, sementara iklannya tetap tayang
+-- dan penjualnya menunggu kabar yang tidak akan datang.
+--
+-- Tabel ini rumah untuk pesan-pesan itu: ditulis situs saat pengiriman
+-- gagal, dibaca dua panel, dan dikirim ulang lewat tombol begitu botnya
+-- tersambung lagi.
+--
+-- OTP SENGAJA TIDAK PERNAH MASUK SINI. Kode yang berlaku lima menit dan
+-- baru dikirim tiga jam kemudian bukan pertolongan, melainkan kebingungan.
+-- Penyaringnya ada di src/lib/fonnte.js — hanya pesan tanpa masa berlaku
+-- atau yang berlakunya di atas 15 menit yang ditampung.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.wa_outbox (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  target         text NOT NULL,          -- nomor atau JID, apa adanya seperti saat gagal
+  message        text NOT NULL,
+  image_url      text,
+  ttl_detik      integer,                -- diteruskan lagi saat kirim ulang
+  jenis          text,                   -- 'iklan' | 'bump' | 'terjual' | ...
+  listing_id     uuid REFERENCES public.listings (id) ON DELETE SET NULL,
+  status         text NOT NULL DEFAULT 'tertunda'
+                   CHECK (status IN ('tertunda', 'terkirim', 'dibatalkan')),
+  percobaan      integer NOT NULL DEFAULT 0,
+  galat_terakhir text,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  terkirim_at    timestamptz
+);
+
+-- Panel selalu membuka daftar "tertunda, terbaru dulu" — indeksnya mengikuti
+-- pertanyaan itu, bukan sekadar menandai kolom status.
+CREATE INDEX IF NOT EXISTS wa_outbox_tertunda_idx
+  ON public.wa_outbox (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS wa_outbox_listing_idx
+  ON public.wa_outbox (listing_id);
+
+-- Tanpa policy publik => hanya service-role. Isinya nomor HP dan teks pesan
+-- pribadi; ia tidak punya urusan dengan peran anon.
+ALTER TABLE public.wa_outbox ENABLE ROW LEVEL SECURITY;
+
+
 COMMIT;
 
 -- =====================================================================
@@ -1377,7 +1425,7 @@ WITH diharap(nama) AS (
          ('group_posts'), ('pwa_installs'), ('push_subscriptions'),
          ('scheduled_broadcasts'), ('profile_change_requests'),
          ('wa_conversations'), ('wa_listing_drafts'),
-         ('referrals'), ('wa_state')
+         ('referrals'), ('wa_state'), ('wa_outbox')
 ),
 kurang AS (
   SELECT d.nama FROM diharap d

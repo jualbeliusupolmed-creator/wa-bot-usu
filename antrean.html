@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Antrean Notifikasi — Bot USU Polmed</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
+<link rel="stylesheet" href="/assets/ui.css">
+<script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<script src="/assets/ui.js" defer></script>
+<style>
+  .bar-aksi {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 12px; margin: 24px 0;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  }
+  .bar-aksi .kanan { margin-left: auto; font-size: .85rem; color: var(--ink-faint); }
+  .antre { display: flex; flex-direction: column; gap: 12px; }
+  .item {
+    border: 1px solid var(--line); border-radius: var(--r-lg);
+    background: var(--surface); padding: 14px;
+  }
+  .item .atas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .item .nomor { font-family: var(--mono); font-size: .85rem; font-weight: 600; }
+  .item .waktu { margin-left: auto; font-size: .75rem; color: var(--ink-faint); }
+  .item .teks {
+    white-space: pre-wrap; word-wrap: break-word;
+    font-size: .85rem; line-height: 1.6; color: var(--ink-soft);
+    background: var(--sunk); border-radius: var(--r-sm, 8px); padding: 10px;
+    max-height: 9.5rem; overflow: auto;
+  }
+  .item .bawah { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .item .galat { font-size: .75rem; color: var(--bad); flex: 1 1 12rem; }
+  .kosong { text-align: center; padding: 40px 20px; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+<div class="wrap doc">
+
+<header>
+  <div class="kicker">Antrean Notifikasi</div>
+  <h1>Pesan yang belum sampai ke WhatsApp</h1>
+  <p class="lead">Setiap notifikasi dari situs — iklan tayang, sundul, perpanjangan — yang
+  gagal dikirim karena bot sedang putus, mendarat di sini alih-alih lenyap. Tekan
+  <b>Kirim</b> begitu bot tersambung lagi.</p>
+  <p class="muted">Daftarnya milik situs (tabel <code>wa_outbox</code> di Supabase), bukan milik
+  server ini — halaman ini menanyakannya lewat token bot. Jadi isinya sama persis dengan yang
+  terlihat di panel admin situs, bukan salinan yang bisa berbeda.</p>
+</header>
+
+<div class="bar-aksi">
+  <button class="btn primary" id="kirim-semua">Kirim semua</button>
+  <button class="btn ghost" id="muat-ulang">Muat ulang</button>
+  <select id="saring" class="btn" style="padding:8px 11px">
+    <option value="tertunda">Tertunda</option>
+    <option value="terkirim">Sudah terkirim</option>
+    <option value="dibatalkan">Dibatalkan</option>
+    <option value="semua">Semua</option>
+  </select>
+  <span class="kanan" id="ringkas">memuat…</span>
+</div>
+
+<div id="status-bot" class="card" style="display:none"></div>
+
+<div class="antre" id="antre"></div>
+
+</div>
+
+<script>
+(function () {
+  var tok = new URLSearchParams(location.search).get('token');
+  var elAntre = document.getElementById('antre');
+  var elRingkas = document.getElementById('ringkas');
+  var elStatus = document.getElementById('status-bot');
+  var elSaring = document.getElementById('saring');
+
+  function kepala() {
+    return tok ? { 'Authorization': tok, 'Content-Type': 'application/json' }
+               : { 'Content-Type': 'application/json' };
+  }
+
+  function tglSingkat(iso) {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleString('id-ID',
+        { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return iso; }
+  }
+
+  function lolos(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function pesanKotak(teks, jenis) {
+    elStatus.style.display = 'block';
+    elStatus.innerHTML = '<p style="margin:0">' + lolos(teks) + '</p>';
+    elStatus.style.borderColor = jenis === 'bad' ? 'var(--bad)' : 'var(--line)';
+  }
+
+  function gambar(items) {
+    if (!items.length) {
+      elAntre.innerHTML = '<div class="kosong">Tidak ada yang tertunda. '
+        + 'Semua notifikasi sudah sampai.</div>';
+      return;
+    }
+    var h = '';
+    for (var it of items) {
+      var bisaKirim = it.status === 'tertunda';
+      h += '<div class="item" data-id="' + lolos(it.id) + '">'
+        + '<div class="atas">'
+        + '<span class="nomor">' + lolos(it.target) + '</span>'
+        + (it.jenis ? '<span class="pill info">' + lolos(it.jenis) + '</span>' : '')
+        + '<span class="pill ' + (it.status === 'terkirim' ? 'ok' : it.status === 'tertunda' ? 'warn' : '')
+        + '">' + lolos(it.status) + '</span>'
+        + (it.percobaan ? '<span class="pill">' + it.percobaan + '× dicoba</span>' : '')
+        + '<span class="waktu">' + lolos(tglSingkat(it.created_at)) + '</span>'
+        + '</div>'
+        + '<div class="teks">' + lolos(it.message) + '</div>'
+        + '<div class="bawah">'
+        + (it.galat_terakhir ? '<span class="galat">' + lolos(it.galat_terakhir) + '</span>' : '<span class="galat"></span>')
+        + (bisaKirim ? '<button class="btn small primary" data-kirim="' + lolos(it.id) + '">Kirim</button>'
+                     + '<button class="btn small ghost" data-batal="' + lolos(it.id) + '">Batalkan</button>' : '')
+        + '</div></div>';
+    }
+    elAntre.innerHTML = h;
+  }
+
+  function muat() {
+    elRingkas.textContent = 'memuat…';
+    fetch('/antrean/data?status=' + encodeURIComponent(elSaring.value), { headers: kepala(), cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (h) {
+        if (h.s !== 200) {
+          elRingkas.textContent = 'gagal';
+          pesanKotak(h.j.error || ('HTTP ' + h.s), 'bad');
+          elAntre.innerHTML = '';
+          return;
+        }
+        elStatus.style.display = 'none';
+        elRingkas.textContent = h.j.tertunda + ' tertunda · ' + (h.j.items || []).length + ' ditampilkan';
+        gambar(h.j.items || []);
+      })
+      .catch(function (e) {
+        elRingkas.textContent = 'gagal';
+        pesanKotak('Gagal menghubungi server: ' + e.message, 'bad');
+      });
+  }
+
+  function kirim(badan, tombol) {
+    var semula = tombol ? tombol.textContent : null;
+    if (tombol) { tombol.disabled = true; tombol.textContent = 'Mengirim…'; }
+    fetch('/antrean/kirim', { method: 'POST', headers: kepala(), body: JSON.stringify(badan) })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (h) {
+        if (h.s !== 200) { pesanKotak(h.j.error || ('HTTP ' + h.s), 'bad'); return; }
+        var j = h.j;
+        if (j.dibatalkan) pesanKotak('Dibatalkan.');
+        else if (j.gagal) {
+          // Sebutkan alasannya. "Gagal" tanpa sebab membuat orang menekan
+          // tombolnya berulang kali pada bot yang memang belum tersambung.
+          pesanKotak(j.terkirim + ' terkirim, ' + j.gagal + ' masih gagal — '
+            + (j.alasan && j.alasan.length ? j.alasan.join('; ') : 'sebab tidak disebutkan'), 'bad');
+        } else if (j.terkirim) {
+          pesanKotak(j.terkirim + ' terkirim. Sisa ' + j.sisa + ' tertunda.');
+        }
+        muat();
+      })
+      .catch(function (e) { pesanKotak('Gagal: ' + e.message, 'bad'); })
+      .finally(function () { if (tombol) { tombol.disabled = false; tombol.textContent = semula; } });
+  }
+
+  elAntre.addEventListener('click', function (ev) {
+    var t = ev.target.closest('[data-kirim], [data-batal]');
+    if (!t) return;
+    if (t.dataset.kirim) kirim({ id: t.dataset.kirim }, t);
+    else kirim({ batal: t.dataset.batal }, t);
+  });
+
+  document.getElementById('kirim-semua').addEventListener('click', function () {
+    kirim({ semua: true }, this);
+  });
+  document.getElementById('muat-ulang').addEventListener('click', muat);
+  elSaring.addEventListener('change', muat);
+
+  muat();
+})();
+</script>
+</body>
+</html>

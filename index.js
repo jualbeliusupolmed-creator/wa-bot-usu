@@ -1215,6 +1215,57 @@ app.get('/jalankan', requireAuthPage, (req, res) => {
     res.sendFile(path.join(__dirname, 'jalankan.html'));
 });
 
+// ── Antrean notifikasi yang belum sampai (butuh token) ───────────────────────
+// Pemilik antreannya adalah tabel `wa_outbox` di Supabase, dan VPS ini TIDAK
+// punya kredensial Supabase — sengaja, karena menaruh service-role key di sini
+// berarti satu tempat lagi yang bisa membocorkan seluruh basis data.
+//
+// Jadi halaman ini tidak membaca database; ia bertanya ke situs, dan bot
+// meneruskan pertanyaannya memakai token yang sama yang sudah dipakainya untuk
+// menembak webhook. Situs yang memegang datanya, situs juga yang mengirim
+// ulang — bot cuma jendela dan tombol.
+const SITUS_BASE = WEBHOOK_URL.replace(/\/api\/wa\/baileys\/?$/, '').replace(/\/$/, '');
+const SITUS_OUTBOX = `${SITUS_BASE}/api/admin/outbox`;
+
+app.get('/antrean', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'antrean.html'));
+});
+
+// Proxy tipis. Dijaga requireAuth supaya token bot tidak pernah perlu ada di
+// JavaScript halaman — yang keluar dari peramban cuma ?token= milik halaman itu
+// sendiri, dan token ke situs ditempelkan di sisi server ini.
+async function terusanOutbox(req, res, init) {
+    try {
+        const r = await fetch(init.url, {
+            method: init.method,
+            headers: { 'Authorization': API_TOKEN, 'Content-Type': 'application/json' },
+            body: init.body,
+            signal: AbortSignal.timeout(30000),
+        });
+        const teks = await r.text();
+        res.status(r.status).type('application/json').send(teks || '{}');
+    } catch (e) {
+        // Situsnya yang tidak menjawab. Sebutkan apa adanya — halaman yang
+        // menampilkan "0 tertunda" saat sumbernya tidak terjangkau adalah
+        // kabar baik palsu, persis jenis kebohongan yang antrean ini lahir
+        // untuk menghentikannya.
+        res.status(502).json({ error: `Situs tidak menjawab: ${e.message}` });
+    }
+}
+
+app.get('/antrean/data', requireAuth, (req, res) => {
+    const status = encodeURIComponent(String(req.query.status || 'tertunda'));
+    return terusanOutbox(req, res, { url: `${SITUS_OUTBOX}?status=${status}&limit=200`, method: 'GET' });
+});
+
+app.post('/antrean/kirim', requireAuth, (req, res) => {
+    return terusanOutbox(req, res, {
+        url: SITUS_OUTBOX,
+        method: 'POST',
+        body: JSON.stringify(req.body || {}),
+    });
+});
+
 // Teks biasa, bukan application/sql: kalau tipenya dibiarkan apa adanya,
 // peramban mengunduhnya alih-alih menampilkan, dan curl kehilangan gunanya.
 for (const berkas of ['migrasi.sql', 'migrasi-keamanan.sql']) {
