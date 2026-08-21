@@ -52,6 +52,12 @@
     .aksi-lekat .ukuran { margin-left: 0; }
   }
   body.has-nav .aksi-lekat { top: 68px; }
+  /* Sticky menempel sampai ujung blok induknya. Tanpa pembungkus ini kedua
+     bilah punya induk yang sama — seluruh .wrap — jadi yang pertama tetap
+     menempel saat yang kedua datang, dan keduanya saling menimpa di atas
+     layar. Satu <section> per bilah membuat masing-masing turun sendiri
+     begitu bagiannya habis. */
+  .bagian { display: block; }
 </style>
 </head>
 <body>
@@ -69,6 +75,7 @@
   kolom, dan menuntut pemeriksaan sesudahnya.</p>
 </header>
 
+<section class="bagian">
 <div class="aksi-lekat">
   <button class="btn primary utama" data-salin="sql-utama">Salin semua SQL</button>
   <a class="btn" data-unduh="/migrasi.sql" download="migrasi.sql">Unduh berkas</a>
@@ -118,6 +125,9 @@ keduanya yang bisa diam-diam berbeda.</p>
   <pre class="kotak-sql" id="sql-utama" data-sumber="/migrasi.sql">Memuat…</pre>
 </div>
 
+</section>
+
+<section class="bagian">
 <h2 id="keamanan"><span class="no">05</span>Pengencangan akses database</h2>
 <div class="card">
   <p><strong>Ini berkas yang berbeda sifatnya, dan jangan disamakan dengan yang di atas.</strong>
@@ -151,6 +161,7 @@ keduanya yang bisa diam-diam berbeda.</p>
   </div>
   <pre class="kotak-sql" id="sql-keamanan" data-sumber="/migrasi-keamanan.sql">Memuat…</pre>
 </div>
+</section>
 
 <p class="muted tiny">Kalau peramban menolak menyalin (izin papan klip butuh koneksi aman),
 tombolnya akan memilih seluruh teks — tinggal tekan Ctrl+C, atau tahan dan pilih Salin di ponsel.
