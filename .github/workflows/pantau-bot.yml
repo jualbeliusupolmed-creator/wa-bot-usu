@@ -1,0 +1,114 @@
+# Pemantau bot dari LUAR VPS.
+#
+# penjaga-bot.sh sudah menjaga bot dari dalam server, dan justru di situ
+# batasnya: ia berjalan di mesin yang sama dengan yang dijaganya. Kalau VPS-nya
+# yang mati — kehabisan memori, jaringan putus, provider bermasalah — tidak ada
+# yang tersisa untuk berteriak. Pemeriksa ini berjalan di runner GitHub, jadi ia
+# tetap hidup persis pada keadaan yang paling perlu dilaporkan.
+#
+# Kabarnya dikirim lewat issue di repo ini: GitHub mengirim surel ke pemilik
+# repo begitu issue dibuka, dan tidak ada akun/layanan baru yang harus didaftar.
+#
+# Catatan jujur soal jadwal: cron GitHub Actions itu "sebisanya", bukan janji.
+# Pada jam sibuk ia bisa telat 5–20 menit, dan sesekali satu putaran dilewat.
+# Untuk "bot mati sejak kapan" itu cukup; kalau butuh peringatan dalam hitungan
+# detik, pemantau berbayar (UptimeRobot dkk.) tetap lebih tepat.
+
+name: Pantau bot
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:        # bisa dijalankan manual dari tab Actions
+
+permissions:
+  issues: write
+
+concurrency:
+  group: pantau-bot
+  cancel-in-progress: false
+
+jobs:
+  periksa:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Periksa /health
+        id: periksa
+        run: |
+          URL="https://bot.jualbeliusupolmed.web.id/health"
+
+          # Dua kali dengan jeda: satu kegagalan sekejap (deploy, restart pm2,
+          # jaringan batuk) bukan alasan membangunkan orang. Yang dilaporkan
+          # hanya yang masih mati setelah 60 detik.
+          periksa_sekali() {
+            local kode isi
+            isi="$(curl -sS --max-time 20 -w '\n%{http_code}' "$URL" 2>/dev/null || true)"
+            kode="$(printf '%s' "$isi" | tail -n1)"
+            badan="$(printf '%s' "$isi" | sed '$d')"
+            [ "$kode" = "200" ] || { alasan="HTTP ${kode:-tidak menjawab}"; return 1; }
+            printf '%s' "$badan" | grep -q '"ok":true' || {
+              alasan="/health menjawab 200 tapi ok:false — $(printf '%s' "$badan" | head -c 200)"
+              return 1
+            }
+            return 0
+          }
+
+          if periksa_sekali; then
+            echo "sehat=true" >> "$GITHUB_OUTPUT"
+            echo "Bot sehat."
+            exit 0
+          fi
+
+          echo "Percobaan pertama gagal ($alasan). Menunggu 60 detik lalu coba lagi..."
+          sleep 60
+
+          if periksa_sekali; then
+            echo "sehat=true" >> "$GITHUB_OUTPUT"
+            echo "Sempat gagal sekali, lalu pulih. Tidak dilaporkan."
+            exit 0
+          fi
+
+          echo "sehat=false" >> "$GITHUB_OUTPUT"
+          echo "alasan=$alasan" >> "$GITHUB_OUTPUT"
+          echo "Bot TIDAK sehat: $alasan"
+
+      - name: Buka / perbarui laporan padam
+        if: steps.periksa.outputs.sehat != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALASAN: ${{ steps.periksa.outputs.alasan }}
+        run: |
+          JUDUL="🔴 Bot padam — /health tidak sehat"
+          NOMOR="$(gh issue list --state open --label padam --json number --jq '.[0].number' 2>/dev/null || true)"
+
+          if [ -z "$NOMOR" ]; then
+            gh label create padam --color B60205 --description "Bot WhatsApp tidak menjawab /health" 2>/dev/null || true
+            gh issue create --title "$JUDUL" --label padam --body "$(cat <<PESAN
+Pemeriksaan dari luar VPS gagal dua kali berturut-turut (jeda 60 detik).
+
+- **Alasan:** $ALASAN
+- **Waktu (UTC):** $(date -u '+%Y-%m-%d %H:%M:%S')
+- **Alamat:** https://bot.jualbeliusupolmed.web.id/health
+
+Langkah pertama yang biasanya menjawab:
+
+1. \`pm2 list\` — prosesnya masih hidup?
+2. \`tail -30 /root/wa-bot-usu/penjaga-bot.log\` — penjaga menolak restart karena sesi terkunci?
+3. \`curl -s localhost:3000/health\` — kalau dari dalam sehat tapi dari luar mati, masalahnya nginx/DNS/jaringan, bukan botnya.
+
+Issue ini ditutup otomatis begitu satu pemeriksaan berhasil lagi.
+PESAN
+)"
+          else
+            gh issue comment "$NOMOR" --body "Masih padam pada $(date -u '+%Y-%m-%d %H:%M:%S') UTC — $ALASAN"
+          fi
+
+      - name: Tutup laporan kalau sudah pulih
+        if: steps.periksa.outputs.sehat == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOMOR="$(gh issue list --state open --label padam --json number --jq '.[0].number' 2>/dev/null || true)"
+          [ -n "$NOMOR" ] || exit 0
+          gh issue comment "$NOMOR" --body "✅ Sehat lagi pada $(date -u '+%Y-%m-%d %H:%M:%S') UTC."
+          gh issue close "$NOMOR"

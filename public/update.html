@@ -52,24 +52,14 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Tautkan ulang nomor bot pertama.</strong> Kunci sesi dibuka dari dashboard pada
-      21 Agustus 2026 pukul 05:22 dan sesi lama dipindah ke
-      <code>auth_info_baileys.bak-20260821T052219</code> (bukan dihapus). Sejak itu bot menunggu
-      QR yang belum ada yang memindai, jadi tidak ada pesan yang bisa dikirim maupun diterima.
-      Dua jalan: pindai QR / minta kode pairing dari dashboard, atau kembalikan folder
-      <code>.bak-</code> itu kalau ternyata nomornya masih tertaut di HP.
-    </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Isi nomor alarm &amp; nomor admin cadangan</strong> di panel bot (tab Sapaan →
-      "Nomor penting"). Selama kosong, alarm padam mendarat di nomor bot sendiri — satu-satunya
-      nomor yang justru sedang bermasalah — dan pengalihan kontak di situs tidak punya tujuan.
-    </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Pemantau dari luar server</strong> (mis. UptimeRobot gratis) ke
-      <code>/health</code>, interval 5 menit. Penjaga yang ada sekarang berjalan di VPS yang
-      sama, jadi ia tidak bisa berteriak kalau VPS-nya sendiri yang mati.
+      <strong>Tautkan ulang nomor bot pertama.</strong> Kunci sesi dibuka lagi dari dashboard pada
+      21 Agustus 2026 pukul 06:34 dan sesi lama dipindah ke
+      <code>auth_info_baileys.bak-20260821T063431</code> (bukan dihapus); folder sesi yang aktif
+      sekarang kosong, jadi bot menunggu ditautkan dan tidak ada pesan yang bisa dikirim maupun
+      diterima. Sebelum itu log-nya <code>401</code> tiga kali berturut-turut — tanda nomornya
+      sedang dibatasi WhatsApp, dan menautkan ulang saat sedang dibatasi justru memperpanjangnya.
+      Yang paling aman: kembalikan folder <code>.bak-</code> itu kalau nomornya masih tertaut di HP.
+      Pindai QR / kode pairing hanya kalau perangkatnya memang sudah dilepas.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
@@ -81,11 +71,12 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Nomor WhatsApp untuk bot kedua.</strong> Botnya sendiri sudah berdiri dan berjalan
-      (proses <code>wa-bot-2</code>, port 3001, folder datanya sendiri di
-      <code>/root/wa-bot-2</code>) — kode yang sama persis, dibedakan hanya oleh
-      <code>DATA_DIR</code>. Yang belum ada tinggal nomornya: sebuah nomor WhatsApp aktif untuk
-      ditautkan lewat kode pairing.
+      <strong>Masukkan kode pairing bot kedua di HP.</strong> Nomornya sudah ditentukan — sama
+      dengan nomor admin cadangan yang baru diisi — dan botnya sudah berjalan (proses
+      <code>wa-bot-2</code>, port 3001, datanya di <code>/root/wa-bot-2</code>). Sisanya satu
+      langkah yang memang harus dilakukan dengan HP di tangan: kartu <b>Perangkat 2</b> di
+      dashboard → "Minta Kode", lalu di HP buka WhatsApp → Perangkat tertaut → Tautkan dengan
+      nomor telepon, dan ketik kodenya sebelum kedaluwarsa.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
@@ -94,6 +85,13 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
       SQL Editor. Selama belum, penjual tidak bisa membuat toko dan halaman <code>/toko/[slug]</code>
       tidak punya isi. Tab <b>Toko</b> di panel admin akan mengatakannya sendiri kalau kolomnya
       memang belum ada — jadi cukup buka tab itu untuk memastikan.
+    </span></li>
+    <li><span class="kotak"></span><span>
+      <strong>Tiga kartu setelan sisanya masih menulis ke ruang kosong.</strong> Dari enam kartu
+      di panel admin situs, tiga sudah punya rumah di bot (Panggilan, Anti-Ban, Forensik lewat
+      <code>/modul</code>). Keamanan, Integrasi, dan Protokol belum: setelannya mendarat di kolom
+      <code>bot_modules</code> yang tidak dibaca siapa pun. Pilihannya dua — bot membaca setelan
+      itu, atau kartunya dicabut supaya tidak menjanjikan yang tidak ada.
     </span></li>
   </ul>
 </div>
