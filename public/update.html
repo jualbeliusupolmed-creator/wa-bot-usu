@@ -8,84 +8,12 @@
 <meta property="og:title" content="Catatan Perubahan — Jual Beli USU Polmed">
 <meta property="og:description" content="Setiap perubahan tercatat, lengkap dengan alasan kenapa diambil.">
 <meta property="og:type" content="article">
-<style>
-:root{
-  --bg:#0f172a; --card:rgba(30,41,59,.66); --line:rgba(255,255,255,.1);
-  --text:#f1f5f9; --dim:#94a3b8; --em:#10b981; --blue:#3b82f6; --warn:#f59e0b;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{
-  background:var(--bg);
-  background-image:radial-gradient(circle at 12% 8%,rgba(16,185,129,.13) 0%,transparent 45%),
-                   radial-gradient(circle at 88% 22%,rgba(59,130,246,.12) 0%,transparent 45%);
-  background-attachment:fixed; color:var(--text);
-  font-family:'Plus Jakarta Sans','Inter',system-ui,-apple-system,sans-serif;
-  line-height:1.75; padding:0 20px 80px; -webkit-font-smoothing:antialiased;
-}
-.wrap{max-width:760px;margin:0 auto}
-header{padding:64px 0 8px;border-bottom:1px solid var(--line);margin-bottom:36px}
-.kicker{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--em);font-weight:700}
-h1{font-size:clamp(1.9rem,5.5vw,2.7rem);line-height:1.2;font-weight:800;margin:14px 0 16px;letter-spacing:-.02em}
-.lead{font-size:1.09rem;color:#cbd5e1;margin-bottom:26px}
-h2{font-size:1.42rem;font-weight:750;margin:52px 0 6px;letter-spacing:-.01em}
-h2 .no{color:var(--em);font-size:.83rem;font-weight:700;display:block;margin-bottom:7px;letter-spacing:.1em}
-p{margin:16px 0;color:#dbe3ec}
-strong{color:#fff;font-weight:650}
-a{color:var(--em);text-decoration:none;border-bottom:1px solid rgba(16,185,129,.35)}
-a:hover{border-bottom-color:var(--em)}
-.card{background:var(--card);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  border:1px solid var(--line);border-radius:16px;padding:24px;margin:30px 0}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:14px}
-.stat .n{font-size:1.75rem;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.15}
-.stat .l{font-size:.79rem;color:var(--dim);margin-top:3px}
-code{background:rgba(148,163,184,.15);padding:2px 7px;border-radius:5px;font-size:.87em;
-  font-family:ui-monospace,'SF Mono',Menlo,monospace;color:#a7f3d0}
-
-/* ── penyaring ── */
-.filter{display:flex;gap:8px;flex-wrap:wrap;margin:26px 0 6px}
-.filter button{font:inherit;font-size:.86rem;font-weight:600;color:var(--dim);cursor:pointer;
-  background:rgba(15,23,42,.5);border:1px solid var(--line);border-radius:999px;padding:7px 16px}
-.filter button:hover{border-color:rgba(16,185,129,.45);color:#e2e8f0}
-.filter button[aria-pressed="true"]{background:rgba(16,185,129,.14);border-color:rgba(16,185,129,.45);color:#a7f3d0}
-
-/* ── linimasa ── */
-.hari{margin-top:38px}
-.hari .tgl{font-size:.79rem;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);
-  font-weight:700;padding-bottom:8px;border-bottom:1px solid var(--line)}
-.entri{display:flex;gap:14px;padding:18px 0;border-bottom:1px solid rgba(255,255,255,.05)}
-.entri .pita{flex:0 0 auto;margin-top:4px;font-size:.68rem;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase;border-radius:999px;padding:3px 10px;border:1px solid}
-.pita.bot{color:#a7f3d0;border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.1)}
-.pita.situs{color:#bfdbfe;border-color:rgba(59,130,246,.4);background:rgba(59,130,246,.1)}
-.entri .badan{min-width:0;flex:1}
-.entri .judul{color:#fff;font-weight:650;font-size:1rem;line-height:1.5}
-.entri .kaki{font-size:.79rem;color:var(--dim);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.entri .kaki a{border:0;font-family:ui-monospace,Menlo,monospace}
-.entri details{margin-top:10px}
-.entri summary{cursor:pointer;font-size:.82rem;color:var(--em);list-style:none}
-.entri summary::-webkit-details-marker{display:none}
-.entri summary::before{content:"▸ ";}
-.entri details[open] summary::before{content:"▾ ";}
-.entri pre{white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:.93rem;
-  color:#cbd5e1;margin-top:10px;padding-left:14px;border-left:2px solid var(--line)}
-
-/* ── daftar tunggu ── */
-.todo{list-style:none;margin:18px 0 0}
-.todo li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.96rem;color:#dbe3ec}
-.todo li:last-child{border-bottom:0}
-.todo .kotak{flex:0 0 20px;height:20px;border-radius:6px;border:1px solid var(--line);margin-top:4px}
-.todo .kotak.siapa{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.12)}
-.todo .siapa-l{font-size:.74rem;color:var(--warn);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:22px}
-.links a{display:block;border:1px solid var(--line);border-radius:13px;padding:15px 17px;
-  background:rgba(15,23,42,.5);border-bottom:1px solid var(--line)}
-.links a:hover{border-color:rgba(16,185,129,.45)}
-.links .t{color:#fff;font-weight:650;font-size:.96rem}
-.links .d{color:var(--dim);font-size:.81rem;margin-top:2px}
-footer{margin-top:64px;padding-top:26px;border-top:1px solid var(--line);color:var(--dim);font-size:.87rem}
-.muted{color:var(--dim);font-size:.9rem}
-@media(max-width:560px){body{padding:0 16px 60px}header{padding-top:44px}.entri{gap:10px}}
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/assets/ui.css">
+<script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<script src="/assets/ui.js" defer></script>
 </head>
 <body>
 <div class="wrap">
@@ -124,6 +52,15 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Tautkan ulang nomor bot pertama.</strong> Kunci sesi dibuka dari dashboard pada
+      21 Agustus 2026 pukul 05:22 dan sesi lama dipindah ke
+      <code>auth_info_baileys.bak-20260821T052219</code> (bukan dihapus). Sejak itu bot menunggu
+      QR yang belum ada yang memindai, jadi tidak ada pesan yang bisa dikirim maupun diterima.
+      Dua jalan: pindai QR / minta kode pairing dari dashboard, atau kembalikan folder
+      <code>.bak-</code> itu kalau ternyata nomornya masih tertaut di HP.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
       <strong>Isi nomor alarm &amp; nomor admin cadangan</strong> di panel bot (tab Sapaan →
       "Nomor penting"). Selama kosong, alarm padam mendarat di nomor bot sendiri — satu-satunya
       nomor yang justru sedang bermasalah — dan pengalihan kontak di situs tidak punya tujuan.
@@ -136,9 +73,11 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Salinan sesi di luar server ini.</strong> Cadangan harian sudah jalan, tapi
-      semuanya duduk di disk yang sama dengan sesinya. Butuh tujuan (server lain atau
-      penyimpanan cloud) dan sebaiknya dienkripsi sebelum keluar dari mesin ini.
+      <strong>Isi tujuan cadangan di luar server.</strong> Skripnya sudah siap: begitu
+      <code>TUJUAN_LUAR</code> diisi (mis. <code>user@host:/cadangan</code>), cadangan harian
+      dienkripsi AES-256 lalu dikirim ke sana, dan kuncinya dibuat sekali di
+      <code>/root/.kunci-cadangan-sesi</code> — kunci itu <b>tidak</b> ikut terkirim, jadi harus
+      disalin sendiri ke tempat aman. Selama kosong, semua cadangan masih satu disk dengan sesinya.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
@@ -155,19 +94,6 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
       SQL Editor. Selama belum, penjual tidak bisa membuat toko dan halaman <code>/toko/[slug]</code>
       tidak punya isi. Tab <b>Toko</b> di panel admin akan mengatakannya sendiri kalau kolomnya
       memang belum ada — jadi cukup buka tab itu untuk memastikan.
-    </span></li>
-    <li><span class="kotak"></span><span>
-      <strong>Sambungkan enam panel setelan bot ke botnya.</strong> Panggilan, Forensik, Keamanan,
-      Integrasi, Protokol, dan Anti-Ban di panel admin situs menyimpan setelan ke kolom
-      <code>bot_modules</code> yang tidak dibaca siapa pun — bot bahkan belum punya penangan
-      panggilan masuk. Untuk sekarang panel-panel itu sudah diberi peringatan supaya tidak
-      menyesatkan; yang sebenarnya kurang adalah bot membaca setelan itu (atau panelnya dicabut).
-    </span></li>
-    <li><span class="kotak"></span><span>
-      <strong>Kembalikan jeda coba-ulang ke bawaan</strong> setelah pembatasan nomor bot pertama
-      dicabut. Sekarang <code>KUNCI_RETRY_MINUTES=60</code> dipasang lewat env pm2 supaya bot tidak
-      mengetuk login berulang pada nomor yang sedang ditolak; bawaannya 10 menit, dan 60 menit
-      berarti pemulihan otomatis bisa telat sampai sejam.
     </span></li>
   </ul>
 </div>

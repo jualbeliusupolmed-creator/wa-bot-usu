@@ -282,7 +282,20 @@ let sessionLostAt = null;
 // Jedanya sengaja panjang: kalau WhatsApp memang sedang menolak nomor ini,
 // mengetuk tiap beberapa detik justru pola yang bikin nomor makin dicurigai.
 const KUNCI_SESI = String(process.env.KUNCI_SESI ?? 'true') !== 'false';
-const KUNCI_RETRY_MS = Number(process.env.KUNCI_RETRY_MINUTES || 10) * 60 * 1000;
+// Jedanya sekarang MENANJAK, bukan satu angka tetap. Yang dulu dipasang lewat
+// env (KUNCI_RETRY_MINUTES=60) memperbaiki satu masalah — berhenti mengetuk
+// nomor yang sedang dibatasi — sambil membuat masalah lain: gangguan 401 yang
+// cuma sekejap pun baru dicoba lagi sejam kemudian, jadi bot bisa diam 59 menit
+// tanpa alasan. Sekarang percobaan pertama tetap cepat (10 menit), dan tiap
+// percobaan yang masih ditolak menggandakan jedanya sampai batas atas. Env lama
+// tidak dibuang, artinya berubah jadi BATAS ATAS itu — nilai 60 yang sudah
+// terpasang di pm2 kebetulan persis maksud aslinya.
+const KUNCI_RETRY_MIN_MS = Number(process.env.KUNCI_RETRY_MIN_MINUTES || 10) * 60 * 1000;
+const KUNCI_RETRY_MAX_MS = Number(process.env.KUNCI_RETRY_MINUTES || 60) * 60 * 1000;
+let kunciSiklus = 0;
+function kunciRetryMs() {
+    return Math.min(KUNCI_RETRY_MAX_MS, KUNCI_RETRY_MIN_MS * Math.pow(2, kunciSiklus));
+}
 let sesiTerkunci = false;
 
 // ── Menunggu ditautkan ───────────────────────────────────────────────────────
@@ -524,6 +537,7 @@ let queueBusy = false;   // processQueue itu async — tanpa ini, kick di tengah
                          // pengiriman bisa memulai kiriman kedua yang tumpang tindih.
 let nextSendAt = 0;      // kiriman berikutnya tidak boleh mendahului waktu ini
 let lastSentJid = '';
+let remDilaporkan = false;   // supaya peringatan batas per jam tidak diulang tiap detik
 
 function scheduleQueue(delayMs) {
     if (queueTimer) clearTimeout(queueTimer);
@@ -540,9 +554,29 @@ async function processQueue() {
     queueTimer = null;
     if (queueBusy) return;
     if (messageQueue.length === 0) return;                       // menganggur → tunggu kickQueue()
-    if (!socketAlive()) { scheduleQueue(1000); return; }          // socket mati → tahan, jangan buang
+    // botSiap(), bukan socketAlive(): selama menunggu QR dipindai, WebSocket-nya
+    // SUDAH terbuka tapi belum ada nomor yang tertaut. sendMessage() di keadaan
+    // itu melempar "Cannot read properties of undefined (reading 'id')" — dan
+    // karena itu dihitung sebagai percobaan gagal, tiga kali kejadian cukup untuk
+    // MEMBUANG pesan pelanggan. Sudah pernah terjadi: 21 Agu 2026, satu pesan ke
+    // 6288211366083 hilang persis begitu, beberapa detik setelah sesi direset.
+    if (!botSiap()) { scheduleQueue(1000); return; }               // belum login → tahan, jangan buang
     const wait = nextSendAt - Date.now();
     if (wait > 0) { scheduleQueue(wait); return; }
+
+    // Batas kirim per jam (modul anti-ban). Pesannya TIDAK dibuang — cuma
+    // ditahan sampai jendela sejam bergeser, karena membuang pesan pelanggan
+    // demi rem laju itu menukar satu masalah dengan masalah yang lebih buruk.
+    const tungguJatah = tungguJatahMs();
+    if (tungguJatah > 0) {
+        if (!remDilaporkan) {
+            remDilaporkan = true;
+            console.warn(`[antiban] Batas ${modul('antiban').batasJam} pesan/jam tercapai — antrean ditahan ${Math.round(tungguJatah / 1000)}s.`);
+        }
+        scheduleQueue(tungguJatah);
+        return;
+    }
+    remDilaporkan = false;
 
     // Jeda balasan: pesan paling depan belum berumur REPLY_DELAY_MS → tunda,
     // dan pasang "mengetik…" (sekali saja) supaya jedanya terlihat manusiawi.
@@ -550,7 +584,7 @@ async function processQueue() {
     const readyAt = (head.ts || 0) + REPLY_DELAY_MS;
     const replyWait = readyAt - Date.now();
     if (replyWait > 0) {
-        if (!head.composing) {
+        if (!head.composing && modul('antiban').sinyalMengetik) {
             head.composing = true;
             waSocket.presenceSubscribe(head.jid).catch(() => {});
             waSocket.sendPresenceUpdate('composing', head.jid).catch(() => {});
@@ -577,8 +611,10 @@ async function processQueue() {
             try {
                 // Indikator "mengetik" sengaja TIDAK di-await: dua round-trip ini dulu
                 // duduk persis di jalur kritis tiap balasan, padahal hasilnya kosmetik.
-                waSocket.presenceSubscribe(task.jid).catch(() => {});
-                waSocket.sendPresenceUpdate('composing', task.jid).catch(() => {});
+                if (modul('antiban').sinyalMengetik) {
+                    waSocket.presenceSubscribe(task.jid).catch(() => {});
+                    waSocket.sendPresenceUpdate('composing', task.jid).catch(() => {});
+                }
                 let sendResult;
                 if (task.url) {
                     sendResult = await waSocket.sendMessage(task.jid, { image: { url: task.url }, caption: task.message });
@@ -591,20 +627,33 @@ async function processQueue() {
                 recordMessage(task.jid, 'out', task.poll ? `[poll] ${task.poll.name || ''}` : (task.message || '[media]'), task.url ? 'image' : 'text');
                 bump('keluar');
                 console.log(`[Queue] Pesan terkirim ke ${task.jid} (antre ${Date.now() - (task.ts || Date.now())}ms)`);
-                gap = task.jid === lastSentJid
-                    ? GAP_SAME_MIN_MS + Math.floor(Math.random() * GAP_SAME_RAND_MS)
-                    : GAP_OTHER_MIN_MS + Math.floor(Math.random() * GAP_OTHER_RAND_MS);
+                jejakKirim.push(Date.now());
+                const ab = modul('antiban');
+                if (ab.jedaAcak && ab.jedaMax > ab.jedaMin) {
+                    // Jeda acak dari panel menggantikan jeda bawaan. Rentangnya
+                    // sama untuk penerima yang sama maupun berbeda — panelnya
+                    // memang menjanjikan satu rentang, bukan dua.
+                    gap = ab.jedaMin + Math.floor(Math.random() * (ab.jedaMax - ab.jedaMin));
+                } else {
+                    gap = task.jid === lastSentJid
+                        ? GAP_SAME_MIN_MS + Math.floor(Math.random() * GAP_SAME_RAND_MS)
+                        : GAP_OTHER_MIN_MS + Math.floor(Math.random() * GAP_OTHER_RAND_MS);
+                }
                 lastSentJid = task.jid;
             } catch (err) {
                 // Dulu di sini pesan langsung hilang: task sudah ter-shift dari antrean
                 // dan kegagalan cuma di-log. Tiap "Connection Closed" = satu balasan
                 // yang tidak pernah sampai ke pelanggan, padahal website mengira
                 // sudah terkirim. Sekarang dikembalikan ke depan antrean.
-                task.attempts = (task.attempts || 0) + 1;
-                if (task.attempts < MAX_SEND_ATTEMPTS) {
+                // Kegagalan karena sesinya yang belum siap bukan salah pesannya:
+                // kalau ini ikut dihitung, pesan yang sah bisa habis jatahnya
+                // hanya karena kebetulan antre saat bot sedang tersambung ulang.
+                const sesiBelumSiap = !botSiap() || /undefined \(reading 'id'\)|Connection Closed|not open/i.test(err.message || '');
+                if (!sesiBelumSiap) task.attempts = (task.attempts || 0) + 1;
+                if (sesiBelumSiap || task.attempts < MAX_SEND_ATTEMPTS) {
                     messageQueue.unshift(task);
                     gap = 1000;   // beri napas sebelum coba lagi, jangan loop ketat
-                    console.error(`[Queue] Gagal kirim ke ${task.jid} (percobaan ${task.attempts}/${MAX_SEND_ATTEMPTS}), diulang:`, err.message);
+                    console.error(`[Queue] Gagal kirim ke ${task.jid} (${sesiBelumSiap ? 'sesi belum siap, tidak dihitung' : `percobaan ${task.attempts}/${MAX_SEND_ATTEMPTS}`}), diulang:`, err.message);
                 } else {
                     bump('kirim_gagal');
                     console.error(`[Queue] Gagal kirim ke ${task.jid} setelah ${MAX_SEND_ATTEMPTS} percobaan, pesan DIBUANG:`, err.message);
@@ -679,6 +728,79 @@ function saveSettings() {
     catch (e) { console.error('[settings] gagal simpan:', e.message); }
 }
 loadSettings();
+
+// ── Modul yang bisa dinyalakan dari panel admin situs ────────────────────────
+// Panel "WhatsApp Bot" di situs sejak dulu punya enam kartu setelan yang tombol
+// Simpan-nya menulis ke kolom `bot_modules` di Supabase — kolom yang tidak
+// pernah dibaca siapa pun, termasuk bot ini. Enam kartu itu, selama berbulan
+// -bulan, cuma gambar. Yang tersisa di sini adalah tiga yang memang bisa
+// dikerjakan bot: menolak panggilan, mengerem laju kirim, dan merekam pesan
+// yang ditarik/diedit. Sisanya (enkripsi sesi di DB, provider AI, protobuf
+// manual) dicabut dari panel — bot ini tidak menyimpan sesi di database, tidak
+// punya AI, dan tidak menyusun protobuf sendiri.
+const MODUL_BAWAAN = {
+    panggilan: {
+        tolak: true,
+        balas: true,
+        pesan: 'Maaf, nomor ini dijalankan bot dan tidak bisa menerima panggilan. Silakan kirim pesan teks ya.',
+    },
+    antiban: {
+        sinyalMengetik: true,   // "sedang mengetik…" sebelum balasan
+        jedaAcak: true,         // jeda acak antar pesan
+        jedaMin: 500,
+        jedaMax: 4000,
+        batasJam: 0,            // 0 = tanpa batas
+    },
+    forensik: {
+        antiHapus: false,       // rekam pesan yang ditarik pengirim
+        antiEdit: false,        // rekam isi asli pesan yang diedit
+        tujuanNotif: '',        // nomor/JID grup penerima catatan (opsional)
+    },
+};
+
+// Gabungan dangkal per kelompok: setelan lama yang tersimpan tetap dipakai,
+// kunci baru yang belum pernah disimpan mengambil nilai bawaan.
+function modul(nama) {
+    const tersimpan = (settings.modul && settings.modul[nama]) || {};
+    return { ...MODUL_BAWAAN[nama], ...tersimpan };
+}
+function semuaModul() {
+    const hasil = {};
+    for (const nama of Object.keys(MODUL_BAWAAN)) hasil[nama] = modul(nama);
+    return hasil;
+}
+// Menyaring masukan dari panel: hanya kunci yang dikenal, dengan tipe yang benar.
+// Tanpa ini, satu POST sembarangan bisa menaruh apa saja di settings.json.
+function bersihkanModul(nama, masuk) {
+    const bawaan = MODUL_BAWAAN[nama];
+    if (!bawaan || !masuk || typeof masuk !== 'object') return null;
+    const bersih = {};
+    for (const [kunci, nilaiBawaan] of Object.entries(bawaan)) {
+        if (!(kunci in masuk)) continue;
+        const nilai = masuk[kunci];
+        if (typeof nilaiBawaan === 'boolean') bersih[kunci] = !!nilai;
+        else if (typeof nilaiBawaan === 'number') {
+            const n = Number(nilai);
+            if (Number.isFinite(n) && n >= 0 && n <= 3600000) bersih[kunci] = Math.round(n);
+        } else bersih[kunci] = String(nilai ?? '').slice(0, 700);
+    }
+    return bersih;
+}
+
+// Jejak waktu kirim untuk batas per jam. Cukup di memori: kalau bot restart,
+// hitungannya mulai lagi — dan restart sendiri sudah jeda panjang.
+let jejakKirim = [];
+function sisaJatahJam() {
+    const batas = modul('antiban').batasJam;
+    if (!batas) return Infinity;
+    const sejam = Date.now() - 3600000;
+    jejakKirim = jejakKirim.filter((t) => t > sejam);
+    return batas - jejakKirim.length;
+}
+function tungguJatahMs() {
+    if (sisaJatahJam() > 0) return 0;
+    return Math.max(1000, jejakKirim[0] + 3600000 - Date.now());
+}
 
 // ── Nomor penting: penerima alarm & admin cadangan ───────────────────────────
 // Dulu penerima alarm hanya bisa diatur lewat env OWNER_JID, artinya tiap ganti
@@ -1193,7 +1315,7 @@ app.get('/status', requireAuth, (req, res) => {
         sessionLostAt,
         sesiTerkunci,
         kunciSesiAktif: KUNCI_SESI,
-        kunciRetryMenit: Math.round(KUNCI_RETRY_MS / 60000),
+        kunciRetryMenit: Math.round(kunciRetryMs() / 60000),
         // Perangkat belum tertaut dan bot berhenti mengetuk sampai ada yang siap
         // memindai. Dashboard memakai ini untuk menawarkan tombol "Tampilkan QR".
         menungguPindai,
@@ -1411,6 +1533,35 @@ app.post('/settings/nomor', requireAuth, (req, res) => {
     res.json({ ok: true, ownerNumber: nomorAlarm(), backupAdmin: nomorCadangan() });
 });
 
+// ── Modul bot (panggilan, anti-ban, forensik) ────────────────────────────────
+// Ini jendela yang dipakai panel "WhatsApp Bot" di situs. Sebelumnya panel itu
+// menyimpan setelannya ke Supabase dan berhenti di sana; sekarang setelannya
+// mendarat di sini, di proses yang benar-benar memegang koneksi WhatsApp.
+app.get('/modul', requireAuth, (req, res) => {
+    res.json({ ok: true, modul: semuaModul(), bawaan: MODUL_BAWAAN });
+});
+
+app.post('/modul', requireAuth, (req, res) => {
+    const masuk = req.body || {};
+    // Panel bisa mengirim satu kelompok saja ({panggilan:{...}}) atau beberapa
+    // sekaligus. Yang tidak dikirim tidak disentuh — dulu tiap panel menimpa
+    // seluruh isi `bot_modules`, jadi menyimpan Anti-Ban menghapus setelan
+    // Panggilan yang baru saja disimpan sebelahnya.
+    const diubah = [];
+    settings.modul = settings.modul || {};
+    for (const nama of Object.keys(MODUL_BAWAAN)) {
+        if (!(nama in masuk)) continue;
+        const bersih = bersihkanModul(nama, masuk[nama]);
+        if (!bersih) return res.status(400).json({ error: `Isi modul "${nama}" tidak sah.` });
+        settings.modul[nama] = { ...(settings.modul[nama] || {}), ...bersih };
+        diubah.push(nama);
+    }
+    if (!diubah.length) return res.status(400).json({ error: 'Tidak ada modul yang dikenali di badan permintaan.' });
+    saveSettings();
+    console.log(`[modul] Diubah dari panel: ${diubah.join(', ')}`);
+    res.json({ ok: true, modul: semuaModul(), diubah });
+});
+
 // ── Kontak admin untuk situs (publik) ────────────────────────────────────────
 // Situs jualbeliusupolmed dipasang di Vercel, jadi ia tidak bisa mengintip
 // proses ini; endpoint inilah jendelanya. Sengaja TIDAK memuat nomor utama —
@@ -1615,6 +1766,7 @@ app.post('/sesi/buka-kunci', requireAuth, requirePemulihan, async (req, res) => 
     console.warn('[sesi] Kunci dibuka dari dashboard — sesi dicadangkan, bot akan menampilkan QR.');
     sessionLostAt = new Date().toISOString();
     sesiTerkunci = false;
+    kunciSiklus = 0;
     bump('sesi_hilang');
     try { await clearAuthState(); } catch (e) { console.error('[sesi] gagal cadangkan sesi:', e); }
     res.json({ ok: true, message: 'Kunci dibuka. Bot restart dan akan menampilkan QR.' });
@@ -2383,6 +2535,38 @@ async function getWaVersion() {
 // menit terakhir.
 const sentMsgStore = new Map();   // `${jid}:${id}` → proto message
 const SENT_STORE_CAP = Number(process.env.SENT_STORE_CAP || 3000);
+// Teks dari struktur pesan Baileys, apa pun bungkusnya.
+function teksPesan(msg) {
+    if (!msg) return '';
+    return msg.conversation
+        || msg.extendedTextMessage?.text
+        || msg.imageMessage?.caption
+        || msg.videoMessage?.caption
+        || msg.documentMessage?.caption
+        || '';
+}
+
+// Satu tempat untuk mencatat kejadian forensik: masuk arsip pesan (jadi terlihat
+// di dashboard) dan, kalau tujuannya diisi, diteruskan ke nomor/grup pengawas.
+function catatForensik(jid, jenis, teks, tujuan) {
+    const isi = teks ? teks.slice(0, 700) : '(isi tidak tersimpan — pesan sudah lewat sebelum bot merekamnya)';
+    recordMessage(jid, 'in', `[${jenis}] ${isi}`, jenis);
+    bump(`pesan_${jenis}`);
+    console.log(`[forensik] Pesan ${jenis} di ${jid}`);
+    const target = String(tujuan || '').trim();
+    if (!target) return;
+    const jidTujuan = target.includes('@') ? target : toJid(target);
+    if (!jidTujuan) return;
+    messageQueue.push({
+        jid: jidTujuan,
+        message: `🔎 Pesan ${jenis}\nDari: ${jid}\n\n${isi}`,
+        ts: Date.now(),
+        ttl: OUTBOX_TTL_MS,
+    });
+    simpanOutbox();
+    kickQueue();
+}
+
 function rememberMsgContent(key, message) {
     if (!key?.id || !message) return;
     const k = `${key.remoteJid}:${key.id}`;
@@ -2527,6 +2711,65 @@ async function startBotInner(myGen) {
     });
     waSocket = sock;
     sock.ev.on('creds.update', saveCreds);
+
+    // ── Panggilan masuk ──────────────────────────────────────────────────────
+    // Nomor ini dijalankan program; tidak ada yang akan mengangkat. Dibiarkan
+    // berdering, yang tertinggal di HP penelepon cuma "panggilan tak terjawab"
+    // tanpa penjelasan — dan ia akan menelepon lagi. Ditolak cepat lalu dibalas
+    // teks sekali, ia tahu harus mengetik.
+    const panggilanDitangani = new Set();
+    sock.ev.on('call', async (daftar) => {
+        const cfg = modul('panggilan');
+        if (!cfg.tolak) return;
+        for (const c of daftar || []) {
+            if (!c || c.status !== 'offer' || !c.id) continue;
+            if (panggilanDitangani.has(c.id)) continue;   // satu panggilan bisa datang beberapa kali
+            panggilanDitangani.add(c.id);
+            setTimeout(() => panggilanDitangani.delete(c.id), 10 * 60 * 1000).unref?.();
+
+            const dari = c.from || c.chatId || '';
+            try {
+                await sock.rejectCall(c.id, dari);
+                bump('panggilan_ditolak');
+                console.log(`[panggilan] Ditolak otomatis dari ${dari}`);
+            } catch (e) {
+                console.error('[panggilan] gagal menolak:', e.message);
+            }
+            if (cfg.balas && String(cfg.pesan || '').trim() && dari && !dari.endsWith('@g.us')) {
+                messageQueue.push({ jid: dari, message: cfg.pesan, ts: Date.now() });
+                simpanOutbox();
+                kickQueue();
+            }
+        }
+    });
+
+    // ── Forensik: pesan yang ditarik atau diedit ─────────────────────────────
+    // WhatsApp menghapus isinya dari sisi kita begitu pengirim menarik pesan.
+    // Yang bisa disimpan cuma yang sempat lewat — itu sebabnya isinya diambil
+    // dari sentMsgStore (cache pesan yang sudah ada untuk keperluan kirim ulang),
+    // bukan dari server.
+    sock.ev.on('messages.update', (updates) => {
+        const cfg = modul('forensik');
+        if (!cfg.antiHapus && !cfg.antiEdit) return;
+        for (const u of updates || []) {
+            const jid = u?.key?.remoteJid;
+            if (!jid || u.key.fromMe) continue;
+            const kunci = `${jid}:${u.key.id}`;
+            const asli = sentMsgStore.get(kunci);
+            const ditarik = u.update && 'message' in u.update && u.update.message === null;
+            const diedit = u.update?.message?.editedMessage?.message
+                || u.update?.message?.protocolMessage?.editedMessage;
+
+            if (ditarik && cfg.antiHapus) {
+                const teks = teksPesan(asli);
+                catatForensik(jid, 'ditarik', teks, cfg.tujuanNotif);
+            } else if (diedit && cfg.antiEdit) {
+                const sebelum = teksPesan(asli);
+                const sesudah = teksPesan(diedit);
+                catatForensik(jid, 'diedit', sebelum ? `${sebelum}  →  ${sesudah}` : sesudah, cfg.tujuanNotif);
+            }
+        }
+    });
 
     // Simpan isi pesan (masuk maupun keluar) untuk melayani permintaan kirim ulang.
     sock.ev.on('messages.upsert', ({ messages }) => {
@@ -2725,17 +2968,19 @@ async function startBotInner(myGen) {
                         bump('sesi_terkunci');
                         console.warn(`[sesi] 401 berturut-turut ${LOGOUT_STRIKES}x — sesi TIDAK dihapus `
                             + '(kunci sesi aktif). Bot akan terus mencoba dengan creds yang sama tiap '
-                            + `${Math.round(KUNCI_RETRY_MS / 60000)} menit. Kalau perangkat memang dilepas `
+                            + `${Math.round(kunciRetryMs() / 60000)} menit (makin lama kalau terus ditolak). Kalau perangkat memang dilepas `
                             + 'dari HP, buka kunci dari dashboard untuk scan QR baru.');
                         notifyOwner('🔒 *Sesi WhatsApp terkunci*\n\nWhatsApp menolak sesi ini '
                             + `${LOGOUT_STRIKES}× berturut-turut. Sesi sengaja TIDAK dihapus supaya bot `
                             + 'tidak diam-diam minta scan QR ulang.\n\nCek daftar perangkat tertaut di HP: '
                             + 'kalau bot masih terdaftar, biarkan saja — ia mencoba sendiri tiap '
-                            + `${Math.round(KUNCI_RETRY_MS / 60000)} menit. Kalau sudah tidak ada, buka kunci `
+                            + `${Math.round(kunciRetryMs() / 60000)} menit. Kalau sudah tidak ada, buka kunci `
                             + 'di dashboard lalu scan QR.');
                     }
                     reconnectAttempts = 0;
-                    scheduleRestart(KUNCI_RETRY_MS);
+                    const jeda = kunciRetryMs();
+                    kunciSiklus++;                     // percobaan berikutnya menunggu lebih lama
+                    scheduleRestart(jeda);
                 } else {
                     console.warn(`[reconnect] 401 berturut-turut ${logoutStrikes}x — perangkat memang `
                         + 'dilepas dari WhatsApp. Sesi dicadangkan, bot akan menampilkan QR.');
@@ -2772,6 +3017,7 @@ async function startBotInner(myGen) {
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
             logoutStrikes = 0;   // sambungan sehat → hitungan 401 mulai dari nol lagi
+            kunciSiklus = 0;     // dan jeda kunci kembali ke yang tercepat
             if (sesiTerkunci) {
                 sesiTerkunci = false;
                 console.log('[sesi] Tersambung lagi dengan sesi yang sama — kunci dilepas sendiri. '
