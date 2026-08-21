@@ -87,8 +87,38 @@ tombol "Bayar Tagihan" untuk komisi penjualan berhenti dijawab 400, tujuh berkas
 pernah dipanggil dari mana pun dihapus, dan dua halaman yang selama ini menyebut angka berbeda
 untuk hal yang sama — <code>/projek</code> dan <code>/lomba</code> — sekarang menyebut angka yang
 dihitung ulang dari repo hari itu juga.</p>
+<p class="muted">Malamnya, perapian keamanan: sepuluh dari dua belas temuan audit
+ditutup dan diuji langsung di produksi — otorisasi pembayaran berhenti memakai nomor
+kiriman klien, rute push yang bernama "test" tapi menyiarkan ke semua orang dapat gerbang
+admin, empat cron berhenti membuka pintunya sendiri saat rahasianya kosong, 41 PIN penjual
+di-bcrypt, dan OTP berhenti disimpan apa adanya. Satu pertanyaan yang menggantung sejak
+pagi ikut terjawab: <code>CRON_SECRET</code> memang terisi di Vercel. Dua baris di bawah
+ini yang tidak bisa diselesaikan dari kursi mana pun kecuali kursimu.</p>
 <div class="card">
   <ul class="todo">
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Ganti tiga nilai kredensial.</strong> Ini satu-satunya temuan yang tidak bisa
+      diperbaiki perubahan kode apa pun: nilainya sudah tersebar, jadi yang harus berubah
+      adalah nilainya. (1) <code>ADMIN_PASSWORD</code> di Vercel — tertulis terang di sebuah
+      berkas catatan yang publik sejak commit pertama, 11 Juni. (2) <code>FONNTE_TOKEN</code>
+      di dasbor Fonnte — ikut ter-commit 11 Juni dan masih ada di riwayat; token yang valid
+      berarti mengirim WhatsApp atas nama akun ini dengan ongkos kamu. (3) Isi
+      <code>catatan-rahasia-lokal.txt</code> — berkas yang menulis di barisnya sendiri bahwa
+      ia "di-gitignore, TIDAK ikut ke-commit", padahal terlacak di repo publik sejak 20 Juli.
+      Berkasnya sudah dicabut; nilainya belum berubah.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Tulis ulang riwayat git repo situs.</strong> Berkas data pelanggan sudah tidak
+      ada di puncak repo — klon baru tidak lagi membawanya — tapi commit lamanya masih
+      memuatnya, dan commit penghapusan tidak menghapus apa pun dari riwayat. Menulis ulang
+      riwayat diblokir penyaring izin di sesi kerja, jadi langkah ini pindah ke tanganmu.
+      Perintahnya ada di catatan keamanan di VPS (<code>catatan/temuan-keamanan.md</code>,
+      bagian T1) — dan jangan pakai <code>/tmp/tutup-kebocoran.sh</code> apa adanya: skrip itu
+      ditulis saat commit yang bocor masih paling atas, dan versi perbaikannya sudah diuji di
+      klon sekali-pakai lalu bentrok.
+    </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
       <strong>Tautkan ulang nomor bot pertama.</strong> Kunci sesi dibuka lagi dari dashboard pada

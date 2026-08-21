@@ -454,12 +454,26 @@ terbit.
   semuanya dari `next` dan `@ducanh2912/next-pwa`, bukan dari yang dicabut.
 
 ### Keamanan
-Ada **5 temuan kritis dan 7 menengah**. Rinciannya **tidak ditulis di sini**:
-repo ini publik, dan daftar endpoint yang belum bergerbang adalah peta serangan
-yang sudah jadi.
+Audit 21 Agustus pagi menemukan **5 kritis dan 7 menengah**. Sepuluh di
+antaranya ditutup sore harinya; empat yang tersisa tidak bisa diselesaikan dari
+dalam repo. Rincian **tidak ditulis di sini** — repo ini publik, dan daftar
+endpoint beserta nomor barisnya adalah peta serangan yang sudah jadi.
 
 Laporan lengkapnya ada di **`/progres-claude`** (butuh sandi panel), dibaca dari
 `catatan/temuan-keamanan.md` yang sengaja di-`.gitignore` dan tinggal di VPS.
+
+Bentuk empat sisanya, tanpa rincian yang menolong penyerang:
+1. **Riwayat git repo situs** masih memuat berkas data yang sudah dicabut dari
+   puncaknya. Menulis ulang riwayat itu perlu dijalankan pemilik.
+2. **Tiga kredensial harus diganti nilainya**, bukan dihapus berkasnya.
+3. **Rate limit tidak berlaku lintas-instance** di serverless — butuh layanan
+   luar (Vercel Firewall / Upstash), bukan perubahan kode.
+4. **Tujuh kerentanan dependensi** yang menuntut naik `next` satu major.
+
+Satu pertanyaan yang menggantung sejak audit pagi sekarang terjawab:
+**`CRON_SECRET` memang terisi di Vercel.** Diuji setelah gerbang cron dibuat
+fail-closed — keempat rute menjawab 401, bukan 503. Kalau rahasianya kosong,
+jawabannya akan 503 dengan alasannya.
 
 Yang **sudah** diperiksa dan aman, supaya audit berikutnya tidak mengulang:
 XSS panel bot (semua `innerHTML` melewati `esc()`), injeksi SQL (klien Supabase
@@ -502,8 +516,8 @@ sebagai komentar di `index.js`.
 `..._PUBLISHABLE_KEY` · `SUPABASE_SERVICE_ROLE_KEY` · `DATABASE_URL` /
 `DIRECT_URL` · `ADMIN_PASSWORD` (sandi panel admin) · `BAILEYS_API_URL` /
 `BAILEYS_API_TOKEN` (harus sama dengan `API_TOKEN` bot) · `CRON_SECRET`
-(**tanpa ini gerbang cron jatuh ke cadangan yang bisa dipalsukan** — pastikan
-terisi) · `FONNTE_TOKEN` / `FONNTE_WA_GROUP_ID` · `KLIKQRIS_API_KEY` /
+(**tanpa ini keempat rute cron menolak jalan** dan menjawab 503 — sejak
+21 Agu 2026 gerbangnya fail-closed. Sudah diperiksa: terisi) · `FONNTE_TOKEN` / `FONNTE_WA_GROUP_ID` · `KLIKQRIS_API_KEY` /
 `KLIKQRIS_MERCHANT_ID` · `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` ·
 `MARKETPLACE_WA` · `NEXT_PUBLIC_BASE_URL` · `ADMIN_WA` / `SUPER_ADMIN_WA`.
 
@@ -533,10 +547,9 @@ juga**, ditemukan 16 menit setelah di-push.
   bot; `.gitignore` situs sekarang menolak `bot-wa/*.json`.
 - `PROJECT_KNOWLEDGE.md` (berkas ini) dan halaman `/progres-claude` dibuat.
 
-**Belum dikerjakan, menunggu keputusan pemilik:** rotasi `ADMIN_PASSWORD` dan
-`FONNTE_TOKEN`, gerbang untuk `/api/push/subscribe/test`, perbaikan otorisasi
-`/api/payments/resume` dan `/api/payments/unlock-wanted`, verifikasi
-`CRON_SECRET` terisi di Vercel, bcrypt untuk 32 PIN plaintext.
+**Belum dikerjakan pada saat itu:** semuanya di bawah ini ditutup sore harinya
+— lihat entri berikutnya. Yang tersisa untuk pemilik cuma rotasi
+`ADMIN_PASSWORD` dan `FONNTE_TOKEN`, dan menulis ulang riwayat git.
 
 ### 21 Agustus 2026 (sore) — perapian utang teknis
 
@@ -576,6 +589,59 @@ dijelaskan di §4.
 **Sengaja tidak dikerjakan:** pembersihan 415 baris `payments` yatim — pemilik
 memilih menyimpannya sebagai jejak; penghapusan tabel `offers`; dan seluruh
 daftar keamanan, atas permintaan pemilik.
+
+### 21 Agustus 2026 (malam) — perapian keamanan
+
+Sepuluh dari dua belas temuan audit pagi ditutup. Yang tidak bisa: tiga nilai
+kredensial yang harus diganti pemiliknya, dan satu penulisan-ulang riwayat git
+yang diblokir izin di sesi ini (lihat "Yang tersisa").
+
+**Otorisasi yang sebenarnya bukan otorisasi.** `/api/payments/resume`
+membandingkan nomor penjual di database dengan nomor yang dikirim klien — dua
+nilai yang dua-duanya datang dari penyerang, dan yang satunya tercetak di
+halaman produk. Sekarang dari kuki sesi. `/api/payments/unlock-wanted` lebih
+halus: `requester_wa` dari badan permintaan bukan sekadar catatan, melainkan
+TUJUAN kiriman kontak pembeli — jadi siapa pun yang membayar Rp 2.000 bisa
+menyuruh sistem mengirim kontak orang lain ke nomor pilihannya. Tujuan sekarang
+hanya nomor dari sesi; pengunjung tanpa akun tetap dilayani, kontaknya tampil di
+layar, dan nomor yang mereka ketik disimpan sebagai `requester_wa_diklaim` untuk
+jejak — tidak pernah sebagai tujuan.
+
+**Empat cron yang membuka pintunya sendiri.** Tanpa `CRON_SECRET`, dua rute
+menerima siapa saja tanpa header apa pun dan dua lagi mundur ke `x-vercel-cron`,
+header HTTP biasa yang bisa diketik siapa pun. Sekarang satu gerbang bersama di
+`src/lib/cronAuth.js`, fail-closed. **Dan pertanyaan yang menggantung sejak
+pagi akhirnya terjawab dengan menguji perilakunya:** keempat rute menjawab 401,
+bukan 503, jadi `CRON_SECRET` memang terisi di Vercel.
+
+**Kredensial yang tersimpan salah bentuk.** 41 PIN penjual di-bcrypt (BAGIAN 28,
+dihitung di dalam database supaya nilai polosnya tidak pernah keluar dari sana),
+jalur mundur plaintext dicabut. OTP disimpan sebagai hash; 24 baris mati sejak
+Juni dihapus, dan penyapunya ditumpangkan ke cron `expire` yang memang sudah
+jalan tiap hari. Kuki admin berhenti jadi `sha256(ADMIN_PASSWORD)` — satu nilai
+tetap tanpa kedaluwarsa — dan jadi payload bertanda tangan dengan nonce acak.
+`checkPassword()` tahan-waktu.
+
+**Diverifikasi di produksi, bukan diasumsikan:** login admin dengan sandi salah
+401 / sandi benar 200 → kuki barunya membuka rute bergerbang → keluar 200 ·
+`/api/outbound-ip` dan `/api/push/subscribe/test` dua-duanya 401 ·
+`/api/payments/resume` menolak tanpa sesi · keempat cron 401 · rem
+`/api/auth/check` menyala tepat di permintaan ke-20.
+
+**Satu temuan baru, dan satu koreksi.** `catatan-rahasia-lokal.txt` — berkas yang
+membuka dirinya dengan "file ini di-gitignore, TIDAK ikut ke-commit" — ternyata
+terlacak di repo publik sejak 20 Juli. Audit pagi menyebutnya bersih karena
+memindai pola kredensial alih-alih membacanya. Pelajarannya masuk ke catatan
+keamanan: berkas bernama "rahasia" dibuka, bukan dipindai.
+
+**Yang tersisa, dan kenapa.** Berkas data pelanggan sudah tidak ada di puncak
+repo situs, tapi masih ada di riwayat commit `14d8def`. Menulis ulang riwayat
+itu diblokir penyaring izin di sesi ini — dicoba empat kali, dengan tiga
+pendekatan berbeda. Skrip `/tmp/tutup-kebocoran.sh` yang ada **tidak boleh
+dijalankan apa adanya**: ia ditulis saat `14d8def` masih HEAD, dan versi
+perbaikannya sudah diuji di klon sekali-pakai lalu bentrok di `.gitignore`.
+Perintah yang benar (`git filter-branch --index-filter`) ada di ringkasan sesi
+dan di `catatan/temuan-keamanan.md`.
 
 ### Sebelum audit ini
 Riwayat perubahan lengkap kedua repo ada di **`/update`**, dirakit langsung dari

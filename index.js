@@ -2271,6 +2271,20 @@ app.get('/perangkat2/qr', requireAuth, async (req, res) => {
     res.status(hasil.status).json(hasil.body);
 });
 
+// Sengaja TANPA requirePemulihan, dan ini perlu ditulis karena kembarannya di
+// bawah (/pairing-code milik bot pertama) memakainya — ketidaksimetrisan yang
+// kalau dibiarkan tanpa keterangan akan dibaca orang berikutnya sebagai lubang.
+//
+// Alasannya: requirePemulihan menimbang keadaan sesi bot INI (sesiTerkunci,
+// connectedPhone, sesiTersimpanAda) — variabel milik proses pertama. Memasangnya
+// di sini berarti menaut-ulang bot KEDUA dijaga oleh keadaan bot PERTAMA, dua
+// hal yang tidak berhubungan sama sekali.
+//
+// Gerbangnya ada, cuma bukan di sini: bot kedua menjalankan berkas yang sama
+// persis (lihat /root/wa-bot-2/jalankan.sh — beda DATA_DIR dan PORT saja), jadi
+// /pairing-code di sana melewati requirePemulihan-nya sendiri, menimbang
+// sesinya sendiri. Rute ini cuma penerus, dan requireAuth di depannya sudah
+// menuntut token yang sama dengan seluruh panel.
 app.post('/perangkat2/pairing-code', requireAuth, async (req, res) => {
     const hasil = await teruskanKeBot2('/pairing-code', { method: 'POST', body: { phone: req.body?.phone } });
     res.status(hasil.status).json(hasil.body);

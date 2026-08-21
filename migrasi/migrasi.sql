@@ -1677,3 +1677,72 @@ UNION ALL
 SELECT 'kebijakan kembar tersisa', (count(*))::text FROM (
   SELECT tablename, cmd, qual FROM pg_policies WHERE schemaname = 'public'
    GROUP BY 1, 2, 3 HAVING count(*) > 1) k;
+
+
+-- ---------------------------------------------------------------------
+-- BAGIAN 28 — Tiga temuan keamanan yang tinggal di database
+--
+-- Ditulis 21 Agustus 2026. Kode situs yang bersangkutan sudah disesuaikan
+-- lebih dulu, jadi menjalankan berkas ini TIDAK mengunci siapa pun di luar.
+--
+-- Aman diulang: ketiganya menyaring apa yang sudah beres.
+-- ---------------------------------------------------------------------
+
+-- 1. PIN PENJUAL YANG MASIH TELANJANG ------------------------------------
+-- 32 dari 41 PIN masih tersimpan apa adanya. Sebabnya bukan kelalaian di
+-- kode: `verifyPin()` memang mengubah PIN jadi hash saat penjualnya login,
+-- tapi penjual yang tidak pernah login lagi tidak pernah kena giliran.
+--
+-- Ini menghitung ulang di dalam database — nilai polosnya tidak pernah
+-- keluar dari sana. `gen_salt('bf')` menghasilkan bcrypt `$2a$`, dan sudah
+-- diuji cocok dengan `bcrypt.compareSync()` milik bcryptjs yang dipakai
+-- situs, juga dengan regex `isHashed()` di `src/lib/pin.js`.
+--
+-- Penjual tetap memakai PIN yang sama; yang berubah cuma bentuk simpanannya.
+UPDATE public.seller_profiles
+   SET pin = extensions.crypt(pin, extensions.gen_salt('bf', 10))
+ WHERE pin IS NOT NULL
+   AND pin !~ '^\$2[aby]\$';
+
+-- 2. OTP KEDALUWARSA YANG TIDAK PERNAH DISAPU -----------------------------
+-- 24 baris menumpuk sejak 11 Juni 2026, semuanya sudah mati, semuanya masih
+-- berisi kode terang. Tabel `otps` adalah satu-satunya jalan pulang ke akun
+-- yang lupa sandi, jadi menyimpannya lebih lama dari lima menit umur
+-- pakainya cuma menambah bahan bakar tanpa menambah guna.
+--
+-- Yang akan datang sudah aman: sejak 21 Agustus, `/api/auth/otp/send`
+-- menyimpan hash bcrypt, dan cron `expire` menyapu yang kedaluwarsa tiap
+-- hari. Baris di bawah ini membereskan yang terlanjur ada.
+DELETE FROM public.otps WHERE expires_at < now();
+
+-- 3. FUNGSI DENGAN search_path YANG BISA DIGESER --------------------------
+-- `increment_listing_views` berjalan sebagai pemiliknya tanpa mengunci
+-- search_path, jadi ia menyelesaikan nama tabel lewat jalur yang bisa
+-- diubah pemanggilnya. Mengunci jalurnya menutup itu tanpa mengubah apa pun
+-- yang dikerjakannya.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = 'increment_listing_views'
+  ) THEN
+    EXECUTE 'ALTER FUNCTION public.increment_listing_views(uuid) SET search_path = public, pg_temp';
+  END IF;
+END $$;
+
+
+-- ---------------------------------------------------------------------
+-- RINGKASAN BAGIAN 28 — dua baris pertama harus 0
+-- ---------------------------------------------------------------------
+SELECT 'PIN masih plaintext' AS periksa,
+       count(*)::text AS jumlah
+  FROM public.seller_profiles
+ WHERE pin IS NOT NULL AND pin !~ '^\$2[aby]\$'
+UNION ALL
+SELECT 'OTP kedaluwarsa tersisa', count(*)::text FROM public.otps WHERE expires_at < now()
+UNION ALL
+SELECT 'search_path increment_listing_views',
+       COALESCE((SELECT array_to_string(p.proconfig, ', ') FROM pg_proc p
+                   JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname='public' AND p.proname='increment_listing_views'), 'fungsi tidak ada');
