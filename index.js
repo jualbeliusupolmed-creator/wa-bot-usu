@@ -1089,15 +1089,6 @@ const {
     sesiTersimpanAda, halamanMasuk,
 } = require('./src/lib/gerbang')({ API_TOKEN, AUTH_DIR, keadaan });
 
-// ── Rute halaman ─────────────────────────────────────────────────────────────
-// Semua yang menjawab dengan HTML tinggal di src/routes/web.routes.js.
-require('./src/routes/web.routes')(app, {
-    AKAR: __dirname, WEBHOOK_URL, API_TOKEN,
-    PANEL_PASSWORD, KUKI_NAMA,
-    requireAuthPage, bolehMasuk, halamanMasuk, amanTujuan,
-    authBlocked, noteAuthFail, passwordMatches, kukiSah,
-});
-
 // ── Health check (public, untuk Railway health check) ────────────────────────
 app.get('/health', (req, res) => {
     // Definisinya disamakan persis dengan /status — dulu /health cuma cek `waSocket`
@@ -1325,6 +1316,15 @@ for (const berkas of ['migrasi.sql', 'migrasi-keamanan.sql']) {
 // GitHub habis dalam hitungan menit.
 const REPO_BOT = 'jualbeliusupolmed-creator/wa-bot-usu';
 const REPO_SITUS = 'jualbeliusupolmed-creator/jualbeliusupolmed';
+
+// ── Rute halaman ─────────────────────────────────────────────────────────────
+// Semua yang menjawab dengan HTML tinggal di src/routes/web.routes.js.
+require('./src/routes/web.routes')(app, {
+    AKAR: __dirname, WEBHOOK_URL, API_TOKEN, REPO_BOT, REPO_SITUS,
+    PANEL_PASSWORD, KUKI_NAMA,
+    requireAuthPage, bolehMasuk, halamanMasuk, amanTujuan,
+    authBlocked, noteAuthFail, passwordMatches, kukiSah,
+});
 
 
 

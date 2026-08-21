@@ -20,7 +20,7 @@ const { execFile } = require('node:child_process');
 
 module.exports = function pasangRuteHalaman(app, ctx) {
     const {
-        AKAR, WEBHOOK_URL, API_TOKEN,
+        AKAR, WEBHOOK_URL, API_TOKEN, REPO_BOT, REPO_SITUS,
         PANEL_PASSWORD, KUKI_NAMA,
         requireAuthPage, bolehMasuk, halamanMasuk, amanTujuan,
         authBlocked, noteAuthFail, passwordMatches, kukiSah,
