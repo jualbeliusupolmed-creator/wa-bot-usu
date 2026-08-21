@@ -462,13 +462,18 @@ endpoint beserta nomor barisnya adalah peta serangan yang sudah jadi.
 Laporan lengkapnya ada di **`/progres-claude`** (butuh sandi panel), dibaca dari
 `catatan/temuan-keamanan.md` yang sengaja di-`.gitignore` dan tinggal di VPS.
 
-Bentuk empat sisanya, tanpa rincian yang menolong penyerang:
-1. **Riwayat git repo situs** masih memuat berkas data yang sudah dicabut dari
-   puncaknya. Menulis ulang riwayat itu perlu dijalankan pemilik.
-2. **Tiga kredensial harus diganti nilainya**, bukan dihapus berkasnya.
-3. **Rate limit tidak berlaku lintas-instance** di serverless — butuh layanan
+Malam harinya dua dari empat sisanya ikut ditutup oleh pemilik: riwayat git
+repo situs ditulis ulang (`git filter-branch`, diverifikasi dari klon segar
+GitHub — 0 berkas data di seluruh riwayat, `bot-wa/package*.json` selamat,
+361 commit tetap 361), dan ketiga kredensial diganti nilainya.
+
+Yang benar-benar tersisa, tanpa rincian yang menolong penyerang:
+1. **Rate limit tidak berlaku lintas-instance** di serverless — butuh layanan
    luar (Vercel Firewall / Upstash), bukan perubahan kode.
-4. **Tujuh kerentanan dependensi** yang menuntut naik `next` satu major.
+2. **Tujuh kerentanan dependensi** yang menuntut naik `next` satu major.
+3. **`SESSION_SECRET` belum diisi di Vercel** — bukan lubang, tapi selama ia
+   kosong kuki penjual masih ditandatangani dengan `ADMIN_PASSWORD`, jadi
+   rotasi sandi admin berikutnya akan mengeluarkan seluruh penjual sekaligus.
 
 Satu pertanyaan yang menggantung sejak audit pagi sekarang terjawab:
 **`CRON_SECRET` memang terisi di Vercel.** Diuji setelah gerbang cron dibuat
@@ -519,7 +524,9 @@ sebagai komentar di `index.js`.
 (**tanpa ini keempat rute cron menolak jalan** dan menjawab 503 — sejak
 21 Agu 2026 gerbangnya fail-closed. Sudah diperiksa: terisi) · `FONNTE_TOKEN` / `FONNTE_WA_GROUP_ID` · `KLIKQRIS_API_KEY` /
 `KLIKQRIS_MERCHANT_ID` · `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` ·
-`MARKETPLACE_WA` · `NEXT_PUBLIC_BASE_URL` · `ADMIN_WA` / `SUPER_ADMIN_WA`.
+`MARKETPLACE_WA` · `NEXT_PUBLIC_BASE_URL` · `ADMIN_WA` / `SUPER_ADMIN_WA` ·
+`SESSION_SECRET` (penanda tangan kuki sesi penjual; kalau kosong ia memakai
+`ADMIN_PASSWORD`, dan itu berarti ganti sandi admin = seluruh penjual keluar).
 
 ---
 
@@ -642,6 +649,40 @@ dijalankan apa adanya**: ia ditulis saat `14d8def` masih HEAD, dan versi
 perbaikannya sudah diuji di klon sekali-pakai lalu bentrok di `.gitignore`.
 Perintah yang benar (`git filter-branch --index-filter`) ada di ringkasan sesi
 dan di `catatan/temuan-keamanan.md`.
+
+### 21 Agustus 2026 (larut) — riwayat git ditulis ulang
+
+Dijalankan pemilik lewat SSH, dengan perintah yang sudah diuji lebih dulu di
+klon sekali-pakai. **Dan pengujian itu yang menyelamatkannya:** versi pertama
+perintahnya memakai glob `bot-wa/*.json`, dan glob itu ikut menghapus
+`bot-wa/package.json` beserta `package-lock.json` — manifest dependensi bot —
+dari 361 commit. `git rm --cached` tidak mengenal baris negasi
+`!bot-wa/package.json` di `.gitignore`; itu aturan untuk mengabaikan, bukan
+untuk menghapus. Versi yang dipakai menyebut ketujuh belas berkasnya satu per
+satu.
+
+**Diverifikasi dari klon segar GitHub, bukan dari salinan lokal:** 0 berkas data
+di seluruh riwayat · `bot-wa/package*.json` selamat · 246 berkas `src/` utuh ·
+361 commit tetap 361 · hash tree puncak sama persis dengan sebelum penulisan
+ulang, jadi isi kerjanya tidak bergeser satu byte.
+
+**Satu berkas hampir lolos, dan cara ketahuannya layak dicatat.** Klon segar itu
+menunjukkan `catatan-rahasia-lokal.txt` masih terlacak — padahal pencabutannya
+sudah dijalankan berjam-jam sebelumnya. Sebabnya: `git rm --cached` menaruh
+pencabutan di index, lalu commit-nya dijalankan dengan daftar path
+(`git commit -- <path>`), dan bentuk itu mengambil isi **working tree** untuk
+path yang disebut, bukan isi index. Berkasnya masih ada di disk, jadi ia ditulis
+balik ke commit yang sama. Tanpa galat, tanpa peringatan.
+**Aturannya sekarang:** sesudah `git rm --cached`, commit dari index tanpa
+pathspec — dan jangan percaya `git status` sendirian; periksa dengan
+`git ls-files | grep` atau klon segar.
+
+**Satu temuan yang lahir dari memikirkan akibat, bukan dari membaca kode.**
+Rotasi `ADMIN_PASSWORD` yang baru saja dilakukan pemilik membatalkan tanda
+tangan seluruh kuki sesi penjual sekaligus — karena kuki itu ditandatangani HMAC
+dengan sandi admin. Dua rahasia berbeda tugas berbagi satu nilai. Sudah diputus
+lewat `SESSION_SECRET` (jatuh kembali ke `ADMIN_PASSWORD` kalau belum diisi,
+supaya rilisnya sendiri tidak mengeluarkan siapa pun).
 
 ### Sebelum audit ini
 Riwayat perubahan lengkap kedua repo ada di **`/update`**, dirakit langsung dari

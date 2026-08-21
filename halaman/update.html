@@ -94,31 +94,19 @@ admin, empat cron berhenti membuka pintunya sendiri saat rahasianya kosong, 41 P
 di-bcrypt, dan OTP berhenti disimpan apa adanya. Satu pertanyaan yang menggantung sejak
 pagi ikut terjawab: <code>CRON_SECRET</code> memang terisi di Vercel. Dua baris di bawah
 ini yang tidak bisa diselesaikan dari kursi mana pun kecuali kursimu.</p>
+<p class="muted">Larut malamnya keduanya selesai, dijalankan pemiliknya sendiri lewat SSH:
+riwayat git repo situs ditulis ulang sampai bersih, dan ketiga nilai kredensial diganti.
+Diverifikasi dari klon segar GitHub — bukan dari salinan yang ada di VPS — dan hasilnya
+utuh: isi kerja di puncak repo tidak bergeser satu byte pun, 361 commit tetap 361. Satu
+berkas hampir lolos karena <code>git rm --cached</code> yang commit-nya dijalankan dengan
+daftar path: bentuk itu diam-diam menulis balik berkasnya dari disk. Ketahuan justru karena
+diperiksa dari klon segar, bukan dari <code>git status</code>.</p>
+<p class="muted">Satu hal yang menyusul dari rotasi sandi itu: kuki sesi penjual selama ini
+ditandatangani dengan <code>ADMIN_PASSWORD</code>, jadi mengganti sandi admin membatalkan
+seluruh sesi penjual sekaligus. Kalau ada yang mengeluh tiba-tiba diminta masuk lagi, itu
+sebabnya — dan sekarang sudah diputus lewat <code>SESSION_SECRET</code>.</p>
 <div class="card">
   <ul class="todo">
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Ganti tiga nilai kredensial.</strong> Ini satu-satunya temuan yang tidak bisa
-      diperbaiki perubahan kode apa pun: nilainya sudah tersebar, jadi yang harus berubah
-      adalah nilainya. (1) <code>ADMIN_PASSWORD</code> di Vercel — tertulis terang di sebuah
-      berkas catatan yang publik sejak commit pertama, 11 Juni. (2) <code>FONNTE_TOKEN</code>
-      di dasbor Fonnte — ikut ter-commit 11 Juni dan masih ada di riwayat; token yang valid
-      berarti mengirim WhatsApp atas nama akun ini dengan ongkos kamu. (3) Isi
-      <code>catatan-rahasia-lokal.txt</code> — berkas yang menulis di barisnya sendiri bahwa
-      ia "di-gitignore, TIDAK ikut ke-commit", padahal terlacak di repo publik sejak 20 Juli.
-      Berkasnya sudah dicabut; nilainya belum berubah.
-    </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Tulis ulang riwayat git repo situs.</strong> Berkas data pelanggan sudah tidak
-      ada di puncak repo — klon baru tidak lagi membawanya — tapi commit lamanya masih
-      memuatnya, dan commit penghapusan tidak menghapus apa pun dari riwayat. Menulis ulang
-      riwayat diblokir penyaring izin di sesi kerja, jadi langkah ini pindah ke tanganmu.
-      Perintahnya ada di catatan keamanan di VPS (<code>catatan/temuan-keamanan.md</code>,
-      bagian T1) — dan jangan pakai <code>/tmp/tutup-kebocoran.sh</code> apa adanya: skrip itu
-      ditulis saat commit yang bocor masih paling atas, dan versi perbaikannya sudah diuji di
-      klon sekali-pakai lalu bentrok.
-    </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
       <strong>Tautkan ulang nomor bot pertama.</strong> Kunci sesi dibuka lagi dari dashboard pada
