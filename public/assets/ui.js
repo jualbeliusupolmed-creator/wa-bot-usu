@@ -111,16 +111,29 @@
     { u: '/lomba',    t: 'Lomba' }
   ];
 
+  /* /lomba adalah SATU-SATUNYA halaman yang bisa dibuka tanpa sandi, dan yang
+     membukanya orang luar (juri lomba). Menyodorkan menu berisi enam halaman
+     yang semuanya berakhir di layar "Masukkan sandi" membuat situsnya terasa
+     rusak. Di halaman itu menunya diganti tautan yang memang bisa mereka buka. */
+  var HALAMAN_TAMU = [
+    { u: 'https://www.jualbeliusupolmed.web.id', t: 'Situs utama' },
+    { u: '#presentasi', t: 'Presentasi' },
+    { u: '#demo',       t: 'Demo' },
+    { u: 'https://github.com/jualbeliusupolmed-creator', t: 'Kode' }
+  ];
+
   function nav() {
     if (document.querySelector('.nav')) return;
     var jalur = location.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
     if (jalur === '/dashboard') jalur = '/';
+    var tamu = jalur === '/lomba';
+    var daftar = tamu ? HALAMAN_TAMU : HALAMAN;
     var el = document.createElement('nav');
     el.className = 'nav';
-    var h = '<div class="nav-in"><a class="nav-brand" href="/"><span class="nav-mark">JB</span>' +
-            '<span>Bot USU&nbsp;Polmed</span></a><div class="nav-links">';
-    for (var i = 0; i < HALAMAN.length; i++) {
-      var p = HALAMAN[i];
+    var h = '<div class="nav-in"><a class="nav-brand" href="' + (tamu ? '/lomba' : '/') + '"><span class="nav-mark">JB</span>' +
+            '<span>' + (tamu ? 'Jual Beli USU&nbsp;Polmed' : 'Bot USU&nbsp;Polmed') + '</span></a><div class="nav-links">';
+    for (var i = 0; i < daftar.length; i++) {
+      var p = daftar[i];
       h += '<a href="' + p.u + '"' + (p.u === jalur ? ' aria-current="page"' : '') + '>' + p.t + '</a>';
     }
     h += '</div><div class="nav-end">' +

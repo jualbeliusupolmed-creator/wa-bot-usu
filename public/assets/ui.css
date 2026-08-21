@@ -783,3 +783,269 @@ header.bar { display: flex; align-items: flex-end; justify-content: space-betwee
 .logline.error .msg { color: var(--bad); }
 .logline.warn .msg { color: var(--warn); }
 table.nice th { position: sticky; top: 0; }
+
+/* ==========================================================================
+   Panggung showcase — dipakai /lomba
+   Halaman lomba itu satu-satunya halaman yang dilihat orang luar (juri), dan
+   ia harus menunjukkan produknya, bukan cuma menceritakannya. Komponen di
+   bawah semuanya digambar dengan CSS: tidak ada berkas gambar yang harus
+   ikut di-deploy, tidak ada yang basi saat tampilan situs berubah, dan
+   halaman tetap ringan dibuka dari ponsel di tengah kampus.
+
+   Aturan berkas ini tetap berlaku: kalau salah satu komponen ini nanti
+   berguna di halaman lain, ia sudah ada di sini dan tinggal dipakai.
+   ========================================================================== */
+
+/* ── kepala halaman showcase ─────────────────────────────────────────── */
+/* NAMA: .puncak, bukan .hero — ".hero" sudah dipakai kartu kosong dashboard
+   di atas, dan menumpuknya akan mengubah halaman yang tidak diminta berubah. */
+.puncak {
+  position: relative; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 140% at 100% 0%, var(--brand-tint), transparent 58%),
+    radial-gradient(90% 120% at 0% 100%, var(--sunk), transparent 55%),
+    var(--surface);
+  padding: clamp(22px, 4vw, 42px);
+  margin: 26px 0 10px;
+  display: grid; gap: clamp(22px, 3.4vw, 40px);
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr);
+  align-items: center;
+}
+.puncak > * { min-width: 0; }
+.puncak h1 { font-size: clamp(2rem, 4.4vw, 2.9rem); margin: 10px 0 0; }
+.puncak .pitch { font-size: clamp(1rem, 1.6vw, 1.12rem); color: var(--ink-soft); margin: 14px 0 0; max-width: 46ch; }
+.puncak .pitch strong { color: var(--ink); }
+.puncak .aksi { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.puncak .meta { margin-top: 20px; }
+@media (max-width: 880px) { .puncak { grid-template-columns: 1fr; } }
+
+/* ── tumpukan perangkat (ponsel di depan, peramban di belakang) ───────── */
+.tumpuk { position: relative; padding: 0 0 34px 0; }
+.tumpuk .peramban { width: 100%; }
+.tumpuk .hp { position: absolute; right: -6px; bottom: 0; width: min(38%, 168px); }
+@media (max-width: 880px) {
+  .tumpuk { display: grid; gap: 16px; padding-bottom: 0; }
+  .tumpuk .hp { position: static; width: min(280px, 78%); margin: 0 auto; }
+}
+
+/* ── mockup peramban ──────────────────────────────────────────────────── */
+.peramban {
+  border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden;
+  background: var(--surface); box-shadow: var(--shadow-lg);
+}
+.peramban .krom {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 10px; background: var(--sunk); border-bottom: 1px solid var(--line);
+}
+.peramban .titik { width: 9px; height: 9px; border-radius: 50%; background: var(--line); flex: none; }
+.peramban .alamat {
+  flex: 1; min-width: 0; font-family: var(--mono); font-size: .64rem; color: var(--ink-faint);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 99px;
+  padding: 3px 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.peramban .layar { padding: 11px; display: grid; gap: 9px; }
+.peramban .baris-cari {
+  display: flex; gap: 6px; align-items: center;
+  font-size: .66rem; color: var(--ink-faint);
+  border: 1px solid var(--line); border-radius: 99px; padding: 5px 10px;
+}
+.peramban .rak { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+.kartu-produk { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.kartu-produk .foto {
+  aspect-ratio: 4 / 3; display: grid; place-items: center; font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--sunk), var(--brand-tint));
+}
+.kartu-produk .n { font-size: .66rem; font-weight: 600; color: var(--ink); padding: 6px 7px 0; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.kartu-produk .h { font-size: .7rem; font-weight: 700; color: var(--brand); padding: 2px 7px 8px; }
+
+/* ── mockup ponsel + percakapan WhatsApp ─────────────────────────────── */
+.hp {
+  border: 1px solid var(--line); border-radius: 26px; background: var(--surface);
+  box-shadow: var(--shadow-lg); padding: 8px; margin: 0 auto;
+}
+.hp .layar {
+  border-radius: 19px; overflow: hidden; background: var(--ground);
+  display: flex; flex-direction: column;
+}
+.hp .bar {
+  display: flex; align-items: center; gap: 7px; padding: 8px 9px;
+  background: var(--sunk); border-bottom: 1px solid var(--line);
+}
+.hp .bar .av {
+  width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: var(--brand); color: #fff; font-size: .58rem; font-weight: 700;
+}
+.hp .bar .nm { font-size: .68rem; font-weight: 600; line-height: 1.2; }
+.hp .bar .st { font-size: .56rem; color: var(--ok); }
+.hp .obrolan { padding: 9px 8px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+
+.gel {
+  max-width: 84%; padding: 6px 9px; border-radius: 12px;
+  font-size: .68rem; line-height: 1.45; color: var(--ink);
+  box-shadow: var(--shadow-sm); word-wrap: break-word;
+}
+.gel.kiri { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+.gel.kanan { align-self: flex-end; background: var(--ok-t); border: 1px solid transparent; border-bottom-right-radius: 3px; }
+.gel .foto-kirim {
+  height: 42px; border-radius: 7px; margin-bottom: 5px; display: grid; place-items: center; font-size: 1.1rem;
+  background: linear-gradient(135deg, var(--sunk), var(--brand-tint));
+}
+.gel .jam { display: block; font-size: .52rem; color: var(--ink-faint); text-align: right; margin-top: 2px; }
+.hp .ketik {
+  display: flex; align-items: center; gap: 6px; padding: 7px 9px;
+  border-top: 1px solid var(--line); background: var(--sunk);
+  font-size: .62rem; color: var(--ink-faint);
+}
+/* ponsel versi besar, dipakai di dalam slide dan bagian tutorial */
+.hp.besar { width: min(300px, 100%); }
+.hp.besar .gel { font-size: .78rem; }
+.hp.besar .bar .nm { font-size: .78rem; }
+
+/* ── dek presentasi ───────────────────────────────────────────────────── */
+.dek {
+  border: 1px solid var(--line); border-radius: var(--r-xl); overflow: hidden;
+  background: var(--surface); box-shadow: var(--shadow); margin: 22px 0;
+}
+.dek:fullscreen { border-radius: 0; display: flex; flex-direction: column; }
+.dek:fullscreen .panggung { flex: 1; }
+.dek:fullscreen .slide { min-height: 0; height: 100%; justify-content: center; }
+.dek-atas, .dek-bawah {
+  display: flex; align-items: center; gap: 10px; padding: 9px 13px;
+  background: var(--sunk); flex: none;
+}
+.dek-atas { border-bottom: 1px solid var(--line); }
+.dek-bawah { border-top: 1px solid var(--line); }
+.dek-atas .j { font-family: var(--display); font-weight: 600; font-size: .88rem; }
+.dek-atas .sp, .dek-bawah .sp { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.dek-tombol {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  border-radius: var(--r-sm); padding: 4px 10px; font: 500 .74rem var(--sans); cursor: pointer;
+}
+.dek-tombol:hover { background: var(--ground); color: var(--ink); border-color: var(--ink-faint); }
+.dek-tombol:disabled { opacity: .4; cursor: default; }
+.dek-hitung { font-family: var(--mono); font-size: .72rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.dek-titik { display: flex; gap: 5px; flex-wrap: wrap; }
+.dek-titik button {
+  width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--line); cursor: pointer; transition: background .2s, transform .2s;
+}
+.dek-titik button.on { background: var(--brand); transform: scale(1.3); }
+
+.panggung {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.panggung::-webkit-scrollbar { display: none; }
+.slide {
+  flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always;
+  min-height: clamp(380px, 50vw, 540px);
+  padding: clamp(20px, 3.2vw, 46px);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.slide > .nomor {
+  font-family: var(--mono); font-size: .66rem; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--brand);
+}
+.slide h3 { font-size: clamp(1.3rem, 2.6vw, 2rem); margin: 0; }
+.slide p { color: var(--ink-soft); font-size: clamp(.88rem, 1.3vw, 1.02rem); max-width: 62ch; }
+.slide p strong { color: var(--ink); }
+.slide ul { list-style: none; display: grid; gap: 9px; margin: 4px 0 0; }
+.slide ul li {
+  color: var(--ink-soft); font-size: clamp(.86rem, 1.25vw, 1rem);
+  padding-left: 20px; position: relative; line-height: 1.55;
+}
+.slide ul li::before {
+  content: ''; position: absolute; left: 3px; top: .62em;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--brand);
+}
+.slide ul li strong { color: var(--ink); font-weight: 600; }
+.dua { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(16px, 2.6vw, 32px); align-items: center; }
+.dua.rapat { grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); }
+@media (max-width: 760px) { .dua, .dua.rapat { grid-template-columns: 1fr; } }
+.slide .isi-tengah { margin: auto 0; }
+
+/* slide pembuka & penutup: latar bermerek, teks besar */
+.slide.sampul {
+  background:
+    radial-gradient(120% 120% at 100% 0%, var(--brand-tint), transparent 60%),
+    radial-gradient(90% 110% at 0% 100%, var(--sunk), transparent 55%),
+    var(--surface);
+  justify-content: center;
+}
+.slide.sampul h3 { font-size: clamp(1.7rem, 4vw, 2.8rem); }
+.slide.sampul .tanda {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--brand-ink); background: var(--brand-tint); border: 1px solid var(--brand-line);
+  border-radius: 99px; padding: 4px 12px;
+}
+
+/* angka besar di dalam slide */
+.slide .angka { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
+.slide .angka div { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; background: var(--ground); }
+.slide .angka b { display: block; font-family: var(--display); font-size: clamp(1.2rem, 2.4vw, 1.7rem); color: var(--ink); line-height: 1.15; }
+.slide .angka span { font-size: .72rem; color: var(--ink-faint); }
+
+/* ── diagram sebaris ──────────────────────────────────────────────────── */
+.diagram { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); padding: 16px; margin: 18px 0; }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram .ket { font-size: .78rem; color: var(--ink-faint); margin-top: 10px; text-align: center; }
+.diagram text { font-family: var(--sans); }
+
+/* ── petak fitur ──────────────────────────────────────────────────────── */
+.fitur { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 18px 0; }
+.fitur > div { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); padding: 15px; }
+.fitur .ikon { font-size: 1.3rem; line-height: 1; margin-bottom: 8px; }
+.fitur .t { font-family: var(--display); font-weight: 600; font-size: .95rem; margin-bottom: 4px; }
+.fitur .d { font-size: .84rem; color: var(--ink-soft); line-height: 1.55; }
+
+/* ── lini masa (cerita insiden) ───────────────────────────────────────── */
+.lini { display: grid; gap: 0; margin: 18px 0; }
+.lini > div { display: grid; grid-template-columns: 92px 1fr; gap: 16px; padding: 0 0 20px; position: relative; }
+.lini > div::before { content: ''; position: absolute; left: 99px; top: 8px; bottom: -4px; width: 1px; background: var(--line); }
+.lini > div:last-child { padding-bottom: 0; }
+.lini > div:last-child::before { display: none; }
+.lini .kapan { font-family: var(--mono); font-size: .72rem; color: var(--ink-faint); text-align: right; padding-top: 1px; }
+.lini .apa { padding-left: 18px; position: relative; }
+.lini .apa::before {
+  content: ''; position: absolute; left: -5px; top: 6px; width: 9px; height: 9px;
+  border-radius: 50%; background: var(--surface); border: 2px solid var(--brand);
+}
+.lini .apa .t { font-weight: 600; font-size: .93rem; margin-bottom: 3px; }
+.lini .apa .d { font-size: .87rem; color: var(--ink-soft); line-height: 1.6; }
+@media (max-width: 620px) {
+  .lini > div { grid-template-columns: 1fr; gap: 4px; }
+  .lini > div::before { display: none; }
+  .lini .kapan { text-align: left; }
+  .lini .apa { padding-left: 0; }
+  .lini .apa::before { display: none; }
+}
+
+/* ── mencetak dek jadi PDF ────────────────────────────────────────────────
+   Tombol "Simpan PDF" memasang .cetak-dek di <body> sebelum window.print().
+   Aturannya sengaja spesifik: satu slide satu halaman lanskap, dan seluruh
+   isi halaman lain disembunyikan supaya berkasnya benar-benar berisi dek,
+   bukan artikel panjang dengan dek terselip di tengahnya. */
+@media print {
+  /* Mencetak halaman apa adanya (tanpa tombol Simpan PDF) tetap harus utuh:
+     panggung yang menggulir ke samping akan terpotong di kertas kalau dibiarkan
+     flex, jadi ia selalu dijadikan tumpukan lebih dulu. */
+  .panggung { display: block; overflow: visible; }
+  .slide { min-height: 0; break-inside: avoid; }
+  .dek-atas .sp, .dek-bawah { display: none !important; }
+
+  body.cetak-dek .wrap > *:not(.dek) { display: none !important; }
+  body.cetak-dek .dek { border: 0; box-shadow: none; margin: 0; }
+  body.cetak-dek .dek-atas, body.cetak-dek .dek-bawah { display: none !important; }
+  body.cetak-dek .panggung { display: block; overflow: visible; }
+  body.cetak-dek .slide {
+    min-height: 0; padding: 14mm; break-inside: avoid; break-after: page;
+    border: 0;
+  }
+  body.cetak-dek .slide:last-child { break-after: auto; }
+  body.cetak-dek .slide.sampul { background: none; }
+}
+@page { margin: 10mm; }
