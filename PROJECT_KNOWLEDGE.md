@@ -84,13 +84,13 @@ meneruskan ke `/api/admin/outbox` di situs.
 | `useSupabaseAuthState.js` | 190 | Adapter sesi ke Postgres. **Tidak dipakai** (tidak ada env Supabase). |
 | `halaman/dashboard.html` | 958 | Panel operasi: QR, inbox chat, statistik gerbang, blocklist, story, log. |
 | `halaman/home.html` | 449 | Daftar tombol ke semua halaman & endpoint. |
-| `halaman/update.html` | ~245 | Linimasa perubahan (dari git) + daftar "Yang belum selesai" yang ditulis tangan. |
-| `halaman/projek.html` | 199 | Catatan proyek naratif. ⚠ angkanya sudah basi (lihat §4). |
+| `halaman/update.html` | 255 | Linimasa perubahan (dari git) + daftar "Yang belum selesai" yang ditulis tangan. |
+| `halaman/projek.html` | 208 | Catatan proyek naratif. Angkanya dihitung ulang 21 Agu 2026, sama dengan `/lomba`, dan cara menghitungnya ikut ditulis. |
 | `halaman/progres-claude.html` | — | **Halaman audit ini.** Bergerbang sandi. |
-| `public/lomba.html` | 925 | Presentasi lomba 12 slide. **Satu-satunya halaman tanpa sandi.** |
+| `public/lomba.html` | 931 | Presentasi lomba 12 slide. **Satu-satunya halaman tanpa sandi.** |
 | `public/assets/ui.css` / `ui.js` | 1.051 / ~170 | Rupa bersama + navbar yang disuntik ke semua halaman + ikon SVG sebaris (menggantikan Font Awesome CDN) + tombol terang/gelap. |
 | `antrean.html`, `laporan.html`, `laporan-publik.html`, `jalankan.html` | 401/385/384/252 | Halaman antrean notifikasi, laporan analisis, dan penyaji SQL migrasi. |
-| `migrasi/migrasi.sql` | 1.589 | **26 BAGIAN** migrasi, dirancang aman diulang. |
+| `migrasi/migrasi.sql` | 1.679 | **27 BAGIAN** migrasi, dirancang aman diulang. |
 | `migrasi/migrasi-keamanan.sql` | 98 | Migrasi RLS terpisah. |
 | `penjaga-bot.sh` | 115 | Cron tiap 2 menit: cek `/health`, restart kalau mati. |
 | `cadangkan-sesi.sh` | 194 | Cadangan sesi terenkripsi AES ke repo GitHub privat. |
@@ -138,25 +138,40 @@ memindahkan tombol "Hubungi Admin" ke nomor cadangan saat bot padam.
 *pengaturan* (`/settings*`, `/modul`, `/profile*`, `/blocklist/*`, `/set-privacy`),
 *antrean situs* (`/antrean/data`, `/antrean/kirim`, `/antrean/lokal`).
 
-### 1.3 Repo situs (`jualbeliusupolmed`) — 408 berkas
+### 1.3 Repo situs (`jualbeliusupolmed`) — 401 berkas
 
-- **38 halaman** (`src/app/**/page.js*`) — 15 di antaranya di bawah `/admin`.
-- **75 endpoint API** (`src/app/api/**/route.js`).
-- **34 modul** di `src/lib/` — logika bisnis dipisah dari tampilan.
+- **38 halaman** (`src/app/**/page.js*`) — 14 di antaranya di bawah `/admin`.
+- **74 berkas rute API** (`src/app/api/**/route.js`), memuat **92 metode**
+  GET/POST/PUT/PATCH/DELETE. Kalau ada dua angka yang beredar untuk "jumlah
+  endpoint", ini sebabnya.
+- **63 berkas komponen** (34 akar, 7 admin, 21 `baileys/`, 1 `ui/`).
+- **31 modul** di `src/lib/` — logika bisnis dipisah dari tampilan.
 - Berkas terbesar: `src/app/api/wa/baileys/route.js` (**2.930 baris**) — otak
   balasan bot; `src/app/admin/AdminPanel.jsx` (1.866); `src/app/dashboard/page.jsx` (1.709).
 
 Modul `src/lib/` yang perlu diketahui: `auth.js` (sesi admin & penjual),
 `pin.js`/`pinRules.js` (PIN penjual, bcrypt), `gemini.js` (AI baca chat → iklan),
 `fonnte.js` (jalur WA cadangan + semua kata-kata pesan, **satu sumber**),
-`qris.js`, `fees.js` (tarif, satu sumber), `settings.js` (pengaturan dari DB
+`fees.js` (tarif, satu sumber), `settings.js` (pengaturan dari DB
 menang atas kode), `webpush.js`, `rateLimit.js`, `toko.js` (status toko),
 `lidMigrate.js` (@lid → nomor), `supabaseAdmin.js` (klien service-role).
 
-⚠ **Kode mati yang sudah dipastikan:** `src/lib/middleware.js` (65 baris) tidak
-pernah dipanggil siapa pun dan tidak ada `middleware.js` di akar — Next.js tidak
-menjalankannya. Ia salinan boilerplate Supabase SSR yang akan mengalihkan semua
-pengunjung ke `/auth/login` seandainya aktif. Jangan "menghidupkannya".
+**Kode mati — sudah dihapus 21 Agustus 2026.** Tujuh berkas yang tidak dirujuk
+satu baris pun di seluruh `src/`, dipastikan dengan penelusuran dua arah (nama
+berkas → pemanggil, dan sebaliknya):
+
+| Berkas | Baris | Kenapa ada |
+|---|---:|---|
+| `src/lib/middleware.js` | 65 | Boilerplate Supabase SSR. Kalau "dihidupkan", ia mengalihkan **seluruh** pengunjung ke `/auth/login` — marketplace-nya padam. |
+| `src/lib/server.js` | 32 | Saudara berkas di atas; satu-satunya pemakai `@supabase/ssr`. |
+| `src/lib/qris.js` | 67 | Pembangun QRIS dinamis per nominal. Pembayaran akhirnya memakai QRIS statis + verifikasi struk oleh AI. |
+| `src/lib/dummyBlogs.js` | 68 | Artikel contoh; `blogs` sudah berisi 7 baris sungguhan. |
+| `src/components/BottomNav.jsx` | 48 | Navigasi bawah yang tidak pernah dipasang. |
+| `src/components/IGShareButton.jsx` | 98 | Ekspor gambar 9:16 untuk IG Story. `ShareModal` dan `QRButton` yang dipakai. |
+| `src/components/ToastProvider.jsx` | 48 | `sonner` dipanggil langsung dari layout. |
+
+Semuanya bisa dibangkitkan lagi dari git kalau ternyata dibutuhkan. Yang **tidak**
+boleh dihidupkan lagi tanpa berpikir: `middleware.js`.
 
 ### 1.4 Database — 32 tabel
 
@@ -188,8 +203,24 @@ yang gagal terkirim) · `wa_auth` (0) · `wa_state` (0)
 
 ⚠ **16 dari 32 tabel kosong.** Sebagian memang fitur yang belum jalan, sebagian
 lagi ditinggalkan. `offers` dan `price_offers` dua-duanya kosong dan menamai
-konsep yang sama — salah satunya kemungkinan besar sisa. Perlu diputuskan
-sebelum ada yang menulis kode baru ke tabel yang salah.
+konsep yang sama — dan sejak 21 Agustus 2026 pertanyaannya bukan lagi "mana yang
+sisa": ditelusuri di seluruh `src/`, **tidak ada satu baris pun yang memanggil
+`offers`**; semua tawar-menawar lewat `price_offers`. Menghapus tabelnya perlu
+persetujuan pemilik, jadi ia masih berdiri.
+
+⚠ **`payments` (497 baris) bukan cerita yang disangka audit pertama.** Yang
+menumpuk bukan "tiap penekanan tombol lanjutkan bayar", melainkan tiga hal
+berbeda, dan dua sudah ditutup di kode pada 21 Agustus 2026:
+
+| Asal | Baris pending | Sudah ditutup? |
+|---|---:|---|
+| `/api/payments/unlock-wanted` — tagihan terbit saat jendela QRIS **dibuka** | 346 | ya — sekarang terbit saat struk dikirim |
+| Iklan yang keburu dihapus (`listing_id` jadi NULL lewat `ON DELETE SET NULL`) | 69 | tidak — memang jejak sah |
+| Sisanya (iklan hidup, bump, sold_fee, subscribe) | 45 | ya — `/resume` memakai ulang tagihan, tidak menyisipkan baris baru |
+
+418 dari 460 baris pending itu `listing_id IS NULL`, bukan menggantung: tidak ada
+satu pun foreign key yatim. **Baris lamanya belum dibersihkan** — itu perubahan
+data, dan menunggu keputusan pemilik.
 
 ---
 
@@ -326,39 +357,96 @@ selesai" di `/update`.
 
 ## 4. Utang teknis
 
-### Perlu diputuskan
-- **16 dari 32 tabel kosong.** `offers` vs `price_offers` menamai hal yang sama.
-- **5 dependensi situs tidak pernah di-import:** `midtrans-client`, `pg`,
-  `html2canvas`, `html-to-image`, `qrcode`. `midtrans-client` menarik: kodenya
-  memakai QRIS manual, jadi pembayaran otomatis kemungkinan ditinggalkan
-  setengah jalan. ⚠ perlu klarifikasi apakah Midtrans masih rencana atau sudah
-  dibuang.
-- **`src/lib/middleware.js` kode mati** (§1.3).
+Diperbarui 21 Agustus 2026 sore. Yang ditandai ✅ sudah selesai hari itu; yang
+lain masih berdiri, dan alasannya ditulis.
 
-### Perlu dirapikan
-- **Komentar model AI tertinggal di kode produksi.**
-  `src/app/api/payments/resume/route.js` memuat
+### ✅ Sudah dibereskan
+
+- **Komentar model AI di kode produksi.** `/api/payments/resume` memuat
   `// Wait, sold_fee is soldFeeFrom, not adFeeFrom! I will fix this in a moment`
   dan `// Actually, let's fetch...`, lengkap dengan variabel `amount` yang
-  dihitung lalu langsung ditimpa. Bukan sekadar jelek dibaca — di berkas yang
-  sama ada bug otorisasi (lihat laporan keamanan).
-- **460 dari 497 baris `payments` berstatus `pending`** (93%). Tiap penekanan
-  "lanjutkan bayar" menambah satu baris dan tidak ada yang membersihkannya.
-- **Indeks kembar di database:** 5 pasang (`listings` punya 3 pasang), 13 indeks
-  tidak pernah terpakai. Berasal dari migrasi yang dijalankan dua kali dengan
-  penamaan berbeda.
-- **Kebijakan RLS ganda** pada `blogs`, `categories`, `listings`,
-  `seller_profiles`, `seller_ratings`, `wanted_listings` — dua nama untuk aturan
-  yang sama, keduanya dievaluasi tiap query.
-- **Angka basi di `halaman/projek.html`:** masih 31.538 baris / 323 commit / 12
-  tabel, sementara `public/lomba.html` sudah 34.181 / 347 / 30 dan tabel
-  sebenarnya 32. Dua halaman yang menyebut angka berbeda untuk hal yang sama.
+  dihitung lalu langsung ditimpa dua puluh baris kemudian. Berkasnya ditulis
+  ulang.
+- **Bug yang tersembunyi di balik komentar itu.** Rute yang sama menolak semua
+  tagihan komisi penjualan: syaratnya `listing.status !== "pending"` → 400,
+  padahal `sold_fee` justru ditagih saat iklan `active`/`sold`. Ketiga tombol
+  "Bayar Tagihan" di dasbor penjual **tidak pernah bisa ditekan sampai selesai**.
+  Syaratnya sekarang bercabang per jenis tagihan.
+- **Baris `payments` yang beranak.** Lihat tabel di §1.4. `/resume` memakai ulang
+  tagihan yang ada (dan nomor pesanannya, supaya struk lama tetap cocok);
+  `/unlock-wanted` baru menerbitkan tagihan saat struk dikirim, bukan saat
+  jendela QRIS dibuka.
+- **`type: "iklan"` pada pembukaan kontak.** Komentarnya bilang "bypass check
+  constraint" — benar sampai BAGIAN 9 menambahkan `'wanted'` ke
+  `payments_type_check`, sesudah itu tinggal merusak laporan. 346 transaksi
+  masuk ke kolom "Iklan Baru" di `/admin/keuangan`, sementara baris "Cari
+  Barang" yang sudah disiapkan selamanya kosong. Kode baru menulis `"wanted"`.
+  ⚠ Baris lama belum diperbaiki — perubahan data, menunggu pemilik.
+- **`PAYMENT_TYPES` di `AdminPanel.jsx` cuma memuat 4 dari 9 jenis**, jadi
+  rincian "per tipe" tidak pernah menjumlah sampai "Total Lunas". Sekarang
+  sembilan, sama dengan constraint database.
+- **Kode mati** — 7 berkas, lihat tabel di §1.3.
+- **Angka basi di `halaman/projek.html`.** Dua halaman menyebut angka berbeda
+  untuk hal yang sama. Keduanya dihitung ulang dari repo dan cara menghitungnya
+  ikut ditulis di halaman, supaya bisa diperiksa: 38.068 baris situs, 7.820
+  baris bot, 358 commit, 32 tabel, 74 rute situs, 70 rute bot.
+
+### Perlu dijalankan pemilik
+
+- **BAGIAN 27 migrasi** (`migrasi/migrasi.sql`, ditulis 21 Agustus, **belum
+  jalan**). Isinya membuang yang kembar, dan satu di antaranya bukan sekadar
+  kerapian:
+  - **9 indeks berlebih.** Empat menduplikasi indeks yang dibuat berkas migrasi
+    ini sendiri dengan nama lain (`idx_listings_status` vs `listings_status_idx`,
+    dst.); lima lagi indeks biasa di kolom yang sudah punya constraint `UNIQUE`.
+    Advisor Supabase hanya melihat 5 pasang — ia tidak menghitung pasangan
+    unik-vs-biasa, padahal itu tetap satu pohon berlebih tiap tulis.
+  - **`seller_profiles_wa_key`** — `UNIQUE (wa)` di kolom yang sudah PRIMARY KEY.
+  - **`fk_seller_profiles`** — foreign key **kedua** di `listings.seller_wa`,
+    tidak ada di berkas migrasi mana pun. Postgres menegakkan keduanya, jadi yang
+    paling ketat menang dan `listings_seller_wa_fkey` (`ON UPDATE CASCADE ON
+    DELETE SET NULL`, BAGIAN 5) tidak pernah berlaku. Akibatnya nyata:
+    `migrateLidToPhone()` mengganti `seller_profiles.wa` dari LID ke nomor HP dan
+    mengandalkan cascade itu; selama FK siluman ini berdiri, UPDATE-nya selalu
+    ditolak dan kodenya jatuh ke jalur cadangan yang **membuang `created_at` dan
+    `referral_code` penjual** setiap kali.
+  - **7 kebijakan RLS kembar** pada `blogs`, `categories`, `listings`,
+    `seller_profiles`, `seller_ratings`, `wanted_listings`. Enam pasang benar-benar
+    berbunyi sama. Pasangan `blogs` **tidak**: yang satu `USING (true)`, yang lain
+    membatasi ke artikel terbit — dua aturan berbeda untuk satu tabel, dan yang
+    paling longgar yang menang. Yang disimpan yang lebih ketat. Baris ini yang
+    membuat BAGIAN 27 sebaiknya tidak menunggu lama.
+
+### Perlu diputuskan pemilik
+
+- **Membersihkan baris `payments` lama.** 415 baris pending yang tidak lagi
+  menunjuk iklan mana pun. Saran: ubah statusnya jadi `expired`
+  (`payments_status_check` sudah mengizinkan), **jangan dihapus** — riwayat
+  pembayaran lebih baik disimpan. Perlu diingat: `/verify-receipt` hanya
+  menerima struk untuk tagihan yang masih `pending`, jadi tagihan yang
+  di-`expired` tidak bisa dibayar susulan.
+- **Memperbaiki `type` 346 baris pembukaan kontak** dari `iklan` → `wanted`.
+  Membuat `/admin/keuangan` benar, tapi mengubah angka laporan yang mungkin
+  sudah pernah dilihat.
+- **Tabel `offers`** (kosong, tidak dipanggil kode mana pun) — dihapus atau
+  dibiarkan.
+- **13 indeks yang tidak pernah terpakai.** Sengaja **tidak** ikut BAGIAN 27:
+  "tidak pernah terpakai" di basis data sekecil ini kemungkinan besar berarti
+  jalur kodenya belum pernah ramai, bukan indeksnya salah.
 
 ### Dependensi
+
 - **Bot:** 1 moderate (`protobufjs`, transitif dari Baileys).
   `@supabase/supabase-js` dan `axios` tertinggal satu minor.
-- **Situs:** 10 kerentanan (6 tinggi, 4 sedang). Yang hidup di produksi:
-  `next@14.2.35`, `nanoid`, `fast-uri`, `brace-expansion`. Sisanya build-time.
+- **Situs:** `midtrans-client` dan `@supabase/ssr` dicabut 21 Agustus (yang
+  pertama tidak pernah di-import — pembayaran memakai QRIS manual; yang kedua
+  hanya dipakai dua berkas mati). `pg` dipindah ke `devDependencies`: ia cuma
+  dipakai dua skrip di `scratch/`. `package-lock.json` ikut diperbarui, dan
+  diperiksa tidak ada versi paket lain yang berubah.
+  ⚠ **Koreksi audit pertama:** `html2canvas`, `html-to-image`, dan `qrcode`
+  **dipakai** — lewat `await import()` di dalam handler, bukan import statis di
+  kepala berkas. Jangan mencabutnya. 10 kerentanan `npm audit` tidak berubah;
+  semuanya dari `next` dan `@ducanh2912/next-pwa`, bukan dari yang dicabut.
 
 ### Keamanan
 Ada **5 temuan kritis dan 7 menengah**. Rinciannya **tidak ditulis di sini**:
@@ -444,6 +532,42 @@ juga**, ditemukan 16 menit setelah di-push.
 `FONNTE_TOKEN`, gerbang untuk `/api/push/subscribe/test`, perbaikan otorisasi
 `/api/payments/resume` dan `/api/payments/unlock-wanted`, verifikasi
 `CRON_SECRET` terisi di Vercel, bcrypt untuk 32 PIN plaintext.
+
+### 21 Agustus 2026 (sore) — perapian utang teknis
+
+Lanjutan audit di atas, dengan keamanan sengaja dilewati atas permintaan pemilik.
+
+**Yang berubah di repo situs** (7 berkas dihapus, 5 diubah):
+`/api/payments/resume` ditulis ulang · `/api/payments/unlock-wanted` menerbitkan
+tagihan saat struk dikirim dan memakai `type: "wanted"` · `dicari/DicariClient.jsx`
+menyusul perubahan itu, dengan mode `check` supaya peringatan "kontak tidak bisa
+dibuka" tetap muncul **sebelum** orangnya transfer · `AdminPanel.jsx` mengenali
+sembilan jenis pembayaran · `package.json` + `package-lock.json`.
+
+**Yang berubah di repo bot:** BAGIAN 27 migrasi ditulis · `halaman/projek.html`
+dan `public/lomba.html` dihitung ulang dan disamakan · `halaman/update.html`
+mendapat satu baris "perlu pemilik" yang baru.
+
+**Tiga koreksi terhadap audit pagi harinya** — dicatat supaya tidak diulang:
+1. "5 dependensi tidak pernah di-import" **salah**. `html2canvas`,
+   `html-to-image`, dan `qrcode` dipanggil lewat `await import()` dinamis.
+   Penelusuran dependensi di repo ini harus mencari `import(` juga, bukan hanya
+   `^import`.
+2. "460 baris pembayaran adalah sampah, penyebabnya bug K5" **salah**. 346 dari
+   460 lahir dari `/unlock-wanted` yang menerbitkan tagihan saat jendela dibuka,
+   dan sama sekali tidak berhubungan dengan otorisasi.
+3. "5 pasang indeks kembar" adalah angka advisor Supabase, bukan angka
+   sebenarnya. Ada 10 pasang; advisor tidak menghitung indeks biasa yang
+   ditumpangi constraint `UNIQUE`.
+
+**Ditemukan baru:** foreign key kembar `fk_seller_profiles` yang membuang
+`created_at` dan `referral_code` penjual tiap migrasi LID→nomor, dan tombol
+"Bayar Tagihan" komisi penjualan yang tidak pernah bisa selesai. Keduanya
+dijelaskan di §4.
+
+**Belum dikerjakan:** BAGIAN 27 belum dijalankan ke produksi (butuh persetujuan
+yang tidak bisa diberikan dari sesi kerja), pembersihan baris `payments` lama,
+dan seluruh daftar keamanan — atas permintaan pemilik.
 
 ### Sebelum audit ini
 Riwayat perubahan lengkap kedua repo ada di **`/update`**, dirakit langsung dari

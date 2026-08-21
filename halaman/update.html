@@ -75,6 +75,15 @@ pemilik menyalinnya keluar dari VPS lewat <code>scp</code>. Itu penting bukan cu
 arsipnya jadi bisa dibuka — <code>cadangkan-sesi.sh</code> membuat kunci BARU tanpa mengeluh
 kalau berkasnya hilang, jadi kunci yang cuma hidup di satu server adalah satu penghapusan
 tak sengaja dari membuat seluruh arsip di GitHub jadi derau permanen.</p>
+<p class="muted">Satu baris <em>masuk</em> ke daftar pada <b>21 Agustus 2026</b> sore, dan itu
+disengaja: <b>BAGIAN 27</b> ditulis hari itu tapi belum dijalankan, karena menjalankannya butuh
+persetujuan yang tidak bisa diberikan dari sesi kerja. Perapian lain di hari yang sama sudah
+selesai tanpa perlu apa pun dari pemilik: tagihan "buka kontak" tidak lagi terbit hanya karena
+jendela QRIS dibuka (346 dari 460 baris <code>payments</code> yang menggantung lahir dari situ),
+tombol "Bayar Tagihan" untuk komisi penjualan berhenti dijawab 400, tujuh berkas yang tidak
+pernah dipanggil dari mana pun dihapus, dan dua halaman yang selama ini menyebut angka berbeda
+untuk hal yang sama — <code>/projek</code> dan <code>/lomba</code> — sekarang menyebut angka yang
+dihitung ulang dari repo hari itu juga.</p>
 <div class="card">
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
@@ -87,6 +96,19 @@ tak sengaja dari membuat seluruh arsip di GitHub jadi derau permanen.</p>
       sedang dibatasi WhatsApp, dan menautkan ulang saat sedang dibatasi justru memperpanjangnya.
       Yang paling aman: kembalikan folder <code>.bak-</code> itu kalau nomornya masih tertaut di HP.
       Pindai QR / kode pairing hanya kalau perangkatnya memang sudah dilepas.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Jalankan BAGIAN 27 migrasi.</strong> Isinya cuma membuang yang kembar: sembilan
+      indeks yang menduplikasi indeks lain (dua pohon dipelihara untuk satu kolom, dua kali kerja
+      tiap tulis), satu <code>UNIQUE</code> yang mengulang kunci utama, tujuh kebijakan RLS berlebih (enam berbunyi sama; satu
+      pasang di <code>blogs</code> justru berbeda, dan yang paling longgar yang
+      menang), dan satu foreign key siluman — <code>fk_seller_profiles</code>, yang selama
+      ini membatalkan <code>ON UPDATE CASCADE</code> milik <code>listings_seller_wa_fkey</code>
+      sehingga tiap migrasi LID→nomor kehilangan <code>created_at</code> dan
+      <code>referral_code</code> penjualnya. Tidak ada tabel atau baris yang dihapus, dan semuanya
+      <code>IF EXISTS</code> jadi aman diulang. Bukalah <code>/jalankan</code>, atau salin
+      BAGIAN 27 dari <code>migrasi/migrasi.sql</code> ke SQL Editor Supabase.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>

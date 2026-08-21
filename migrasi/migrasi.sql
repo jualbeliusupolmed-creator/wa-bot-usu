@@ -1587,3 +1587,93 @@ UPDATE public.seller_profiles
 -- Panel admin selalu membuka daftar "yang menunggu dulu".
 CREATE INDEX IF NOT EXISTS seller_profiles_store_status_idx
   ON public.seller_profiles (store_status);
+
+
+-- ---------------------------------------------------------------------
+-- BAGIAN 27 — Membuang yang kembar
+--
+-- Tidak ada fitur baru di sini. Yang dibuang lahir dari kebiasaan lama:
+-- SQL yang sama dijalankan lewat dasbor Supabase dengan nama berbeda,
+-- lalu dijalankan lagi lewat berkas ini. Postgres menurut saja — dua
+-- indeks identik dipelihara dua-duanya (dua kali kerja tiap INSERT), dan
+-- dua kebijakan RLS yang berbunyi sama dievaluasi dua-duanya tiap query.
+--
+-- Aman diulang: semuanya IF EXISTS.
+-- ---------------------------------------------------------------------
+
+-- 1. INDEKS KEMBAR ------------------------------------------------------
+-- Yang disimpan selalu nama yang ditulis berkas ini, supaya menjalankan
+-- ulang migrasi tidak menghidupkan lagi yang barusan dibuang.
+DROP INDEX IF EXISTS public.idx_listings_bumped_at;   -- = listings_bumped_idx (BAGIAN 1)
+DROP INDEX IF EXISTS public.idx_listings_status;      -- = listings_status_idx (BAGIAN 1)
+DROP INDEX IF EXISTS public.idx_listings_seller_wa;   -- = listings_seller_idx (BAGIAN 1)
+DROP INDEX IF EXISTS public.idx_reports_listing_id;   -- = reports_listing_idx (BAGIAN 3)
+
+-- 2. INDEKS YANG SUDAH DITANGGUNG CONSTRAINT UNIQUE ---------------------
+-- UNIQUE membuat indeksnya sendiri. Indeks biasa di kolom yang sama tidak
+-- menambah kecepatan apa pun — cuma satu pohon lagi yang harus diperbarui
+-- tiap tulis.
+DROP INDEX IF EXISTS public.idx_listings_listing_code; -- ada listings_listing_code_unique
+DROP INDEX IF EXISTS public.blogs_slug_idx;            -- ada blogs_slug_key
+DROP INDEX IF EXISTS public.idx_dist_invite_token;     -- ada distributor_invites_token_key
+DROP INDEX IF EXISTS public.payments_order_idx;        -- ada payments_midtrans_order_id_key
+DROP INDEX IF EXISTS public.referrals_referred_idx;    -- ada referrals_referred_wa_key
+
+-- 3. UNIQUE KEMBAR DI KUNCI UTAMA ---------------------------------------
+-- `seller_profiles.wa` adalah PRIMARY KEY, dan primary key sudah unik.
+-- `seller_profiles_wa_key` yang dibuat BAGIAN 5 tidak pernah menambah
+-- jaminan apa pun. Sudah diperiksa: ketiga foreign key yang menunjuk ke
+-- tabel ini memakai seller_profiles_pkey, bukan constraint ini.
+ALTER TABLE public.seller_profiles DROP CONSTRAINT IF EXISTS seller_profiles_wa_key;
+
+-- 4. DUA FOREIGN KEY DI SATU KOLOM --------------------------------------
+-- `listings.seller_wa` punya DUA foreign key ke seller_profiles(wa):
+--
+--   listings_seller_wa_fkey   ON UPDATE CASCADE  ON DELETE SET NULL  (BAGIAN 5)
+--   fk_seller_profiles        (tanpa ON UPDATE)  ON DELETE RESTRICT  (entah dari mana)
+--
+-- Postgres menegakkan keduanya, jadi yang paling ketat yang menang dan
+-- BAGIAN 5 tidak pernah benar-benar berlaku. Akibatnya nyata, bukan
+-- teoretis: `migrateLidToPhone()` di situs mengganti `seller_profiles.wa`
+-- dari LID ke nomor HP dan mengandalkan ON UPDATE CASCADE. Selama
+-- fk_seller_profiles berdiri, UPDATE itu SELALU ditolak, dan kodenya jatuh
+-- ke jalur cadangan: baris profil baru dibuat lalu yang lama dihapus —
+-- `created_at` dan `referral_code` penjualnya hilang tiap kali.
+ALTER TABLE public.listings DROP CONSTRAINT IF EXISTS fk_seller_profiles;
+
+-- 5. KEBIJAKAN RLS KEMBAR -----------------------------------------------
+-- Satu kebijakan per tabel per aksi. Yang disimpan adalah policy anon dari
+-- BAGIAN 23 (dan untuk blogs: policy "published" dari BAGIAN 7).
+DROP POLICY IF EXISTS "public read active listings"  ON public.listings;
+DROP POLICY IF EXISTS "public read categories"       ON public.categories;
+DROP POLICY IF EXISTS "public read ratings"          ON public.seller_ratings;
+DROP POLICY IF EXISTS "public read active wanted"    ON public.wanted_listings;
+DROP POLICY IF EXISTS "Public read seller_profiles"  ON public.seller_profiles;  -- kembar BAGIAN 4
+DROP POLICY IF EXISTS "Public can view published blogs" ON public.blogs;
+
+-- blogs perlu perlakuan sendiri. Dua policy-nya TIDAK berbunyi sama:
+-- `anon_read_blogs` (BAGIAN 23) memakai USING (true), sedangkan
+-- "public read published blogs" (BAGIAN 7) membatasi ke artikel yang sudah
+-- terbit. Dua aturan berbeda untuk satu tabel berarti yang paling longgar
+-- yang menang. Yang disimpan yang lebih ketat.
+DROP POLICY IF EXISTS "anon_read_blogs" ON public.blogs;
+
+
+-- ---------------------------------------------------------------------
+-- RINGKASAN BAGIAN 27 — semuanya harus 0
+-- ---------------------------------------------------------------------
+WITH kembar AS (
+  SELECT tablename, regexp_replace(indexdef, '^CREATE (UNIQUE )?INDEX \S+ ON', 'ON') AS bentuk
+    FROM pg_indexes WHERE schemaname = 'public'
+   GROUP BY 1, 2 HAVING count(*) > 1
+)
+SELECT 'indeks kembar tersisa' AS periksa, count(*)::text AS jumlah FROM kembar
+UNION ALL
+SELECT 'foreign key kembar di listings.seller_wa',
+       (count(*) - 1)::text FROM pg_constraint
+ WHERE conrelid = 'public.listings'::regclass AND contype = 'f'
+   AND confrelid = 'public.seller_profiles'::regclass
+UNION ALL
+SELECT 'kebijakan kembar tersisa', (count(*))::text FROM (
+  SELECT tablename, cmd, qual FROM pg_policies WHERE schemaname = 'public'
+   GROUP BY 1, 2, 3 HAVING count(*) > 1) k;
