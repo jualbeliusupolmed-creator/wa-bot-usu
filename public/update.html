@@ -54,6 +54,12 @@ database dijalankan sekali jalan lewat <a href="/jalankan">/jalankan</a>, termas
 (<code>migration_daftar_tanpa_otp.sql</code>) yang selama ini menunggu. Dicatat di sini karena
 menjalankan SQL di Supabase tidak meninggalkan commit — linimasa di atas tidak akan pernah
 tahu itu terjadi.</p>
+<p class="muted">Baris keempat juga hilang di hari yang sama: tab <b>Kapabilitas</b> di panel
+admin ternyata bukan tiga kartu yang menulis ke ruang kosong, melainkan <b>82 sakelar</b> yang
+semuanya menulis ke sana — tujuh di antaranya bernama sama persis dengan setelan asli di tab
+Aksi, jadi ada dua sakelar untuk satu hal dan cuma satu yang bekerja. Sakelarnya dicabut; yang
+tersisa daftar baca-saja berisi 35 kemampuan yang benar-benar ada, masing-masing menyebut
+endpoint atau berkasnya.</p>
 <div class="card">
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
@@ -86,13 +92,6 @@ tahu itu terjadi.</p>
       langkah yang memang harus dilakukan dengan HP di tangan: kartu <b>Perangkat 2</b> di
       dashboard → "Minta Kode", lalu di HP buka WhatsApp → Perangkat tertaut → Tautkan dengan
       nomor telepon, dan ketik kodenya sebelum kedaluwarsa.
-    </span></li>
-    <li><span class="kotak"></span><span>
-      <strong>Tiga kartu setelan sisanya masih menulis ke ruang kosong.</strong> Dari enam kartu
-      di panel admin situs, tiga sudah punya rumah di bot (Panggilan, Anti-Ban, Forensik lewat
-      <code>/modul</code>). Keamanan, Integrasi, dan Protokol belum: setelannya mendarat di kolom
-      <code>bot_modules</code> yang tidak dibaca siapa pun. Pilihannya dua — bot membaca setelan
-      itu, atau kartunya dicabut supaya tidak menjanjikan yang tidak ada.
     </span></li>
   </ul>
 </div>
