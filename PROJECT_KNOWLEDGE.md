@@ -493,8 +493,11 @@ lain masih berdiri, dan alasannya ditulis.
 - **Kode mati** — 7 berkas, lihat tabel di §1.3.
 - **Angka basi di `halaman/projek.html`.** Dua halaman menyebut angka berbeda
   untuk hal yang sama. Keduanya dihitung ulang dari repo dan cara menghitungnya
-  ikut ditulis di halaman, supaya bisa diperiksa: 38.068 baris situs, 7.820
-  baris bot, 358 commit, 32 tabel, 74 rute situs, 70 rute bot.
+  ikut ditulis di halaman, supaya bisa diperiksa: 38.068 baris situs, 8.508
+  baris bot, 358 commit, 32 tabel, 74 rute situs, 70 rute bot. Angka bot naik
+  dari 7.820 setelah refactor fase 1-2: `index.js` 2.693 + tujuh modul `src/`
+  1.856 + halaman panel 3.959. Dua halaman menyebutnya (`/lomba` dan
+  `/projek`) — kalau satu diubah, yang lain ikut, atau keduanya berbohong lagi.
 
 ### ✅ BAGIAN 27 — dijalankan 21 Agustus 2026 sore
 
@@ -826,6 +829,23 @@ tanpa sesi.
 dan admin sungguhan. Sejak `ADMIN_PASSWORD` dirotasi (21 Agu malam) sesi ini
 tidak punya jalan masuk ke `/admin` maupun ke akun penjual mana pun — dan itu
 memang yang diinginkan. Ujinya ada di tangan pemilik.
+
+### Galeri /lomba — 22 Agustus 2026
+
+Halaman lomba dapat bagian **07 Galeri**: 16 tangkapan layar (bot WhatsApp,
+beranda, pasang iklan, panel admin, blog) dengan lightbox klik-untuk-zoom.
+
+Dua hal yang perlu diingat kalau menambah gambar lagi:
+
+1. **Berkas aslinya 4,77 MB PNG.** Dikonversi ke WebP lebar maksimum 1.400 px
+   dengan `sharp` (sudah ada di `node_modules`) → 0,90 MB, turun 81%. Repo ini
+   publik dan riwayat git tidak bisa ditulis ulang di sini, jadi PNG mentah yang
+   terlanjur ter-commit akan menempel selamanya. Konversi dulu, commit kemudian.
+2. **Nama berkas jangan pakai spasi.** Aslinya `Screenshot 2026-08-22 0122...`,
+   yang di HTML jadi `%20` berderet dan menyulitkan dibaca. Sekarang kebab-case
+   sesuai isinya: `beranda.webp`, `admin-dashboard.webp`, `bot-wa-1.webp`.
+
+Berkas asli tidak disimpan di repo; ia ada di scratchpad sesi ini saja.
 
 ### Sebelum audit ini
 Riwayat perubahan lengkap kedua repo ada di **`/update`**, dirakit langsung dari
