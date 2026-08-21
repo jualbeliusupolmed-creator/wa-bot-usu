@@ -540,6 +540,67 @@ function muatOutbox() {
     }
 }
 
+// ── Pesan yang DIBUANG antrean ───────────────────────────────────────────────
+// Antrean di atas tidak menyimpan pesan selamanya, dan itu memang benar: balasan
+// yang datang sejam kemudian membingungkan, dan menyembur pesan basi begitu
+// tersambung adalah pola yang membuat nomor dibatasi.
+//
+// Yang salah adalah cara membuangnya. Sebelum ini pembuangan cuma mendarat di
+// console.warn — jadi pesan yang benar-benar hilang (kedaluwarsa 72 jam, atau
+// gagal tiga kali berturut-turut) tidak meninggalkan jejak yang bisa dilihat
+// siapa pun. Dua antrean di halaman /antrean sama-sama tidak memuatnya: yang
+// satu sudah tidak menyimpannya lagi, yang satu lagi tidak pernah tahu.
+//
+// Sekarang setiap pembuangan dicatat di sini beserta SEBABNYA, dan halaman
+// antrean punya bagian ketiga untuk itu. Isinya bukan antrean — tidak ada yang
+// berangkat sendiri dari sini — melainkan catatan supaya kehilangan yang sudah
+// terjadi bisa diketahui, dan kalau perlu dikirim ulang dengan sengaja.
+const DIBUANG_FILE = path.join(DATA_DIR, 'outbox-dibuang.json');
+const DIBUANG_MAX = Number(process.env.DIBUANG_MAX || 200);
+const DIBUANG_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+let dibuangList = [];
+
+function simpanDibuang() {
+    try {
+        fs.writeFileSync(`${DIBUANG_FILE}.tmp`, JSON.stringify(dibuangList), { mode: 0o600 });
+        fs.renameSync(`${DIBUANG_FILE}.tmp`, DIBUANG_FILE);
+    } catch (e) {
+        console.error('[dibuang] gagal simpan:', e.message);
+    }
+}
+
+function muatDibuang() {
+    try {
+        if (!fs.existsSync(DIBUANG_FILE)) return;
+        const isi = JSON.parse(fs.readFileSync(DIBUANG_FILE, 'utf8'));
+        if (!Array.isArray(isi)) return;
+        const sekarang = Date.now();
+        dibuangList = isi.filter((d) => d && sekarang - (d.dibuangAt || 0) < DIBUANG_TTL_MS);
+    } catch (e) {
+        console.error('[dibuang] gagal muat:', e.message);
+    }
+}
+
+function catatDibuang(task, sebab) {
+    try {
+        dibuangList.unshift({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            jid: task.jid,
+            message: task.poll ? `[poll] ${task.poll.name || ''}` : (task.message || ''),
+            url: task.url || null,
+            ts: task.ts || null,
+            dibuangAt: Date.now(),
+            sebab: String(sebab || 'tidak disebutkan').slice(0, 300),
+        });
+        // Daftar terbatas: ini catatan, bukan gudang. Yang paling baru yang
+        // paling mungkin masih bisa ditindaklanjuti.
+        if (dibuangList.length > DIBUANG_MAX) dibuangList.length = DIBUANG_MAX;
+        simpanDibuang();
+    } catch (e) {
+        console.error('[dibuang] gagal mencatat:', e.message);
+    }
+}
+
 let queueTimer = null;
 let queueBusy = false;   // processQueue itu async — tanpa ini, kick di tengah
                          // pengiriman bisa memulai kiriman kedua yang tumpang tindih.
@@ -610,6 +671,7 @@ async function processQueue() {
         const ttlTugas = task.ttl || TTL_BALASAN_MS;
         if (task.ts && Date.now() - task.ts > ttlTugas) {
             console.warn(`[Queue] Buang pesan kedaluwarsa (${Math.round(ttlTugas / 60000)}mnt) ke ${task.jid}`);
+            catatDibuang(task, `kedaluwarsa — menunggu lebih dari ${Math.round(ttlTugas / 60000)} menit tanpa bisa dikirim`);
         }
         // Jangan kirim gelembung kosong (teks kosong tanpa gambar/poll) — pernah
         // muncul pesan kosong ke pelanggan.
@@ -665,6 +727,7 @@ async function processQueue() {
                 } else {
                     bump('kirim_gagal');
                     console.error(`[Queue] Gagal kirim ke ${task.jid} setelah ${MAX_SEND_ATTEMPTS} percobaan, pesan DIBUANG:`, err.message);
+                    catatDibuang(task, `gagal ${MAX_SEND_ATTEMPTS}× berturut-turut: ${err.message}`);
                 }
             }
         }
@@ -1445,6 +1508,13 @@ app.get('/antrean/lokal', requireAuth, (req, res) => {
         grup: String(t.jid || '').includes('@g.us'),
     }));
     simpanOutbox();
+    // Buang catatan yang sudah lewat 14 hari sebelum menjawab, supaya daftarnya
+    // tidak pelan-pelan jadi arsip yang tak pernah dibaca.
+    const batasCatatan = Date.now() - DIBUANG_TTL_MS;
+    if (dibuangList.some((d) => (d.dibuangAt || 0) < batasCatatan)) {
+        dibuangList = dibuangList.filter((d) => (d.dibuangAt || 0) >= batasCatatan);
+        simpanDibuang();
+    }
     res.json({
         ok: true,
         // Kenapa antreannya belum berangkat — pertanyaan pertama siapa pun yang
@@ -1459,6 +1529,10 @@ app.get('/antrean/lokal', requireAuth, (req, res) => {
             : 'WhatsApp belum tersambung.',
         tertunda: items.length,
         items,
+        // Bukan antrean: pesan yang sudah TIDAK akan berangkat sendiri. Dipajang
+        // supaya kehilangan yang sudah terjadi tetap punya jejak yang bisa dilihat.
+        dibuang: dibuangList.slice(0, 50),
+        dibuangTotal: dibuangList.length,
     });
 });
 
@@ -1482,6 +1556,34 @@ app.post('/antrean/lokal', requireAuth, (req, res) => {
         simpanOutbox();
         return res.json({ ok: true, dihapus, sisa: 0 });
     }
+    // Kirim ulang satu pesan yang sudah dibuang: masuk ke antrean sebagai pesan
+    // BARU (ts sekarang), karena kalau ts lamanya ikut, ia langsung dibuang lagi
+    // oleh pemeriksaan kedaluwarsa yang sama yang membuangnya pertama kali.
+    if (b.ulang) {
+        const c = dibuangList.find((d) => d.id === String(b.ulang));
+        if (!c) return res.status(404).json({ error: 'Catatan tidak ditemukan.' });
+        if (messageQueue.length >= OUTBOX_MAX) {
+            return res.status(503).json({ error: 'Antrean penuh — coba lagi setelah antrean berkurang.' });
+        }
+        messageQueue.push({ jid: c.jid, message: c.message, url: c.url || undefined, ts: Date.now(), ttl: OUTBOX_TTL_MS });
+        dibuangList = dibuangList.filter((d) => d.id !== c.id);
+        simpanOutbox();
+        simpanDibuang();
+        kickQueue();
+        return res.json({ ok: true, diantrekan: 1, sisa: messageQueue.length, siap: botSiap() });
+    }
+    if (b.hapus_catatan) {
+        const sebelum = dibuangList.length;
+        dibuangList = dibuangList.filter((d) => d.id !== String(b.hapus_catatan));
+        simpanDibuang();
+        return res.json({ ok: true, dihapusCatatan: sebelum - dibuangList.length });
+    }
+    if (b.bersihkan_catatan) {
+        const dihapusCatatan = dibuangList.length;
+        dibuangList = [];
+        simpanDibuang();
+        return res.json({ ok: true, dihapusCatatan });
+    }
     if (b.kirim) {
         if (!botSiap()) {
             return res.status(409).json({
@@ -1491,7 +1593,7 @@ app.post('/antrean/lokal', requireAuth, (req, res) => {
         kickQueue();
         return res.json({ ok: true, dibangunkan: true, sisa: messageQueue.length });
     }
-    return res.status(400).json({ error: 'Sebutkan hapus, hapus_semua, atau kirim.' });
+    return res.status(400).json({ error: 'Sebutkan hapus, hapus_semua, kirim, ulang, hapus_catatan, atau bersihkan_catatan.' });
 });
 
 // Teks biasa, bukan application/sql: kalau tipenya dibiarkan apa adanya,
@@ -2990,6 +3092,7 @@ async function startBotInner(myGen) {
         // bukan di awal berkas: memuatnya sebelum antrean punya socket cuma
         // membuatnya berputar sia-sia sampai sambungan ada.
         muatOutbox();
+        muatDibuang();
 
         // Bersihkan nama sampah warisan versi lama (alur tangkap-nama dulu menyimpan
         // kata biasa/kalimat utuh sebagai nama: "min", "Ntar saya kabari...", "Iya").

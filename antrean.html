@@ -54,6 +54,9 @@
   berangkat sendiri begitu WhatsApp tersambung. <b>Antrean situs</b> terisi kalau
   situs tidak berhasil menitipkan pesannya sama sekali — VPS mati, nginx tumbang —
   dan yang itu HANYA berangkat kalau tombol Kirim ditekan.</p>
+  <p class="muted">Bagian ketiga bukan antrean: daftar pesan yang sudah <b>dibuang</b> bot karena
+  kedaluwarsa atau gagal berkali-kali. Dulu pembuangan itu cuma tercatat di log server, jadi
+  pesan yang benar-benar hilang tidak meninggalkan jejak yang bisa dilihat siapa pun.</p>
 </header>
 
 <!-- ── 1. Antrean milik bot ini (outbox.json) ───────────────────────────── -->
@@ -94,6 +97,23 @@
 
   <div id="status-bot" class="card" style="display:none"></div>
   <div class="antre" id="antre"></div>
+</section>
+
+<!-- ── 3. Pesan yang dibuang bot (bukan antrean) ────────────────────────── -->
+<section class="antrean-blok">
+  <h2>3. Pesan yang dibuang bot</h2>
+  <p class="muted">Bukan antrean — ini pesan yang sudah <b>tidak akan berangkat sendiri</b>:
+  kedaluwarsa setelah menunggu 72 jam, atau gagal tiga kali berturut-turut. Sebelumnya
+  pembuangan ini cuma tercatat di log server, jadi kehilangannya tidak pernah terlihat
+  siapa pun. Catatan disimpan 14 hari.</p>
+
+  <div class="bar-aksi">
+    <button class="btn ghost" id="buang-muat">Muat ulang</button>
+    <button class="btn ghost" id="buang-bersihkan">Bersihkan catatan</button>
+    <span class="kanan" id="buang-ringkas">—</span>
+  </div>
+
+  <div class="antre" id="buang-antre"></div>
 </section>
 
 </div>
@@ -191,6 +211,7 @@
             + ' Pesan di bawah tetap tersimpan dan berangkat sendiri begitu tersambung.', 'bad');
         }
         gambarLokal(j.items || []);
+        gambarBuang(j.dibuang || [], j.dibuangTotal || 0);
       })
       .catch(function (e) {
         elLokalRingkas.textContent = 'gagal';
@@ -206,6 +227,10 @@
       .then(function (h) {
         if (h.s !== 200) { kotak(elLokalStatus, h.j.error || ('HTTP ' + h.s), 'bad'); return; }
         if (h.j.dibangunkan) kotak(elLokalStatus, 'Antrean dibangunkan — sisa ' + h.j.sisa + ' pesan.');
+        else if (h.j.diantrekan) kotak(elLokalStatus, h.j.siap
+          ? 'Dimasukkan kembali ke antrean — sedang dikirim.'
+          : 'Dimasukkan kembali ke antrean. Berangkat begitu WhatsApp tersambung.');
+        else if (h.j.dihapusCatatan) kotak(elLokalStatus, h.j.dihapusCatatan + ' catatan dihapus.');
         else if (h.j.dihapus) kotak(elLokalStatus, h.j.dihapus + ' pesan dihapus. Sisa ' + h.j.sisa + '.');
         muatLokal();
       })
@@ -227,6 +252,51 @@
     aksiLokal({ hapus_semua: true }, this);
   });
   document.getElementById('lokal-muat').addEventListener('click', muatLokal);
+
+  // ── Pesan yang dibuang ─────────────────────────────────────────────────
+  var elBuang = document.getElementById('buang-antre');
+  var elBuangRingkas = document.getElementById('buang-ringkas');
+
+  function gambarBuang(items, total) {
+    elBuangRingkas.textContent = total ? (total + ' catatan') : 'tidak ada';
+    if (!items.length) {
+      elBuang.innerHTML = '<div class="kosong">Belum ada pesan yang dibuang. '
+        + 'Semua yang masuk antrean berhasil berangkat atau masih menunggu.</div>';
+      return;
+    }
+    var h = '';
+    for (var it of items) {
+      h += '<div class="item">'
+        + '<div class="atas">'
+        + '<span class="nomor">' + lolos(it.jid) + '</span>'
+        + '<span class="pill bad">dibuang</span>'
+        + '<span class="waktu">' + lolos(tglSingkat(it.dibuangAt)) + '</span>'
+        + '</div>'
+        + '<div class="teks">' + lolos(it.message) + '</div>'
+        + '<div class="bawah">'
+        + '<span class="galat">' + lolos(it.sebab) + '</span>'
+        + '<button class="btn small primary" data-ulang="' + lolos(it.id) + '">Kirim ulang</button>'
+        + '<button class="btn small ghost" data-lupakan="' + lolos(it.id) + '">Lupakan</button>'
+        + '</div></div>';
+    }
+    elBuang.innerHTML = h;
+  }
+
+  elBuang.addEventListener('click', function (ev) {
+    var t = ev.target.closest('[data-ulang], [data-lupakan]');
+    if (!t) return;
+    if (t.dataset.ulang) {
+      if (!confirm('Masukkan pesan ini kembali ke antrean? Isinya mungkin sudah basi.')) return;
+      aksiLokal({ ulang: t.dataset.ulang }, t);
+    } else {
+      aksiLokal({ hapus_catatan: t.dataset.lupakan }, t);
+    }
+  });
+  document.getElementById('buang-muat').addEventListener('click', muatLokal);
+  document.getElementById('buang-bersihkan').addEventListener('click', function () {
+    if (!confirm('Hapus SEMUA catatan pesan yang dibuang?')) return;
+    aksiLokal({ bersihkan_catatan: true }, this);
+  });
 
   // ── Antrean situs ──────────────────────────────────────────────────────
   var elAntre = document.getElementById('antre');
