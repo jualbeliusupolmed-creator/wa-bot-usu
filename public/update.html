@@ -148,6 +148,21 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
       <code>DATA_DIR</code>. Yang belum ada tinggal nomornya: sebuah nomor WhatsApp aktif untuk
       ditautkan lewat kode pairing.
     </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Jalankan <code>migration_storefront.sql</code> di Supabase.</strong> Kolom toko
+      (slug, nama toko, logo, jam buka) dibuat oleh berkas itu dan harus dijalankan manual dari
+      SQL Editor. Selama belum, penjual tidak bisa membuat toko dan halaman <code>/toko/[slug]</code>
+      tidak punya isi. Tab <b>Toko</b> di panel admin akan mengatakannya sendiri kalau kolomnya
+      memang belum ada — jadi cukup buka tab itu untuk memastikan.
+    </span></li>
+    <li><span class="kotak"></span><span>
+      <strong>Sambungkan enam panel setelan bot ke botnya.</strong> Panggilan, Forensik, Keamanan,
+      Integrasi, Protokol, dan Anti-Ban di panel admin situs menyimpan setelan ke kolom
+      <code>bot_modules</code> yang tidak dibaca siapa pun — bot bahkan belum punya penangan
+      panggilan masuk. Untuk sekarang panel-panel itu sudah diberi peringatan supaya tidak
+      menyesatkan; yang sebenarnya kurang adalah bot membaca setelan itu (atau panelnya dicabut).
+    </span></li>
     <li><span class="kotak"></span><span>
       <strong>Kembalikan jeda coba-ulang ke bawaan</strong> setelah pembatasan nomor bot pertama
       dicabut. Sekarang <code>KUNCI_RETRY_MINUTES=60</code> dipasang lewat env pm2 supaya bot tidak
