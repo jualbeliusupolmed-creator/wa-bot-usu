@@ -973,6 +973,37 @@ function requireRelink(req, res, next) {
     return res.status(403).json({ error: 'Endpoint terkunci demi keamanan. Set ALLOW_RELINK=true di server bila memang mau re-link/reset.' });
 }
 
+// Sesi yang benar-benar tersimpan, dibaca dari disk — BUKAN dari waSocket, yang
+// null di sela sambung-ulang. `registered` sengaja tidak dipakai sebagai tanda:
+// sesi yang ditautkan lewat QR tetap `registered:false` padahal `me` sudah terisi
+// (sesi bot pertama persis begitu). Yang menandakan ada sesi adalah `me.id`.
+function sesiTersimpanAda() {
+    try {
+        const creds = JSON.parse(fs.readFileSync(path.join(AUTH_DIR, 'creds.json'), 'utf8'));
+        return !!creds?.me?.id;
+    } catch (_) { return false; }
+}
+
+// Gerbang khusus PEMULIHAN: menautkan ulang perangkat dan membuka sesi terkunci.
+// Bedanya dengan requireRelink — yang tetap menjaga /reset dan /restart — adalah
+// apa yang sedang dijaga. Gerbang itu ada untuk melindungi sesi yang masih HIDUP:
+// /reset menghapusnya, dan itulah langkah pertama pengambilalihan. Kalau sesinya
+// memang sudah mati (belum pernah tertaut, hilang, atau ditolak WhatsApp sampai
+// terkunci), tidak ada lagi yang bisa direbut — sementara pemiliknya justru sedang
+// paling butuh jalan masuk.
+//
+// Ini menutup jebakan yang nyata terjadi: bot pertama terkunci, tombol "Buka kunci"
+// di dashboard dijawab 403, dan satu-satunya jalan keluar adalah menyunting env di
+// server lalu restart — padahal restart menghapus penanda kunci (ia cuma di memori)
+// sehingga proses baru mengulang ketukan login pada nomor yang sedang dibatasi.
+// Pemilik yang hanya memegang dashboard tidak punya jalan keluar sama sekali.
+function requirePemulihan(req, res, next) {
+    if (process.env.ALLOW_RELINK === 'true') return next();
+    if (sesiTerkunci || sessionLostAt || (!connectedPhone && !sesiTersimpanAda())) return next();
+    return res.status(403).json({ error: 'Terkunci demi keamanan: sesi bot masih hidup, '
+        + 'jadi tidak ada yang perlu ditaut ulang. Set ALLOW_RELINK=true di server bila memang mau.' });
+}
+
 // ── Health check (public, untuk Railway health check) ────────────────────────
 app.get('/health', (req, res) => {
     // Definisinya disamakan persis dengan /status — dulu /health cuma cek `waSocket`
@@ -1553,10 +1584,11 @@ app.post('/reset', requireAuth, requireRelink, async (req, res) => {
 });
 
 // ── Buka kunci sesi ──────────────────────────────────────────────────────────
-// Satu-satunya jalan sah membuang sesi yang sedang dikunci. Gerbangnya sama
-// dengan /reset (ALLOW_RELINK) karena akibatnya sama: bot logout dan siapa pun
-// yang memegang dashboard bisa menautkan perangkat baru.
-app.post('/sesi/buka-kunci', requireAuth, requireRelink, async (req, res) => {
+// Satu-satunya jalan sah membuang sesi yang sedang dikunci. Gerbangnya BUKAN
+// ALLOW_RELINK melainkan requirePemulihan: yang dibuang di sini adalah sesi yang
+// sudah ditolak WhatsApp berulang kali, jadi sesi hidup — hal yang dijaga
+// ALLOW_RELINK — memang sudah tidak ada. Lihat catatan di requirePemulihan.
+app.post('/sesi/buka-kunci', requireAuth, requirePemulihan, async (req, res) => {
     if (!sesiTerkunci) return res.status(400).json({ error: 'Sesi sedang tidak terkunci.' });
     console.warn('[sesi] Kunci dibuka dari dashboard — sesi dicadangkan, bot akan menampilkan QR.');
     sessionLostAt = new Date().toISOString();
@@ -1617,7 +1649,7 @@ app.post('/perangkat2/pairing-code', requireAuth, async (req, res) => {
 });
 
 // ── Pairing Code endpoint ─────────────────────────────────────────────────────
-app.post('/pairing-code', requireAuth, requireRelink, async (req, res) => {
+app.post('/pairing-code', requireAuth, requirePemulihan, async (req, res) => {
     try {
         const { phone } = req.body;
         if (!phone) return res.status(400).json({ error: 'Nomor HP wajib diisi' });
