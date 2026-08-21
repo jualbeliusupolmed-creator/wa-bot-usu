@@ -285,6 +285,7 @@ input, select, textarea {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 9px 12px; width: 100%;
 }
+input[type="checkbox"], input[type="radio"] { width: auto; margin: 0; accent-color: var(--brand); }
 input::placeholder, textarea::placeholder { color: var(--ink-faint); }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-tint); }
 textarea { resize: vertical; min-height: 84px; line-height: 1.55; }

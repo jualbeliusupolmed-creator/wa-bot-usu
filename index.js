@@ -329,6 +329,11 @@ const app = express();
 // tetap tidak dipercaya.
 app.set('trust proxy', 'loopback');
 app.use(express.json());
+// Berkas tampilan bersama (/assets/ui.css, /assets/ui.js) dipakai SEMUA halaman,
+// jadi ia sebaiknya cuma diunduh sekali per kunjungan, bukan sekali per halaman.
+// Satu jam saja: cukup untuk berpindah-pindah halaman, cukup pendek supaya
+// perbaikan tampilan tidak tertahan lama di peramban yang sudah terlanjur.
+app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), { maxAge: '1h' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 let waSocket = null;
