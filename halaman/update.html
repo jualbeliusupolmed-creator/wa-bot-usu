@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
-<link rel="stylesheet" href="/assets/ui.css?v=20260821b">
+<link rel="stylesheet" href="/assets/ui.css?v=20260822">
 <script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
-<script src="/assets/ui.js?v=20260821b" defer></script>
+<script src="/assets/ui.js?v=20260822" defer></script>
 </head>
 <body>
 <div class="wrap">
@@ -105,6 +105,21 @@ diperiksa dari klon segar, bukan dari <code>git status</code>.</p>
 ditandatangani dengan <code>ADMIN_PASSWORD</code>, jadi mengganti sandi admin membatalkan
 seluruh sesi penjual sekaligus. Kalau ada yang mengeluh tiba-tiba diminta masuk lagi, itu
 sebabnya — dan sekarang sudah diputus lewat <code>SESSION_SECRET</code>.</p>
+<p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
+halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
+delapan kartu utang teknis yang enam di antaranya sudah dikerjakan sore itu juga, dan satu
+daftar "kerjakan berikutnya" yang lima dari enam isinya sudah selesai — termasuk pertanyaan
+<code>CRON_SECRET</code> yang sudah terjawab. Penandanya diperbarui, temuannya
+<em>tidak</em> dihapus: temuan yang lenyap begitu diperbaiki akan ditemukan lagi oleh audit
+berikutnya sebagai hal baru. Dua kesalahan audit pagi ikut dikoreksi di tempatnya — tiga
+paket yang disebut "tidak pernah dipakai" ternyata dipakai lewat <code>await import()</code>
+(jangan dicabut), dan 460 baris pembayaran menggantung ternyata lahir dari tiga sebab
+berbeda, bukan satu. Ditambah tiga hal kecil yang sudah lama menggantung: penanda tingkat
+temuan tidak pernah kena selektor CSS-nya sejak <code>ui.css</code> disatukan (semua jatuh
+ke rupa pil biasa), penyaji markdown di halaman itu tidak mengenal tabel sehingga tabel
+12 baris tampil sebagai prosa penuh tanda pipa, dan halaman audit lama masih mengutip sandi
+admin yang sudah dirotasi — di enam tempat.</p>
+
 <div class="card">
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
@@ -126,6 +141,16 @@ sebabnya — dan sekarang sudah diputus lewat <code>SESSION_SECRET</code>.</p>
       langkah yang memang harus dilakukan dengan HP di tangan: kartu <b>Perangkat 2</b> di
       dashboard → "Minta Kode", lalu di HP buka WhatsApp → Perangkat tertaut → Tautkan dengan
       nomor telepon, dan ketik kodenya sebelum kedaluwarsa.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Isi <code>SESSION_SECRET</code> di Vercel.</strong> Satu nilai acak panjang,
+      sekali saja, lalu tidak pernah disentuh lagi. Ini yang tersisa dari rotasi sandi
+      21 Agustus malam: kodenya sudah berhenti menandatangani kuki penjual dengan
+      <code>ADMIN_PASSWORD</code>, tapi selama <code>SESSION_SECRET</code> kosong ia jatuh
+      kembali ke sana — jadi rotasi sandi admin berikutnya akan sekali lagi mengeluarkan
+      seluruh penjual dari akunnya. Tidak ada yang rusak kalau dibiarkan; yang terjadi cuma
+      kejutan yang sama terulang di lain hari.
     </span></li>
   </ul>
 </div>

@@ -294,7 +294,7 @@ label { font-size: .8rem; font-weight: 500; color: var(--ink-soft); display: blo
 .token-row input { flex: 1; min-width: 200px; }
 
 /* ── label & lencana ─────────────────────────────────────────────────── */
-.pill, .status-badge, .tag:not(.t-crit):not(.t-high):not(.t-med), .pita {
+.pill, .status-badge, .tag, .pita {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 3px 10px; border-radius: 999px;
   font-size: .72rem; font-weight: 600; line-height: 1.5;
@@ -493,15 +493,18 @@ details.rinci table { margin: 6px 0 0; }
 .part > p { color: var(--ink-soft); max-width: 68ch; }
 .finds, .plan { display: flex; flex-direction: column; }
 .find { display: grid; grid-template-columns: 116px 1fr; gap: 4px 24px; padding: 20px 0; border-top: 1px solid var(--line); }
-.tag.t-crit, .tag.t-high, .tag.t-med {
+.find .tag {
   font-family: var(--mono); font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
-  padding-top: 4px; display: flex; flex-direction: column; gap: 5px; background: none; border: 0;
+  padding: 4px 0 0; display: flex; flex-direction: column; gap: 5px; background: none; border: 0;
+  border-radius: 0; white-space: normal; line-height: 1.5;
 }
 .tag .lvl { font-weight: 700; }
 .tag .ref { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .t-crit .lvl { color: var(--bad); }
 .t-high .lvl { color: var(--warn); }
 .t-med .lvl  { color: var(--info); }
+.t-done .lvl { color: var(--ok); }
+.t-done .find-body h3::after { content: " \2713"; color: var(--ok); font-weight: 700; }
 .find-body { display: flex; flex-direction: column; gap: 9px; }
 .find-body p { font-size: .95rem; margin: 0; }
 .find-body strong { color: var(--ink); }
@@ -632,7 +635,7 @@ ul.plain li strong { color: var(--ink); }
   header { padding-top: 28px; }
   .card, .glass { padding: 16px; }
   .find { grid-template-columns: 1fr; gap: 10px; }
-  .tag.t-crit, .tag.t-high, .tag.t-med { flex-direction: row; gap: 14px; padding-top: 0; }
+  .find .tag { flex-direction: row; gap: 14px; padding-top: 0; }
   .step { grid-template-columns: 32px 1fr; gap: 4px 14px; }
   .step-n { font-size: 1.1rem; }
   .bubble, .greetbubble { max-width: 88%; }

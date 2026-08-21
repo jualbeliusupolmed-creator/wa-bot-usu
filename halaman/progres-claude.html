@@ -9,9 +9,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
-<link rel="stylesheet" href="/assets/ui.css?v=20260821d">
+<link rel="stylesheet" href="/assets/ui.css?v=20260822">
 <script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
-<script src="/assets/ui.js?v=20260821d" defer></script>
+<script src="/assets/ui.js?v=20260822" defer></script>
 <style>
   /* Diagram arsitektur digambar dengan teks monospace, bukan gambar: tidak ada
      berkas yang harus ikut di-deploy, dan tidak ada gambar yang perlahan
@@ -40,6 +40,11 @@
   #temuan li { margin: 4px 0; }
   #temuan hr { border: 0; border-top: 1px solid var(--line); margin: 26px 0; }
   #temuan code { font-size: .82em; }
+  #temuan table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: .86rem; }
+  #temuan th, #temuan td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); line-height: 1.6; }
+  #temuan th { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  #temuan td:first-child { color: var(--ink-soft); }
+  #temuan .tabel-gulir { overflow-x: auto; }
   #temuan .lvl-kritis { color: var(--bad); }
   #temuan .lvl-menengah { color: var(--warn); }
   #temuan .lvl-ringan { color: var(--info); }
@@ -71,7 +76,7 @@
 <div class="wrap">
 
 <header>
-  <div class="kicker">Audit Menyeluruh · 21 Agustus 2026</div>
+  <div class="kicker">Audit Menyeluruh · 21 Agustus 2026 · status 22 Agustus</div>
   <h1>Seluruh sistem, dibaca sampai dasarnya</h1>
   <p class="lead">Halaman ini hasil satu audit penuh atas <strong>dua repositori dan satu
   database</strong> — bukan ringkasan yang ditulis dari ingatan. Setiap angka di bawah
@@ -86,6 +91,7 @@
     <div class="stat"><div class="n">149</div><div class="l">endpoint dipetakan</div></div>
     <div class="stat"><div class="n">32</div><div class="l">tabel database</div></div>
     <div class="stat"><div class="n">18</div><div class="l">temuan</div></div>
+    <div class="stat"><div class="n">14</div><div class="l">sudah ditutup</div></div>
   </div>
 </div>
 
@@ -97,6 +103,18 @@
   lewat konektor, bukan dari berkas migrasi — berkas migrasi menyatakan apa yang
   <em>seharusnya</em> ada, database menyatakan apa yang <em>benar-benar</em> ada. Pada audit
   ini dua-duanya ternyata memang berbeda.
+</div>
+
+<div class="note ok-note">
+  <strong>Status pengerjaan, 22 Agustus 2026.</strong> Isi halaman ini dibaca dari sistem
+  pada <em>pagi</em> 21 Agustus. Sorenya dan malamnya sebagian besar temuannya dikerjakan,
+  jadi banyak kalimat di bawah yang sekarang bercerita tentang masa lalu — dan itu sengaja
+  dibiarkan: temuan yang dihapus begitu diperbaiki membuat audit berikutnya menemukannya
+  lagi sebagai hal baru. Yang berubah cuma penandanya. <strong>Dari 18 temuan, 14 sudah
+  ditutup</strong> (5 kritis + 5 menengah pada bagian keamanan, 4 pada utang teknis).
+  Empat yang tersisa ada di bagian <a href="#sisa">05</a>, dan tidak satu pun bisa
+  diselesaikan dengan mengubah berkas di repo ini: dua menunggu layanan luar, dua menunggu
+  HP pemiliknya.
 </div>
 
 <h2><span class="no">01</span>Peta sistem</h2>
@@ -255,6 +273,12 @@ sistemnya makin mahal untuk diubah.</p>
       dua-duanya berarti “tawaran harga”. Salah satunya hampir pasti sisa dari
       perancangan yang berubah di tengah jalan — dan selama keduanya berdiri, ada
       kemungkinan nyata kode baru menulis ke tabel yang salah.</p>
+      <p><strong>Ditelusuri 21 Agustus:</strong> pertanyaannya bukan lagi “mana yang sisa”.
+      Di seluruh <code>src/</code> situs <strong>tidak ada satu baris pun yang memanggil
+      <code>offers</code></strong>; semua tawar-menawar lewat <code>price_offers</code>.
+      Jadi yang tersisa bukan penyelidikan, melainkan satu keputusan: hapus tabelnya, atau
+      biarkan berdiri sebagai jejak. <strong>Masih menunggu pemilik</strong> — menghapus
+      tabel tidak dikerjakan tanpa persetujuan.</p>
       <div class="evidence">kosong: blacklist, seller_ratings, reports, verified_sellers,
         referrals, pwa_installs, price_offers, category_subscriptions,
         offers, scheduled_broadcasts, group_posts, search_logs,
@@ -262,80 +286,121 @@ sistemnya makin mahal untuk diubah.</p>
     </div>
   </article>
 
-  <article class="find t-med">
-    <div class="tag"><span class="lvl">Perlu diputuskan</span><span class="ref">U-2</span></div>
+  <article class="find t-done">
+    <div class="tag"><span class="lvl">Sudah — dengan koreksi</span><span class="ref">U-2</span></div>
     <div class="find-body">
       <h3>Lima dependensi situs tidak pernah di-import satu kali pun</h3>
-      <p><code>midtrans-client</code>, <code>pg</code>, <code>html2canvas</code>,
-      <code>html-to-image</code>, dan <code>qrcode</code> terpasang tapi tidak dipakai
-      di mana pun dalam <code>src/</code>. Yang paling perlu dijawab
-      <code>midtrans-client</code>: seluruh alur pembayaran yang berjalan memakai QRIS
-      manual dengan struk difoto, jadi pembayaran otomatis kemungkinan ditinggalkan
-      setengah jalan. <strong>Perlu klarifikasi:</strong> masih rencana, atau sudah
-      dibuang?</p>
+      <p>Temuan aslinya: <code>midtrans-client</code>, <code>pg</code>,
+      <code>html2canvas</code>, <code>html-to-image</code>, dan <code>qrcode</code>
+      terpasang tapi tidak dipakai di mana pun dalam <code>src/</code>.</p>
+      <p><strong>Dua dari lima itu salah, dan koreksinya lebih penting daripada
+      temuannya.</strong> <code>html2canvas</code>, <code>html-to-image</code>, dan
+      <code>qrcode</code> <em>dipakai</em> — lewat <code>await import()</code> di dalam
+      handler, bukan <code>import</code> statis di kepala berkas, jadi pencarian yang cuma
+      membaca baris import tidak melihatnya. <strong>Jangan mencabutnya.</strong> Ini contoh
+      kenapa “tidak ditemukan” tidak sama dengan “tidak ada”.</p>
+      <p><strong>Yang benar-benar dicabut 21 Agustus:</strong> <code>midtrans-client</code>
+      (pembayaran memang memakai QRIS manual dengan struk difoto — otomatisasi itu
+      ditinggalkan) dan <code>@supabase/ssr</code> (cuma dipakai dua berkas mati, lihat
+      U-7). <code>pg</code> pindah ke <code>devDependencies</code>: ia dipakai dua skrip di
+      <code>scratch/</code>. <code>package-lock.json</code> ikut diperbarui dan diperiksa —
+      tidak ada versi paket lain yang ikut bergeser.</p>
     </div>
   </article>
 
-  <article class="find t-med">
-    <div class="tag"><span class="lvl">Perlu dirapikan</span><span class="ref">U-3</span></div>
+  <article class="find t-done">
+    <div class="tag"><span class="lvl">Sudah dibereskan</span><span class="ref">U-3</span></div>
     <div class="find-body">
       <h3>Komentar model AI tertinggal di kode yang sedang melayani orang</h3>
       <p>Satu berkas rute pembayaran memuat kalimat yang jelas-jelas isi kepala sebuah
       model saat menulisnya — termasuk janji memperbaiki sesuatu “sebentar lagi” yang
-      tidak pernah ditepati, dan variabel yang dihitung lalu langsung ditimpa dua baris
-      kemudian. Ini bukan sekadar jelek dibaca: di berkas yang persis sama ada bug
-      otorisasi yang masuk daftar kritis di atas. Komentar seperti itu penanda bahwa
-      berkasnya belum pernah benar-benar dibaca ulang oleh manusia.</p>
+      tidak pernah ditepati, dan variabel yang dihitung lalu langsung ditimpa dua puluh
+      baris kemudian.</p>
+      <p><strong>Dan firasatnya benar.</strong> Komentar seperti itu penanda bahwa berkasnya
+      belum pernah dibaca ulang manusia — di berkas yang persis sama ternyata ada
+      <em>dua</em> hal: bug otorisasi yang masuk daftar kritis keamanan, dan syarat
+      <code>listing.status !== "pending"</code> → 400 yang membuat <strong>ketiga tombol
+      “Bayar Tagihan” komisi penjualan tidak pernah bisa ditekan sampai selesai</strong> —
+      karena <code>sold_fee</code> justru ditagih saat iklan <code>active</code>/<code>sold</code>.
+      Berkasnya ditulis ulang dan syaratnya sekarang bercabang per jenis tagihan.</p>
       <div class="evidence">src/app/api/payments/resume/route.js
   // Wait, sold_fee is soldFeeFrom, not adFeeFrom! I will fix this in a moment
   // Actually, let's fetch the existing pending payment to get the exact amount!</div>
     </div>
   </article>
 
-  <article class="find t-med">
-    <div class="tag"><span class="lvl">Perlu dirapikan</span><span class="ref">U-4</span></div>
+  <article class="find t-done">
+    <div class="tag"><span class="lvl">Sudah — sebabnya lain</span><span class="ref">U-4</span></div>
     <div class="find-body">
       <h3>93% baris pembayaran adalah sampah yang tidak pernah dibersihkan</h3>
       <p>Tabel <code>payments</code> berisi 497 baris: <strong>460 pending, 37 paid</strong>.
-      Penyebabnya bukan pelanggan yang batal — tiap penekanan “lanjutkan bayar”
-      meng-<em>insert</em> satu baris baru, dan tidak ada apa pun yang menghapus yang
-      lama. Angka di laporan keuangan yang menghitung baris pending akan terus melenceng
-      semakin jauh.</p>
+      Dugaan audit pagi: tiap penekanan “lanjutkan bayar” meng-<em>insert</em> baris baru.</p>
+      <p><strong>Ditelusuri sampai asalnya, dugaan itu meleset</strong> — dan sebab yang
+      sebenarnya ada tiga, bukan satu. <strong>346 baris</strong> lahir dari
+      <code>/api/payments/unlock-wanted</code> yang menerbitkan tagihan begitu jendela QRIS
+      <em>dibuka</em>, bukan saat struknya dikirim. <strong>69 baris</strong> memang jejak sah:
+      iklannya keburu dihapus, <code>listing_id</code> jadi NULL lewat
+      <code>ON DELETE SET NULL</code>. <strong>45 sisanya</strong> baru betul-betul dari
+      tombol lanjutkan bayar. Dua dari tiga sudah ditutup di kode: <code>/resume</code>
+      memakai ulang tagihan yang ada berikut nomor pesanannya (supaya struk lama tetap
+      cocok), dan <code>/unlock-wanted</code> baru menerbitkan tagihan saat struk dikirim.</p>
+      <p>Sekalian ketahuan satu hal yang merusak laporan keuangan diam-diam: 355 transaksi
+      buka-kontak berlabel <code>type = "iklan"</code> — komentarnya bilang “bypass check
+      constraint”, benar sampai BAGIAN 9 menambahkan <code>'wanted'</code>, sesudah itu
+      tinggal berbohong. Labelnya dibetulkan, dan <strong>Rp 18.000</strong> yang selama ini
+      tersamar sebagai penjualan iklan sekarang tampil di barisnya sendiri.</p>
+      <p><strong>Baris lamanya sengaja tidak dihapus</strong> — ditawarkan dan ditolak
+      pemilik, yang memilih menyimpannya sebagai jejak. Itu keputusan, bukan kelalaian.</p>
     </div>
   </article>
 
-  <article class="find t-med">
-    <div class="tag"><span class="lvl">Perlu dirapikan</span><span class="ref">U-5</span></div>
+  <article class="find t-done">
+    <div class="tag"><span class="lvl">Sudah dibereskan</span><span class="ref">U-5</span></div>
     <div class="find-body">
       <h3>Indeks kembar dan kebijakan RLS ganda — bekas migrasi yang dijalankan dua kali</h3>
-      <p>Lima pasang indeks identik (<code>listings</code> sendirian punya tiga pasang)
-      dan enam tabel punya dua kebijakan RLS bernama beda untuk aturan yang sama. Pola
-      penamaannya bercerita: satu migrasi pernah dijalankan dua kali dengan konvensi nama
-      berbeda. Ongkosnya kecil tapi permanen — setiap tulisan memelihara indeks kembar,
-      setiap query mengevaluasi dua kebijakan.</p>
-      <div class="evidence">kembar: idx_listings_bumped_at ↔ listings_bumped_idx
-        idx_listings_seller_wa ↔ listings_seller_idx
-        idx_listings_status    ↔ listings_status_idx
-        idx_reports_listing_id ↔ reports_listing_idx
-        seller_profiles_pkey   ↔ seller_profiles_wa_key
-tak pernah terpakai: 13 indeks</div>
+      <p>Lima pasang indeks identik dan enam tabel dengan dua kebijakan RLS bernama beda
+      untuk aturan yang sama. Ongkosnya terlihat kecil: tiap tulisan memelihara indeks
+      kembar, tiap query mengevaluasi dua kebijakan.</p>
+      <p><strong>Yang membuat BAGIAN 27 tidak boleh menunggu justru dua hal yang tidak ada
+      di temuan aslinya.</strong> Pertama, <code>listings.seller_wa</code> ternyata punya
+      <em>dua</em> foreign key — yang kedua (<code>fk_seller_profiles</code>) tidak ada di
+      berkas migrasi mana pun. Postgres menegakkan keduanya, jadi yang paling ketat menang
+      dan <code>ON UPDATE CASCADE</code> tidak pernah berlaku. Akibatnya nyata:
+      <code>migrateLidToPhone()</code> mengandalkan cascade itu, UPDATE-nya selalu ditolak,
+      dan kodenya jatuh ke jalur cadangan yang <strong>membuang <code>created_at</code> dan
+      <code>referral_code</code> penjualnya</strong> setiap kali. Kedua, dari tujuh pasang
+      kebijakan RLS, enam berbunyi sama — pasangan <code>blogs</code> <strong>tidak</strong>:
+      satu <code>USING (true)</code>, satu membatasi ke artikel terbit, dan yang paling
+      longgar yang menang. Yang disimpan yang lebih ketat.</p>
+      <div class="evidence">setelah BAGIAN 27 dijalankan & diverifikasi:
+  0 indeks kembar tersisa (9 dibuang)
+  0 kebijakan RLS kembar tersisa
+  listings.seller_wa  → 1 foreign key, yang benar
+  seller_profiles     → tinggal PRIMARY KEY (wa)
+  blogs               → tinggal 1 policy, yang membatasi ke artikel terbit</div>
     </div>
   </article>
 
-  <article class="find t-med">
-    <div class="tag"><span class="lvl">Perlu dirapikan</span><span class="ref">U-6</span></div>
+  <article class="find t-done">
+    <div class="tag"><span class="lvl">Sudah dibereskan</span><span class="ref">U-6</span></div>
     <div class="find-body">
       <h3>Dua halaman menyebut angka berbeda untuk hal yang sama</h3>
-      <p><a href="/projek">/projek</a> masih menulis 31.538 baris situs, 323 commit, dan
-      12 tabel database. <a href="/lomba">/lomba</a> sudah menulis 34.181, 347, dan 30.
-      Jumlah tabel sebenarnya hari ini <strong>32</strong> — jadi keduanya meleset.
-      Halaman yang menyodorkan angka ke juri lomba sebaiknya tidak saling
-      membantah.</p>
+      <p><a href="/projek">/projek</a> menulis 31.538 baris situs, 323 commit, dan 12 tabel;
+      <a href="/lomba">/lomba</a> menulis 34.181, 347, dan 30. Jumlah tabel sebenarnya
+      <strong>32</strong> — jadi keduanya meleset, dan halaman yang menyodorkan angka ke
+      juri lomba sebaiknya tidak saling membantah.</p>
+      <p>Keduanya dihitung ulang dari repo pada 21 Agustus, dan <strong>cara menghitungnya
+      ikut ditulis di halamannya</strong> supaya bisa diperiksa siapa pun: 38.068 baris
+      situs, 8.508 baris bot, 358 commit, 32 tabel, 74 rute situs, 70 rute bot. Angka bot
+      naik dari 7.820 karena refactor fase 1–2 memindahkan rute ke modul —
+      <code>index.js</code> 2.693 + tujuh modul <code>src/</code> 1.856 + halaman panel
+      3.959. Yang perlu diingat sesudah ini: <strong>dua halaman menyebut angka yang sama,
+      jadi kalau satu diubah yang lain ikut, atau keduanya berbohong lagi.</strong></p>
     </div>
   </article>
 
-  <article class="find t-med">
-    <div class="tag"><span class="lvl">Kode mati</span><span class="ref">U-7</span></div>
+  <article class="find t-done">
+    <div class="tag"><span class="lvl">Sudah dibereskan</span><span class="ref">U-7</span></div>
     <div class="find-body">
       <h3><code>src/lib/middleware.js</code> tidak pernah dipanggil siapa pun</h3>
       <p>65 baris salinan boilerplate Supabase SSR. Tidak ada <code>middleware.js</code>
@@ -344,6 +409,10 @@ tak pernah terpakai: 13 indeks</div>
       bukan ukurannya: seandainya ada yang “menghidupkannya” karena mengira ia rusak,
       isinya akan <strong>mengalihkan setiap pengunjung ke halaman login</strong> —
       seluruh marketplace publik langsung tertutup.</p>
+      <p>Dihapus 21 Agustus bersama enam berkas lain yang sama-sama tidak pernah dipanggil
+      dari mana pun — tujuh seluruhnya, didaftar di <code>PROJECT_KNOWLEDGE.md</code> §1.3.
+      Pencabutan <code>@supabase/ssr</code> di U-2 menyusul dari sini: dua berkas mati itu
+      satu-satunya yang memakainya.</p>
     </div>
   </article>
 
@@ -357,35 +426,78 @@ tak pernah terpakai: 13 indeks</div>
       (<code>postcss</code>, <code>serialize-javascript</code>, <code>workbox</code>)
       hanya hidup saat build, jadi tidak tersentuh pengunjung. Bot cuma punya satu,
       <code>protobufjs</code>, transitif dari Baileys dan tidak tersentuh masukan luar.</p>
+      <p><strong>Turun 10 → 7 pada 21 Agustus</strong> lewat patch transitif
+      (<code>nanoid</code>, <code>fast-uri</code>, <code>brace-expansion</code>,
+      <code>postcss</code>, <code>workbox-webpack-plugin</code>). <strong>Tujuh sisanya
+      masih berdiri</strong>, dan tidak bisa ditutup dengan <code>npm audit fix</code>:
+      semuanya menuntut naik <code>next</code> satu major (14 → 16) atau menurunkan
+      <code>@ducanh2912/next-pwa</code> — dua-duanya migrasi betulan. Yang menghalangi bukan
+      cuma waktunya: <code>next build</code> di VPS ini <strong>selalu kena OOM</strong>
+      (RAM 2 GB), jadi tidak ada cara memeriksa hasilnya dari sini. Perlu dikerjakan dengan
+      build yang bisa diamati.</p>
     </div>
   </article>
 
 </div>
 
-<h2><span class="no">05</span>Yang aku sarankan dikerjakan berikutnya</h2>
+<h2 id="sisa"><span class="no">05</span>Yang benar-benar tersisa</h2>
 
-<p>Diurut menurut “kalau cuma sempat satu, kerjakan yang ini”.</p>
+<p>Daftar ini pernah berisi enam langkah, diurut menurut “kalau cuma sempat satu, kerjakan
+yang ini”. <strong>Lima di antaranya sudah selesai pada 21 Agustus 2026</strong> — rotasi
+kredensial, gerbang pada rute push yang terbuka, nomor penjual diambil dari sesi alih-alih
+dari badan permintaan, 41 PIN penjual di-bcrypt, dan pertanyaan <code>CRON_SECRET</code>
+yang menggantung ternyata terjawab: <em>terisi</em>, diuji lewat gerbang cron yang sudah
+fail-closed (keempat rute menjawab 401, bukan 503).</p>
+
+<p>Yang tinggal empat, dan tidak satu pun bisa diselesaikan dengan mengubah berkas di repo
+ini. Diurut menurut mendesaknya.</p>
 
 <ol class="langkah">
-  <li><strong>Rotasi dua kredensial yang bocor.</strong> Ganti sandi admin situs dan token
-  Fonnte. Keduanya publik sejak 11 Juni — dua bulan lebih. Ini satu-satunya tindakan di
-  daftar ini yang tidak bisa digantikan oleh perubahan kode apa pun, karena yang harus
-  berubah adalah <em>nilainya</em>, bukan berkasnya.</li>
-  <li><strong>Pasang gerbang pada endpoint push yang terbuka.</strong> Pekerjaannya
-  beberapa baris. Mendesaknya karena migrasi kemarin baru saja membuka langganan
-  notifikasi untuk semua pengunjung — daftar penerimanya dirancang untuk tumbuh, dan
-  lubangnya tumbuh bersamanya.</li>
-  <li><strong>Ambil nomor penjual dari sesi, bukan dari badan permintaan</strong>, di dua
-  rute pembayaran. Sekalian membereskan 460 baris pending yatim.</li>
-  <li><strong>Pastikan <code>CRON_SECRET</code> terisi di Vercel.</strong> Aku tidak bisa
-  membaca env Vercel dari sini, jadi ini satu-satunya temuan yang statusnya masih
-  menggantung. Kalau kosong, empat rute cron terbuka untuk umum — dan salah satunya
-  mengirim WhatsApp massal.</li>
-  <li><strong>Bcrypt-kan 32 PIN yang masih plaintext</strong> tanpa menunggu penjualnya
-  login lagi, lalu cabut jalur mundur plaintext.</li>
-  <li><strong>Tautkan ulang kedua bot.</strong> Ini bukan pekerjaan kode — langkahnya ada
-  di tangan pemilik, dan tercatat di <a href="/update">/update</a>.</li>
+  <li><strong>Tautkan ulang kedua bot.</strong> Ini yang paling mendesak, karena selama ini
+  belum dilakukan <em>seluruh pintu WhatsApp tertutup</em>: <code>wa-bot-usu</code> (port
+  3000) dan <code>wa-bot-2</code> (port 3001) dua-duanya <code>ok:false</code> dengan folder
+  sesi kosong, dan pesan menumpuk di outbox. Langkahnya ada di
+  <a href="/update">/update</a> dan menuntut HP di tangan — <strong>bukan pekerjaan
+  kode.</strong> Satu peringatan yang jangan dilewat: sebelum sesinya dibuka, log bot
+  pertama menunjukkan <code>401</code> tiga kali berturut-turut, tanda nomornya sedang
+  dibatasi WhatsApp. Menautkan ulang saat sedang dibatasi justru memperpanjangnya; kalau
+  nomornya masih tertaut di HP, <strong>kembalikan folder
+  <code>auth_info_baileys.bak-20260821T063431/</code></strong> alih-alih memindai QR.</li>
+
+  <li><strong>Isi <code>SESSION_SECRET</code> di Vercel.</strong> Satu nilai acak panjang,
+  sekali saja. Ini bukan lubang keamanan, tapi selama ia kosong kuki sesi penjual masih
+  ditandatangani dengan <code>ADMIN_PASSWORD</code> — dan itulah sebabnya rotasi sandi admin
+  21 Agustus malam <strong>membatalkan seluruh sesi penjual sekaligus</strong>, termasuk
+  sesi 30 hari yang tidak ada hubungannya dengan panel admin. Kodenya sudah memisahkan
+  keduanya dan jatuh kembali ke <code>ADMIN_PASSWORD</code> kalau belum diset; yang tersisa
+  cuma mengisi nilainya, supaya rotasi berikutnya tidak mengulang hal yang sama.</li>
+
+  <li><strong>Batas laju yang berlaku lintas-instance.</strong>
+  <code>src/lib/rateLimit.js</code> menyimpan hitungannya di <code>Map</code> memori proses,
+  dan Vercel menjalankan banyak instance — jadi “5 per menit” sebenarnya “5 per menit
+  <em>per instance</em>”. Komentarnya sendiri sudah jujur mengakui ini. Menutupnya menuntut
+  layanan luar (Vercel Firewall atau Upstash Redis) untuk rute yang benar-benar perlu batas
+  keras: login admin dan kirim OTP. Tidak ada perubahan kode di repo ini yang bisa
+  menggantikannya.</li>
+
+  <li><strong>Tujuh kerentanan dependensi situs.</strong> Lihat U-8. Menuntut
+  <code>next</code> naik satu major, dan <code>next build</code> di VPS ini selalu kena OOM
+  — jadi harus dikerjakan di tempat yang build-nya bisa diamati, bukan dari sini.</li>
 </ol>
+
+<div class="note">
+  <strong>Tiga keputusan yang menunggu pemilik, bukan pekerjaan.</strong> Bukan temuan, dan
+  tidak ada yang rusak kalau dibiarkan — tapi selama belum diputuskan, audit berikutnya akan
+  menemukannya lagi dan menghabiskan waktu yang sama untuk menelusurinya. (1) Tabel
+  <code>offers</code> — kosong, tidak dipanggil kode mana pun: dihapus atau dibiarkan?
+  (2) 415 baris <code>payments</code> pending yang tidak lagi menunjuk iklan mana pun —
+  sudah ditolak untuk dihapus, dan itu dihormati; sarannya diubah statusnya jadi
+  <code>expired</code> (constraint sudah mengizinkan), dengan catatan
+  <code>/verify-receipt</code> hanya menerima struk untuk tagihan <code>pending</code>, jadi
+  yang di-<code>expired</code> tidak bisa dibayar susulan. (3) 13 indeks yang tidak pernah
+  terpakai — sengaja <em>tidak</em> ikut BAGIAN 27, karena di basis data sekecil ini “tidak
+  pernah terpakai” lebih mungkin berarti jalur kodenya belum ramai, bukan indeksnya salah.
+</div>
 
 <div class="note ok-note">
   <strong>Yang sudah diperiksa dan ternyata aman.</strong> Ditulis supaya audit berikutnya
@@ -419,9 +531,11 @@ itu, bukan dilewati diam-diam.</p>
 </div>
 
 <footer>
-  <p class="muted tiny">Audit dijalankan 21 Agustus 2026 atas commit
+  <p class="muted tiny">Audit dijalankan 21 Agustus 2026 <em>pagi</em> atas commit
   <code>a01b9c5</code> (bot) dan <code>14d8def</code> (situs). Angka-angkanya sahih untuk
-  tanggal itu; jalankan ulang auditnya kalau sudah lewat sebulan.</p>
+  tanggal itu; penanda status diperbarui 22 Agustus 2026 setelah 14 dari 18 temuan ditutup.
+  Jalankan ulang auditnya kalau sudah lewat sebulan — dan mulai dari
+  <code>PROJECT_KNOWLEDGE.md</code>, bukan dari halaman ini.</p>
 </footer>
 
 </div>
@@ -478,6 +592,38 @@ itu, bukan dilewati diam-diam.</p>
         continue;
       }
       if (/^>\s?/.test(b)) { tutupDaftar(); keluar += '<p class="muted">' + sebaris(b.replace(/^>\s?/, '')) + '</p>'; continue; }
+      /* Tabel pipa. Tanpa cabang ini tiap barisnya jatuh ke penggabung paragraf di
+         bawah dan berubah jadi satu blok prosa penuh tanda pipa — yang persis terjadi
+         pada tabel "Dulu | Sekarang" di berkas temuan sampai 22 Agustus 2026. */
+      if (/^\s*\|.*\|\s*$/.test(b)) {
+        tutupDaftar();
+        var sel = function (baris_) {
+          return baris_.trim().replace(/^\||\|$/g, '').split('|').map(function (x) { return x.trim(); });
+        };
+        var kepala = sel(b);
+        var mulai = i;
+        /* Baris pemisah (---|---) menandai baris pertama sebagai kepala tabel. */
+        var adaKepala = i + 1 < baris.length && /^\s*\|[\s:|-]+\|\s*$/.test(baris[i + 1]);
+        if (adaKepala) i++;
+        var isi = [];
+        while (i + 1 < baris.length && /^\s*\|.*\|\s*$/.test(baris[i + 1])) isi.push(sel(baris[++i]));
+        if (!adaKepala) { isi.unshift(kepala); }
+        keluar += '<table>';
+        if (adaKepala) {
+          keluar += '<thead><tr>';
+          for (var k = 0; k < kepala.length; k++) keluar += '<th>' + sebaris(kepala[k]) + '</th>';
+          keluar += '</tr></thead>';
+        }
+        keluar += '<tbody>';
+        for (var r2 = 0; r2 < isi.length; r2++) {
+          keluar += '<tr>';
+          for (var c2 = 0; c2 < isi[r2].length; c2++) keluar += '<td>' + sebaris(isi[r2][c2]) + '</td>';
+          keluar += '</tr>';
+        }
+        keluar += '</tbody></table>';
+        if (i === mulai) { /* satu baris tanpa isi: biarkan, sudah tercetak */ }
+        continue;
+      }
       if (/^\s*$/.test(b)) { tutupDaftar(); continue; }
       tutupDaftar();
       /* Baris prosa berturut-turut digabung jadi satu paragraf. */

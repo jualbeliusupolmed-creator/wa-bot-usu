@@ -38,7 +38,12 @@ catatan/
 # halaman/progres.html — halaman audit yang dibuat sesi lain. Ia MENGUTIP sandi
 # admin situs apa adanya sebagai bukti temuan. Sempat tinggal di public/ (yang
 # disajikan express.static tanpa gerbang) sampai 21 Agustus 2026; sekarang
-# bergerbang sandi. Tetap di luar git sampai sandinya dirotasi dan kutipannya
-# disensor — repo ini publik, dan meng-commit-nya akan menerbitkan ulang sandi
-# yang baru saja ditutup.
+# bergerbang sandi.
+#
+# Dua syarat untuk ia boleh masuk git sudah terpenuhi pada 22 Agustus 2026:
+# sandinya dirotasi pemilik (21 Agu malam) dan keenam kutipannya disensor. Ia
+# TETAP di sini karena syarat ketiga bukan teknis: menerbitkan halaman audit
+# sesi lain ke repo publik itu keputusan pemilik, bukan keputusan yang diambil
+# sambil merapikan. Kalau diputuskan boleh, cukup hapus baris di bawah ini —
+# tapi baca dulu isinya sekali lagi dengan mata "ini akan publik".
 halaman/progres.html

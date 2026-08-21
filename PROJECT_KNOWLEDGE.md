@@ -11,7 +11,7 @@ sebelum menyentuh apa pun, dan diperbarui setiap kali ada yang berubah.
 
 | | |
 |---|---|
-| **Audit terakhir** | 21 Agustus 2026 |
+| **Audit terakhir** | 21 Agustus 2026 (perapian dokumentasi & rupa: 22 Agustus) |
 | **Repo bot** | `github.com/jualbeliusupolmed-creator/wa-bot-usu` (publik) |
 | **Repo situs** | `github.com/jualbeliusupolmed-creator/jualbeliusupolmed` (publik) |
 | **Database** | Supabase `autgrnrqeqdpqwkbolyh`, ap-southeast-1, Postgres 17.6 |
@@ -91,11 +91,11 @@ meneruskan ke `/api/admin/outbox` di situs.
 | `useSupabaseAuthState.js` | 190 | Adapter sesi ke Postgres. **Tidak dipakai** (tidak ada env Supabase). |
 | `halaman/dashboard.html` | 958 | Panel operasi: QR, inbox chat, statistik gerbang, blocklist, story, log. |
 | `halaman/home.html` | 449 | Daftar tombol ke semua halaman & endpoint. |
-| `halaman/update.html` | 255 | Linimasa perubahan (dari git) + daftar "Yang belum selesai" yang ditulis tangan. |
+| `halaman/update.html` | 289 | Linimasa perubahan (dari git) + daftar "Yang belum selesai" yang ditulis tangan. Tiga baris, semuanya `Perlu pemilik`. |
 | `halaman/projek.html` | 208 | Catatan proyek naratif. Angkanya dihitung ulang 21 Agu 2026, sama dengan `/lomba`, dan cara menghitungnya ikut ditulis. |
-| `halaman/progres-claude.html` | — | **Halaman audit ini.** Bergerbang sandi. |
+| `halaman/progres-claude.html` | 660 | **Halaman audit ini.** Bergerbang sandi. Isinya beku di pagi 21 Agu; penandanya disetel ulang 22 Agu (14 dari 18 temuan ditutup). Memuat penyaji markdown sendiri untuk `catatan/temuan-keamanan.md`. |
 | `public/lomba.html` | 931 | Presentasi lomba 12 slide. **Satu-satunya halaman tanpa sandi.** |
-| `public/assets/ui.css` / `ui.js` | 1.051 / ~170 | Rupa bersama + navbar yang disuntik ke semua halaman + ikon SVG sebaris (menggantikan Font Awesome CDN) + tombol terang/gelap. |
+| `public/assets/ui.css` / `ui.js` | 1.054 / 169 | Rupa bersama + navbar yang disuntik ke semua halaman + ikon SVG sebaris (menggantikan Font Awesome CDN) + tombol terang/gelap. |
 | `antrean.html`, `laporan.html`, `laporan-publik.html`, `jalankan.html` | 401/385/384/252 | Halaman antrean notifikasi, laporan analisis, dan penyaji SQL migrasi. |
 | `migrasi/migrasi.sql` | 1.824 | **29 BAGIAN** migrasi, dirancang aman diulang. |
 | `migrasi/migrasi-keamanan.sql` | 98 | Migrasi RLS terpisah. |
@@ -528,6 +528,49 @@ kembar tersisa · `listings.seller_wa` tinggal satu foreign key, yang benar
 (`ON UPDATE CASCADE ON DELETE SET NULL`) · `seller_profiles` tinggal
 `PRIMARY KEY (wa)` · `blogs` tinggal satu policy, yang membatasi ke artikel
 terbit.
+
+### ✅ Perapian 22 Agustus 2026 — dokumentasi yang basi & dua bug rupa
+
+Tidak ada logika bot yang disentuh; `/root/uji-boot-bot.sh` lulus 32/32 sesudahnya.
+Yang dikerjakan semuanya hal yang **menggantung**, bukan fitur:
+
+- **`/progres-claude` masih membaca seperti pagi 21 Agustus.** Enam dari delapan
+  kartu utang tekniknya sudah dikerjakan sore itu juga, dan daftar "kerjakan
+  berikutnya"-nya lima dari enam sudah selesai — termasuk `CRON_SECRET` yang
+  masih tertulis "menggantung" padahal sudah terjawab. Penandanya disetel ulang
+  (`t-done`), **isinya tidak dihapus**: temuan yang lenyap begitu diperbaiki akan
+  ditemukan lagi oleh audit berikutnya sebagai hal baru. Bagian 05 ditulis ulang
+  jadi "Yang benar-benar tersisa" — empat, tidak satu pun bisa ditutup dari dalam
+  repo mana pun.
+- **Dua kesalahan audit pagi dikoreksi di tempatnya**, bukan dihapus: U-2 (tiga
+  paket disebut tak terpakai padahal dipakai lewat `await import()` — jangan
+  dicabut) dan U-4 (460 baris pembayaran menggantung lahir dari tiga sebab
+  berbeda, bukan dari tombol "lanjutkan bayar" seperti yang disangka).
+- **`.tag.t-crit` tidak pernah cocok dengan markup mana pun.** Penanda tingkat
+  dipasang di `<article class="find t-crit">`, sedangkan selektornya menuntut
+  kelas itu ada di `<div class="tag">` di dalamnya. Akibatnya setiap penanda
+  temuan di `/laporan`, `/laporan-publik`, dan `/progres-claude` jatuh ke rupa pil
+  biasa sejak `ui.css` disatukan. Diikat ulang ke `.find .tag`; sifat pil yang
+  ikut terwarisi (sudut bulat, padding samping, `nowrap`) dimatikan di sana.
+- **Penyaji markdown `/progres-claude` tidak mengenal tabel.** Tabel 12 baris
+  "Dulu | Sekarang" di berkas temuan tampil sebagai satu blok prosa penuh tanda
+  pipa. Ditambahkan cabang tabel pipa (dengan baris pemisah opsional) — diuji
+  dengan menjalankan penyajinya di Node atas berkas temuan yang asli.
+- **Versi cache aset tidak seragam**: sembilan halaman `?v=20260821b`, satu
+  `?v=20260821d`. Disamakan jadi `?v=20260822` di sepuluh halaman — kalau
+  `ui.css` berubah tapi versinya tidak, peramban menahan yang lama sampai satu jam.
+- **`halaman/progres.html` masih mengutip sandi admin yang sudah dirotasi**, di
+  enam tempat, termasuk satu tabel env dan satu daftar prioritas. Disensor; dua
+  temuannya yang sudah selesai (sandi lemah, `index.js` 4.017 baris) ditandai
+  selesai. Berkasnya **tetap di luar git** — alasannya ditulis panjang di
+  `.gitignore`, dan keputusannya milik pemilik.
+- **Empat tangkapan layar nganggur di `public/assets/img/`** — tidak dirujuk
+  berkas mana pun, tidak ikut git, tapi `express.static` menyajikan seluruh isi
+  `public/` tanpa gerbang, jadi keempatnya bisa diambil siapa saja yang menebak
+  namanya (salah satunya panel admin lengkap dengan angka pendapatan). Dipindah
+  ke `/root/tangkapan-layar-lomba/`, di luar repo dan di luar jangkauan web.
+  Galeri `/lomba` tidak terpengaruh: ia memakai 16 `.webp` di
+  `public/assets/lomba-img/`, semuanya terlacak git dan semuanya dirujuk.
 
 ### Perlu diputuskan pemilik
 
