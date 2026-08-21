@@ -104,6 +104,7 @@
   var HALAMAN = [
     { u: '/',         t: 'Dashboard' },
     { u: '/home',     t: 'Panel' },
+    { u: '/antrean',  t: 'Antrean' },
     { u: '/laporan',  t: 'Laporan' },
     { u: '/update',   t: 'Perubahan' },
     { u: '/projek',   t: 'Proyek' },

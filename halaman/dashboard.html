@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
-<link rel="stylesheet" href="/assets/ui.css">
+<link rel="stylesheet" href="/assets/ui.css?v=20260821">
 <script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
-<script src="/assets/ui.js" defer></script>
+<script src="/assets/ui.js?v=20260821" defer></script>
 </head>
 <body>
 
@@ -61,7 +61,16 @@
                 <div class="card glass">
                     <div class="card-header"><i class="fa-solid fa-list-check"></i> Antrean &amp; Kesehatan</div>
                     <div class="stat-value" id="queue-length">0</div>
-                    <p class="muted" style="margin-bottom: 12px;">Pesan menunggu dikirim</p>
+                    <p class="muted" style="margin-bottom: 12px;">Menunggu di server ini — terkirim sendiri begitu WhatsApp nyambung (berlaku 3 hari)</p>
+                    <!-- Penampung KEDUA, dan sengaja disebut terpisah: yang di atas
+                         hidup di outbox.json server ini dan jalan sendiri; yang ini
+                         di database, lahir saat bot/VPS tidak terjangkau sama sekali,
+                         dan HANYA berangkat kalau tombolnya ditekan. Menjumlahkan
+                         keduanya jadi satu angka akan menyembunyikan perbedaan itu. -->
+                    <div class="kv">
+                        <span>Butuh dikirim manual</span>
+                        <span><a href="/antrean" id="outbox-db" style="font-weight:600">—</a></span>
+                    </div>
                     <div class="kv"><span>Putus koneksi (sejak start)</span><span id="outage-count">0</span></div>
                     <div class="kv"><span>Putus terakhir</span><span id="last-outage">-</span></div>
                     <div class="kv"><span>Percobaan reconnect</span><span id="reconnect-attempts">0</span></div>
@@ -443,6 +452,7 @@
             $('connected-at').textContent = status.connectedAt ? waktuSingkat(status.connectedAt) : '-';
             $('webhook-url').textContent = status.webhookUrl || '-';
             $('queue-length').textContent = status.queueLength ?? 0;
+            muatAntreanDb();
             $('outage-count').textContent = status.outageCount ?? 0;
             $('reconnect-attempts').textContent = status.reconnectAttempts ?? 0;
             $('last-outage').textContent = status.lastOutage
@@ -918,6 +928,31 @@
         // yang berupa const — memanggilnya sebelum baris const dieksekusi melempar
         // ReferenceError dan mematikan seluruh skrip (termasuk tombol Masuk).
         if (token) showDashboard();
+
+        // Angka antrean yang butuh tombol. Sumbernya database lewat proxy bot,
+        // bukan proses ini — jadi ia bisa gagal sendiri tanpa merusak dashboard.
+        // Kalau gagal, tulis "?" dan bukan "0": nol yang keliru di sini berarti
+        // orang mengira tidak ada yang tertahan padahal ada.
+        async function muatAntreanDb() {
+            const el = $('outbox-db');
+            if (!el) return;
+            try {
+                // `token` boleh kosong sejak masuk pakai sandi — kukinya yang
+                // dipakai, dan kuki ikut sendiri di permintaan seasal.
+                const r = await fetch('/antrean/data', {
+                    headers: token ? { 'Authorization': token } : {},
+                    cache: 'no-store',
+                });
+                if (!r.ok) throw new Error(r.status);
+                const j = await r.json();
+                el.textContent = (j.tertunda ?? 0) + ' pesan';
+                el.style.color = j.tertunda ? 'var(--warn)' : '';
+            } catch (e) {
+                el.textContent = '? — gagal dibaca';
+                el.style.color = 'var(--ink-faint)';
+            }
+        }
+
     </script>
 </body>
 </html>
