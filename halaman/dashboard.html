@@ -324,6 +324,132 @@
     <script>
         let token = localStorage.getItem('bot_api_token');
         let pollInterval, pollCount = 0;
+
+        /* ── mode demo ───────────────────────────────────────────────────
+         * Berkas ini dilayani di DUA alamat:
+         *
+         *   /dashboard  — panel sungguhan, bergerbang sandi, data sungguhan
+         *   /demo       — salinan terbuka, data karangan, tombol yang tidak
+         *                 mengerjakan apa pun
+         *
+         * Satu berkas, bukan dua. Salinan kedua akan berbeda dalam hitungan
+         * minggu, dan yang dilihat orang untuk mempelajari bot ini justru
+         * salinan yang basi.
+         *
+         * Yang membuatnya aman bukan sekadar tombol yang dimatikan: di mode
+         * demo, api() dan post() TIDAK PERNAH memanggil jaringan. Tidak ada
+         * permintaan yang bisa lolos ke endpoint bot, bahkan dari konsol
+         * peramban — jawabannya dirakit di sini, di halaman ini.
+         */
+        const DEMO = location.pathname.replace(/\/+$/, '') === '/demo';
+
+        const nomorDemo = (n) => '6280000' + String(n).padStart(6, '0') + '@s.whatsapp.net';
+        const lalu = (menit) => Date.now() - menit * 60000;
+
+        const CHATS_DEMO = [
+            { jid: nomorDemo(1), name: 'Aisyah Nabila', preview: '.JUAL laptop asus ryzen 5', lastTime: lalu(4) },
+            { jid: nomorDemo(2), name: 'Bagas Pratama', preview: 'Kak, kalkulatornya masih ada?', lastTime: lalu(21) },
+            { jid: nomorDemo(3), name: 'Citra Ramadhani', preview: 'Sudah saya transfer ya, ini strukny…', lastTime: lalu(58) },
+            { jid: nomorDemo(4), name: 'Dimas Kurniawan', preview: '.PERPANJANG USU1004', lastTime: lalu(140) },
+            { jid: nomorDemo(5), name: 'Elsa Wijaya', preview: 'admin', lastTime: lalu(320) },
+        ];
+
+        const PESAN_DEMO = {
+            [nomorDemo(1)]: [
+                { fromMe: false, text: '.JUAL', time: lalu(9), type: 'text' },
+                { fromMe: true, text: 'Siap! Kirim foto barangnya plus keterangan singkat ya 📸', time: lalu(8), type: 'text' },
+                { fromMe: false, text: '[media]', time: lalu(6), type: 'image' },
+                { fromMe: false, text: 'Laptop Asus VivoBook 14 Ryzen 5, RAM 8GB, mulus. 4,25jt nego tipis', time: lalu(6), type: 'text' },
+                { fromMe: true, text: 'Kubaca ya:\n\nJudul: Laptop Asus VivoBook 14 Ryzen 5\nHarga: Rp 4.250.000\nKategori: Elektronik\n\nSudah benar? Balas OK kalau sudah.', time: lalu(5), type: 'text' },
+                { fromMe: false, text: 'OK', time: lalu(4), type: 'text' },
+                { fromMe: true, text: 'Mantap. Biaya tayang Rp 2.000 — silakan QRIS di bawah, lalu kirim fotonya ke sini.', time: lalu(4), type: 'text' },
+            ],
+            [nomorDemo(2)]: [
+                { fromMe: false, text: 'Kak, kalkulatornya masih ada?', time: lalu(22), type: 'text' },
+                { fromMe: true, text: 'Halo! Aku bot Jual Beli USU Polmed 🤖\n\nUntuk menghubungi penjual, buka halaman iklannya ya. Kalau mau cari barang, ketik: .CARI kalkulator', time: lalu(21), type: 'text' },
+            ],
+        };
+
+        const DATA_DEMO = {
+            '/status': () => ({
+                connected: true,
+                phone: '6280000000001',
+                connectedAt: lalu(3 * 60 * 24),
+                hasQR: false,
+                qr: null,
+                uptime: 3 * 86400 + 4 * 3600 + 12 * 60,
+            }),
+            '/perangkat2/status': () => ({ connected: false, phone: null, adaBot2: true, hidup: true, hasQR: false }),
+            '/chats': () => ({ chats: CHATS_DEMO, connected: true }),
+            '/logs': () => ({ logs: [
+                '[INFO] Bot siap. Nomor tertaut: 6280000000001',
+                '[INFO] Pesan masuk dari 6280000000001@s.whatsapp.net — perintah .JUAL',
+                '[INFO] Draf iklan dibuat, menunggu foto',
+                '[INFO] Foto diterima (image/jpeg, 214 KB) — dikirim ke webhook situs',
+                '[INFO] Webhook 200 OK dalam 812ms',
+                '[INFO] Tagihan Rp 2.000 dibuat untuk USU1009',
+                '[ERROR] Kirim gagal ke 6280000000024@s.whatsapp.net — ditampung di antrean',
+                '[INFO] Antrean dicoba ulang: 1 dari 2 terkirim',
+            ] }),
+            '/settings': () => ({ greeting: 'Halo! Aku bot Jual Beli USU Polmed 🤖\n\nKetik .MENU untuk lihat semua perintah.', isCustom: true }),
+            '/groups': () => ({ groups: [
+                { id: '120000000000000001@g.us', subject: 'Jual Beli USU (Demo)', size: 412 },
+                { id: '120000000000000002@g.us', subject: 'Info Kos Polmed (Demo)', size: 168 },
+            ], cached: true, age: 42000 }),
+            '/broadcast/targets': () => ({
+                targets: CHATS_DEMO.map((c) => ({ jid: c.jid, name: c.name, lastTime: c.lastTime })),
+                count: CHATS_DEMO.length,
+                max: 50,
+            }),
+            '/blocklist': () => ({ blocklist: [nomorDemo(91), nomorDemo(92)] }),
+            '/story': () => ({ statuses: [
+                { text: 'Barang baru hari ini: 6 iklan 🛍️', timestamp: lalu(180) },
+                { text: 'Ingat, tawar-menawar lewat halaman produk ya.', timestamp: lalu(900) },
+            ] }),
+            '/context': () => ({ entries: CHATS_DEMO.slice(0, 3).map((c, i) => ({
+                jid: c.jid, name: c.name, turns: 4 - i, lastTime: c.lastTime,
+            })), count: 3, now: Date.now() }),
+            '/lid-map': () => ({ entries: [
+                { lid: '19700000000001', phone: '6280000000004', at: lalu(2000) },
+                { lid: '19700000000002', phone: '6280000000005', at: lalu(5200) },
+            ], count: 2 }),
+        };
+
+        function dataDemo(endpoint) {
+            const jalur = String(endpoint).split('?')[0];
+            if (jalur === '/messages') {
+                const jid = decodeURIComponent(String(endpoint).split('jid=')[1] || '');
+                const msgs = PESAN_DEMO[jid] || [];
+                return { messages: msgs, count: msgs.length };
+            }
+            if (jalur === '/stats') return statsDemo();
+            const buat = DATA_DEMO[jalur];
+            return buat ? buat() : {};
+        }
+
+        function statsDemo() {
+            const daily = {};
+            const hariIni = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+            const pola = [38, 52, 31, 47, 61, 44, 29, 55, 66, 41, 37, 58, 49, 43];
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date(Date.now() + 7 * 3600 * 1000 - i * 86400000).toISOString().slice(0, 10);
+                daily[d] = { masuk: pola[13 - i], keluar: Math.round(pola[13 - i] * 0.8) };
+            }
+            return {
+                total: {
+                    masuk: 4821, keluar: 3944, sapaan: 268, panggil_min: 122, sesi_bot: 331,
+                    didiamkan: 1180, balas_manual: 96, broadcast: 14,
+                    polos_menu: 84, polos_jual: 51, polos_cari: 33, perintah_polos: 168,
+                    webhook_ok: 742, webhook_gagal: 9, kirim_gagal: 21, putus_koneksi: 6,
+                },
+                today: daily[hariIni] || {},
+                daily,
+                days: Object.keys(daily),
+                archive: { messages: 1840, cap: 5000 },
+                since: Object.keys(daily)[0],
+            };
+        }
+
         let activeTab = 'ringkasan';
         let chats = [], targets = [], activeJid = null, activeName = '';
 
@@ -362,6 +488,7 @@
         }
 
         async function api(endpoint) {
+            if (DEMO) return dataDemo(endpoint);
             try {
                 const res = await fetch(endpoint, { headers: { 'Authorization': token } });
                 if (res.status === 401) { logout(); alert('Token tidak valid atau kedaluwarsa!'); return null; }
@@ -371,6 +498,10 @@
         }
 
         async function post(endpoint, body, method = 'POST') {
+            if (DEMO) {
+                toast('Panel demo — aksi ini tidak dijalankan.', false);
+                return { error: null, ok: false, demo: true };
+            }
             try {
                 const res = await fetch(endpoint, {
                     method,
@@ -927,7 +1058,19 @@
         // Auto-login DI AKHIR skrip: showDashboard memakai `$` dan kawan-kawan
         // yang berupa const — memanggilnya sebelum baris const dieksekusi melempar
         // ReferenceError dan mematikan seluruh skrip (termasuk tombol Masuk).
-        if (token) showDashboard();
+        if (DEMO) {
+            document.title = 'Panel Bot (Demo) — Jual Beli USU Polmed';
+            const spanduk = document.createElement('div');
+            spanduk.style.cssText = 'margin:0 0 16px;padding:14px 16px;border-radius:12px;border:1px solid #f0b429;background:rgba(240,180,41,.12);line-height:1.55';
+            spanduk.innerHTML = '<b style="display:block;margin-bottom:4px">Ini salinan demo — semua isinya karangan</b>'
+                + '<span style="font-size:13px;opacity:.9">Tampilan dan kodenya sama persis dengan panel bot yang sungguhan; '
+                + 'yang berbeda cuma dua: datanya dibuat-buat (nama, nomor, isi chat, semuanya), dan tombolnya tidak '
+                + 'mengerjakan apa pun. Di halaman ini tidak ada satu pun permintaan yang dikirim ke bot — jawabannya '
+                + 'dirakit di dalam halaman ini sendiri.</span>';
+            const dash = $('dashboard');
+            dash.insertBefore(spanduk, dash.firstChild);
+            showDashboard();
+        } else if (token) showDashboard();
 
         // Angka antrean yang butuh tombol. Sumbernya database lewat proxy bot,
         // bukan proses ini — jadi ia bisa gagal sendiri tanpa merusak dashboard.
@@ -936,6 +1079,7 @@
         async function muatAntreanDb() {
             const el = $('outbox-db');
             if (!el) return;
+            if (DEMO) { el.textContent = '2 pesan'; el.style.color = 'var(--warn)'; return; }
             try {
                 // `token` boleh kosong sejak masuk pakai sandi — kukinya yang
                 // dipakai, dan kuki ikut sendiri di permintaan seasal.

@@ -1429,6 +1429,23 @@ app.get('/lomba', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'lomba.html'));
 });
 
+// ── Panel bot versi demo (public) ────────────────────────────────────────────
+// Berkas yang SAMA dengan /dashboard — bukan salinan.
+//
+// Panel ini bagian yang paling banyak menjelaskan cara kerja bot, dan ia justru
+// yang paling tidak bisa diperlihatkan: bergerbang sandi, dan isinya nomor serta
+// isi percakapan orang sungguhan. Jadi yang dibuka kembarannya: halaman yang
+// sama, data karangan.
+//
+// Yang membuatnya aman ada di halamannya, bukan di sini. Saat dibuka lewat
+// /demo, api() dan post() di dashboard.html tidak pernah memanggil jaringan —
+// jawabannya dirakit di dalam halaman. Jadi tidak ada satu pun endpoint bot yang
+// bisa disentuh dari sana, bahkan dari konsol peramban. Gerbang requireAuth di
+// endpoint-endpoint itu pun tetap berdiri seperti biasa, sebagai lapis kedua.
+app.get('/demo', (req, res) => {
+    res.sendFile(path.join(__dirname, 'halaman', 'dashboard.html'));
+});
+
 // ── Migrasi database, siap salin (butuh token) ───────────────────────────────
 // Berkas migrasi gabungan itu 1.469 baris; menyalinnya dari terminal atau dari
 // tampilan berkas di GitHub selalu meleset sebagian. Halaman ini menyajikannya
