@@ -219,8 +219,9 @@ berbeda, dan dua sudah ditutup di kode pada 21 Agustus 2026:
 | Sisanya (iklan hidup, bump, sold_fee, subscribe) | 45 | ya — `/resume` memakai ulang tagihan, tidak menyisipkan baris baru |
 
 418 dari 460 baris pending itu `listing_id IS NULL`, bukan menggantung: tidak ada
-satu pun foreign key yatim. **Baris lamanya belum dibersihkan** — itu perubahan
-data, dan menunggu keputusan pemilik.
+satu pun foreign key yatim. Baris lamanya **sengaja tidak dibersihkan** — pemilik
+memilih menyimpannya sebagai jejak. Yang diperbaiki hanya labelnya: 355 baris
+pembukaan kontak pindah dari `type = 'iklan'` ke `'wanted'`.
 
 ---
 
@@ -380,8 +381,10 @@ lain masih berdiri, dan alasannya ditulis.
   constraint" — benar sampai BAGIAN 9 menambahkan `'wanted'` ke
   `payments_type_check`, sesudah itu tinggal merusak laporan. 346 transaksi
   masuk ke kolom "Iklan Baru" di `/admin/keuangan`, sementara baris "Cari
-  Barang" yang sudah disiapkan selamanya kosong. Kode baru menulis `"wanted"`.
-  ⚠ Baris lama belum diperbaiki — perubahan data, menunggu pemilik.
+  Barang" yang sudah disiapkan selamanya kosong. Kode baru menulis `"wanted"`, dan
+  **355 baris lama ikut diperbaiki** (346 pending + 9 lunas) pada 21 Agustus 2026
+  atas persetujuan pemilik. Sejak itu `/admin/keuangan` menampilkan Rp 18.000
+  pendapatan buka-kontak yang selama ini tersamar sebagai penjualan iklan.
 - **`PAYMENT_TYPES` di `AdminPanel.jsx` cuma memuat 4 dari 9 jenis**, jadi
   rincian "per tipe" tidak pernah menjumlah sampai "Total Lunas". Sekarang
   sembilan, sama dengan constraint database.
@@ -391,43 +394,45 @@ lain masih berdiri, dan alasannya ditulis.
   ikut ditulis di halaman, supaya bisa diperiksa: 38.068 baris situs, 7.820
   baris bot, 358 commit, 32 tabel, 74 rute situs, 70 rute bot.
 
-### Perlu dijalankan pemilik
+### ✅ BAGIAN 27 — dijalankan 21 Agustus 2026 sore
 
-- **BAGIAN 27 migrasi** (`migrasi/migrasi.sql`, ditulis 21 Agustus, **belum
-  jalan**). Isinya membuang yang kembar, dan satu di antaranya bukan sekadar
-  kerapian:
-  - **9 indeks berlebih.** Empat menduplikasi indeks yang dibuat berkas migrasi
-    ini sendiri dengan nama lain (`idx_listings_status` vs `listings_status_idx`,
-    dst.); lima lagi indeks biasa di kolom yang sudah punya constraint `UNIQUE`.
-    Advisor Supabase hanya melihat 5 pasang — ia tidak menghitung pasangan
-    unik-vs-biasa, padahal itu tetap satu pohon berlebih tiap tulis.
-  - **`seller_profiles_wa_key`** — `UNIQUE (wa)` di kolom yang sudah PRIMARY KEY.
-  - **`fk_seller_profiles`** — foreign key **kedua** di `listings.seller_wa`,
-    tidak ada di berkas migrasi mana pun. Postgres menegakkan keduanya, jadi yang
-    paling ketat menang dan `listings_seller_wa_fkey` (`ON UPDATE CASCADE ON
-    DELETE SET NULL`, BAGIAN 5) tidak pernah berlaku. Akibatnya nyata:
-    `migrateLidToPhone()` mengganti `seller_profiles.wa` dari LID ke nomor HP dan
-    mengandalkan cascade itu; selama FK siluman ini berdiri, UPDATE-nya selalu
-    ditolak dan kodenya jatuh ke jalur cadangan yang **membuang `created_at` dan
-    `referral_code` penjual** setiap kali.
-  - **7 kebijakan RLS kembar** pada `blogs`, `categories`, `listings`,
-    `seller_profiles`, `seller_ratings`, `wanted_listings`. Enam pasang benar-benar
-    berbunyi sama. Pasangan `blogs` **tidak**: yang satu `USING (true)`, yang lain
-    membatasi ke artikel terbit — dua aturan berbeda untuk satu tabel, dan yang
-    paling longgar yang menang. Yang disimpan yang lebih ketat. Baris ini yang
-    membuat BAGIAN 27 sebaiknya tidak menunggu lama.
+Isinya membuang yang kembar, dan satu di antaranya bukan sekadar kerapian:
+- **9 indeks berlebih.** Empat menduplikasi indeks yang dibuat berkas migrasi
+  ini sendiri dengan nama lain (`idx_listings_status` vs `listings_status_idx`,
+  dst.); lima lagi indeks biasa di kolom yang sudah punya constraint `UNIQUE`.
+  Advisor Supabase hanya melihat 5 pasang — ia tidak menghitung pasangan
+  unik-vs-biasa, padahal itu tetap satu pohon berlebih tiap tulis.
+- **`seller_profiles_wa_key`** — `UNIQUE (wa)` di kolom yang sudah PRIMARY KEY.
+- **`fk_seller_profiles`** — foreign key **kedua** di `listings.seller_wa`,
+  tidak ada di berkas migrasi mana pun. Postgres menegakkan keduanya, jadi yang
+  paling ketat menang dan `listings_seller_wa_fkey` (`ON UPDATE CASCADE ON
+  DELETE SET NULL`, BAGIAN 5) tidak pernah berlaku. Akibatnya nyata:
+  `migrateLidToPhone()` mengganti `seller_profiles.wa` dari LID ke nomor HP dan
+  mengandalkan cascade itu; selama FK siluman ini berdiri, UPDATE-nya selalu
+  ditolak dan kodenya jatuh ke jalur cadangan yang **membuang `created_at` dan
+  `referral_code` penjual** setiap kali.
+- **7 kebijakan RLS kembar** pada `blogs`, `categories`, `listings`,
+  `seller_profiles`, `seller_ratings`, `wanted_listings`. Enam pasang benar-benar
+  berbunyi sama. Pasangan `blogs` **tidak**: yang satu `USING (true)`, yang lain
+  membatasi ke artikel terbit — dua aturan berbeda untuk satu tabel, dan yang
+  paling longgar yang menang. Yang disimpan yang lebih ketat. Baris ini yang
+  membuat BAGIAN 27 sebaiknya tidak menunggu lama.
+
+**Diverifikasi setelah dijalankan:** 0 indeks kembar tersisa · 0 kebijakan
+kembar tersisa · `listings.seller_wa` tinggal satu foreign key, yang benar
+(`ON UPDATE CASCADE ON DELETE SET NULL`) · `seller_profiles` tinggal
+`PRIMARY KEY (wa)` · `blogs` tinggal satu policy, yang membatasi ke artikel
+terbit.
 
 ### Perlu diputuskan pemilik
 
 - **Membersihkan baris `payments` lama.** 415 baris pending yang tidak lagi
-  menunjuk iklan mana pun. Saran: ubah statusnya jadi `expired`
+  menunjuk iklan mana pun. Ditawarkan 21 Agustus dan **ditolak dengan sengaja** —
+  pemilik memilih membiarkannya sebagai jejak. Saran: ubah statusnya jadi `expired`
   (`payments_status_check` sudah mengizinkan), **jangan dihapus** — riwayat
   pembayaran lebih baik disimpan. Perlu diingat: `/verify-receipt` hanya
   menerima struk untuk tagihan yang masih `pending`, jadi tagihan yang
   di-`expired` tidak bisa dibayar susulan.
-- **Memperbaiki `type` 346 baris pembukaan kontak** dari `iklan` → `wanted`.
-  Membuat `/admin/keuangan` benar, tapi mengubah angka laporan yang mungkin
-  sudah pernah dilihat.
 - **Tabel `offers`** (kosong, tidak dipanggil kode mana pun) — dihapus atau
   dibiarkan.
 - **13 indeks yang tidak pernah terpakai.** Sengaja **tidak** ikut BAGIAN 27:
@@ -565,9 +570,12 @@ mendapat satu baris "perlu pemilik" yang baru.
 "Bayar Tagihan" komisi penjualan yang tidak pernah bisa selesai. Keduanya
 dijelaskan di §4.
 
-**Belum dikerjakan:** BAGIAN 27 belum dijalankan ke produksi (butuh persetujuan
-yang tidak bisa diberikan dari sesi kerja), pembersihan baris `payments` lama,
-dan seluruh daftar keamanan — atas permintaan pemilik.
+**Dijalankan ke produksi sore itu juga, setelah pemilik memutuskan:** BAGIAN 27
+(diverifikasi, lihat §4) dan perbaikan label 355 baris pembukaan kontak.
+
+**Sengaja tidak dikerjakan:** pembersihan 415 baris `payments` yatim — pemilik
+memilih menyimpannya sebagai jejak; penghapusan tabel `offers`; dan seluruh
+daftar keamanan, atas permintaan pemilik.
 
 ### Sebelum audit ini
 Riwayat perubahan lengkap kedua repo ada di **`/update`**, dirakit langsung dari
