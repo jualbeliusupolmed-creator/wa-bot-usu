@@ -55,6 +55,15 @@ bot — halaman ini publik, jadi sengaja tidak ditautkan), termasuk kolom toko
 (<code>migration_daftar_tanpa_otp.sql</code>) yang selama ini menunggu. Dicatat di sini karena
 menjalankan SQL di Supabase tidak meninggalkan commit — linimasa di atas tidak akan pernah
 tahu itu terjadi.</p>
+<p class="muted">Kalimat "seluruh migrasi" di atas berlaku untuk pagi itu saja: <b>BAGIAN 25</b>
+dan <b>BAGIAN 26</b> ditulis sesudahnya, dan baru dijalankan sore harinya — kali ini langsung
+ke database, bukan lewat salin-tempel. Hasilnya dua: <code>push_subscriptions.wa</code> tidak
+lagi wajib diisi, jadi pengunjung yang belum punya akun pun boleh berlangganan kabar barang
+baru; dan <code>seller_profiles</code> mendapat empat kolom <code>store_*</code> beserta
+pemeriksa nilainya — pintu masuk alur "toko menunggu persetujuan admin". Satu-satunya toko
+yang alamatnya sudah beredar, <code>/toko/bismillah</code>, ikut ditandai aktif supaya tidak
+mendadak padam; 81 penjual lain tetap <code>draf</code> karena memang belum pernah membuat
+toko.</p>
 <p class="muted">Baris keempat juga hilang di hari yang sama: tab <b>Kapabilitas</b> di panel
 admin ternyata bukan tiga kartu yang menulis ke ruang kosong, melainkan <b>82 sakelar</b> yang
 semuanya menulis ke sana — tujuh di antaranya bernama sama persis dengan setelan asli di tab
