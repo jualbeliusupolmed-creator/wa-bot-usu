@@ -334,15 +334,6 @@ app.use(express.json());
 // Satu jam saja: cukup untuk berpindah-pindah halaman, cukup pendek supaya
 // perbaikan tampilan tidak tertahan lama di peramban yang sudah terlanjur.
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), { maxAge: '1h' }));
-// Berkas migrasi disajikan sebagai teks biasa, bukan application/sql — kalau
-// tipenya dibiarkan apa adanya, peramban mengunduhnya alih-alih menampilkannya,
-// dan halaman /jalankan yang mengambilnya lewat fetch() jadi satu-satunya cara
-// melihat isinya. Harus di ATAS express.static supaya static tidak keburu
-// melayaninya dengan tipe bawaan.
-app.get('/migrasi.sql', (req, res) => {
-    res.type('text/plain; charset=utf-8');
-    res.sendFile(path.join(__dirname, 'public', 'migrasi.sql'));
-});
 app.use(express.static(path.join(__dirname, 'public')));
 
 let waSocket = null;
@@ -1205,19 +1196,33 @@ app.get('/lomba', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'lomba.html'));
 });
 
-// ── Migrasi database, siap salin (public) ────────────────────────────────────
+// ── Migrasi database, siap salin (butuh token) ───────────────────────────────
 // Berkas migrasi gabungan itu 1.469 baris; menyalinnya dari terminal atau dari
 // tampilan berkas di GitHub selalu meleset sebagian. Halaman ini menyajikannya
-// dengan satu tombol salin, dan mengambil isinya dari /migrasi.sql saat dibuka
+// dengan satu tombol salin, dan mengambil isinya lewat fetch() saat dibuka
 // supaya tidak ada salinan kedua yang perlahan berbeda dari yang di repo.
 //
-// Sengaja tanpa token: yang dibawanya cuma DDL — nama tabel dan kolom, tanpa
-// satu pun kunci atau data orang — dan gerbang token di ponsel justru membuat
-// halaman ini gagal pada satu-satunya hal yang jadi alasan ia dibuat. Diberi
-// noindex supaya tetap tidak ikut nongol di hasil pencarian.
-app.get('/jalankan', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'jalankan.html'));
+// Berkasnya SENGAJA tidak tinggal di public/. express.static melayani apa pun
+// di sana tanpa melewati gerbang mana pun, jadi menaruh migrasi.sql di public/
+// sambil memasang requireAuthPage di rute ini akan menghasilkan gerbang yang
+// bisa dilewati hanya dengan mengetik /migrasi.sql. Berkasnya di migrasi/,
+// di luar jangkauan static, dan satu-satunya jalan masuk adalah rute ini.
+//
+// Halaman ini membawa nama tabel, nama kolom, dan bentuk seluruh basis data —
+// peta yang mempersingkat pekerjaan siapa pun yang mencari celah. Token, dan
+// tetap noindex.
+app.get('/jalankan', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'jalankan.html'));
 });
+
+// Teks biasa, bukan application/sql: kalau tipenya dibiarkan apa adanya,
+// peramban mengunduhnya alih-alih menampilkan, dan curl kehilangan gunanya.
+for (const berkas of ['migrasi.sql', 'migrasi-keamanan.sql']) {
+    app.get('/' + berkas, requireAuthPage, (req, res) => {
+        res.type('text/plain; charset=utf-8');
+        res.sendFile(path.join(__dirname, 'migrasi', berkas));
+    });
+}
 
 // ── Riwayat perubahan (publik) ───────────────────────────────────────────────
 // Halaman /update tidak boleh jadi daftar yang harus diingat manusia untuk

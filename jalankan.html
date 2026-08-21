@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jalankan Migrasi Database — Bot USU Polmed</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Migrasi database Jual Beli USU Polmed, siap disalin ke Supabase SQL Editor.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
+<link rel="stylesheet" href="/assets/ui.css">
+<script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<script src="/assets/ui.js" defer></script>
+<style>
+  /* Kotak SQL: jangan dibungkus seperti prosa. Baris SQL yang terlipat di
+     tengah jadi susah dibaca, dan yang disalin tetap teks aslinya. */
+  .kotak-sql {
+    margin: 0;
+    padding: 16px;
+    max-height: 60vh;
+    overflow: auto;
+    font-family: var(--mono);
+    font-size: .78rem;
+    line-height: 1.6;
+    white-space: pre;
+    tab-size: 2;
+    color: var(--ink-soft);
+    background: var(--sunk);
+    border-radius: var(--r-lg);
+  }
+  /* Tombol salin ikut turun bersama halaman: di ponsel, kalau ia cuma ada di
+     atas, orang yang sudah membaca sampai bawah harus naik lagi. */
+  .aksi-lekat {
+    position: sticky;
+    top: 12px;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    padding: 12px;
+    margin: 24px 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+  }
+  .aksi-lekat .btn { flex: 0 0 auto; }
+  .aksi-lekat .ukuran { margin-left: auto; font-size: .8rem; color: var(--ink-faint); }
+  @media (max-width: 560px) {
+    .aksi-lekat .utama { flex: 1 1 100%; justify-content: center; }
+    .aksi-lekat .ukuran { margin-left: 0; }
+  }
+  body.has-nav .aksi-lekat { top: 68px; }
+</style>
+</head>
+<body>
+<div class="wrap doc">
+
+<header>
+  <div class="kicker">Migrasi Database</div>
+  <h1>Semua migrasi, sekali jalan</h1>
+  <p class="lead">Dua puluh tiga berkas migrasi di <code>supabase/</code> digabung jadi satu,
+  diurutkan supaya yang bersandar pada yang lain selalu datang belakangan. Salin dari halaman
+  ini, tempel ke <strong>Supabase → SQL Editor → Run</strong>. Sekali saja — tidak perlu berkas
+  lain, tidak perlu memikirkan urutan.</p>
+  <p class="muted">Di bawahnya ada berkas kedua, terpisah dan sengaja tidak digabung:
+  <a href="#keamanan">pengencangan akses database</a>. Yang itu mencabut hak, bukan menambah
+  kolom, dan menuntut pemeriksaan sesudahnya.</p>
+</header>
+
+<div class="aksi-lekat">
+  <button class="btn primary utama" data-salin="sql-utama">Salin semua SQL</button>
+  <a class="btn" data-unduh="/migrasi.sql" download="migrasi.sql">Unduh berkas</a>
+  <a class="btn ghost" href="https://supabase.com/dashboard/project/_/sql/new" target="_blank" rel="noopener">Buka SQL Editor</a>
+  <span class="ukuran" data-ukuran="sql-utama">memuat…</span>
+</div>
+
+<h2><span class="no">01</span>Dua hal yang perlu diketahui sebelum menekan Run</h2>
+<div class="card">
+  <p><strong>Aman dijalankan berulang.</strong> Setiap perintah di dalamnya menambah, atau tidak
+  melakukan apa-apa. Tidak ada satu pun yang menghapus tabel, kolom, atau baris. Kalau ragu
+  suatu migrasi sudah pernah jalan atau belum — jalankan saja; bagian yang sudah ada melewati
+  dirinya sendiri.</p>
+  <p><strong>Satu transaksi.</strong> Seluruhnya dibungkus <code>BEGIN … COMMIT</code>. Kalau ada
+  satu perintah yang gagal, semuanya dibatalkan dan database kembali persis seperti sebelum Run.
+  Tidak ada keadaan setengah jadi yang harus dibereskan tangan.</p>
+</div>
+
+<h2><span class="no">02</span>Yang sengaja tidak ikut</h2>
+<div class="card">
+  <p><code>supabase/seed_dummy_20.sql</code> — dua puluh iklan karangan untuk mencoba-coba, bukan
+  migrasi. Jangan pernah dijalankan di produksi.</p>
+  <p>Pengencangan akses database juga tidak ikut, tapi bukan karena tidak perlu — ia ada di
+  <a href="#keamanan">bagian 05</a>, dengan berkas dan tombolnya sendiri. Alasannya ia mencabut
+  hak baca, dan perubahan yang mencabut tidak boleh menumpang di berkas yang aman diulang.</p>
+</div>
+
+<h2><span class="no">03</span>Setelah Run, baca tabel ringkasannya</h2>
+<div class="card">
+  <p>Supabase menulis <em>"Success. No rows returned"</em> baik saat ada yang berubah maupun
+  tidak, jadi tulisan itu bukan jawaban. Yang menjawab adalah tabel ringkasan yang dicetak baris
+  terakhir berkas ini: setiap baris harus <span class="pill ok">OK</span>. Yang
+  <span class="pill warn">KURANG</span> berarti ada perintah yang tidak jalan — salin barisnya,
+  biar bisa dilihat kenapa. Tiga baris terakhir bertanda <span class="pill info">INFO</span>,
+  itu cuma hitungan akun dan toko, bukan penilaian.</p>
+</div>
+
+<h2><span class="no">04</span>Isinya</h2>
+<p class="muted">Disajikan langsung dari <code>migrasi/migrasi.sql</code> di server ini, jadi yang
+kamu salin selalu sama dengan yang ada di repositori — halaman ini tidak menyimpan salinan
+keduanya yang bisa diam-diam berbeda.</p>
+<div class="salin">
+  <div class="kepala">
+    <span class="judul">migrasi.sql</span>
+    <button data-salin="sql-utama">Salin</button>
+  </div>
+  <pre class="kotak-sql" id="sql-utama" data-sumber="/migrasi.sql">Memuat…</pre>
+</div>
+
+<h2 id="keamanan"><span class="no">05</span>Pengencangan akses database</h2>
+<div class="card">
+  <p><strong>Ini berkas yang berbeda sifatnya, dan jangan disamakan dengan yang di atas.</strong>
+  Yang di atas menambah; yang ini <em>mencabut</em>. Ia menutup temuan audit 16 Juli 2026: peran
+  <code>anon</code> bisa membaca seluruh <code>seller_profiles</code> — termasuk nomor HP dan hash
+  PIN setiap penjual — dan nomor HP juga terbuka lewat <code>listings</code>,
+  <code>seller_ratings</code>, serta <code>wanted_listings</code>.</p>
+  <p><strong>Kenapa mencabutnya aman.</strong> Diperiksa ulang 21 Agustus 2026: seluruh pembacaan
+  tabel di situs lewat <code>getAdminClient()</code> — service-role, yang melewati RLS. Kunci anon
+  cuma dipakai dua hal, dan keduanya tidak disentuh berkas ini: unggah foto ke storage, dan insert
+  ke <code>pwa_installs</code>.</p>
+  <p><strong>Yang harus kamu lakukan sesudah Run</strong>, dan ini bagian yang tidak boleh
+  dilewat — buka satu per satu: beranda, <code>/dicari</code>, <code>/jual</code>,
+  <code>/jasa</code>, <code>/blog</code>, satu halaman produk, satu <code>/toko/[slug]</code>,
+  satu <code>/penjual/[wa]</code>, dasbor penjual, panel admin. Kalau ada yang jadi kosong,
+  jalankan blok <b>ROLLBACK</b> di dasar berkas dan kabari apa yang hilang.</p>
+  <p class="muted">Ringkasannya mencetak satu baris per tabel. Semua harus
+  <span class="pill ok">TERTUTUP</span>.</p>
+</div>
+
+<div class="aksi-lekat">
+  <button class="btn primary utama" data-salin="sql-keamanan">Salin SQL keamanan</button>
+  <a class="btn" data-unduh="/migrasi-keamanan.sql" download="migrasi-keamanan.sql">Unduh berkas</a>
+  <span class="ukuran" data-ukuran="sql-keamanan">memuat…</span>
+</div>
+
+<div class="salin">
+  <div class="kepala">
+    <span class="judul">migrasi-keamanan.sql</span>
+    <button data-salin="sql-keamanan">Salin</button>
+  </div>
+  <pre class="kotak-sql" id="sql-keamanan" data-sumber="/migrasi-keamanan.sql">Memuat…</pre>
+</div>
+
+<p class="muted tiny">Kalau peramban menolak menyalin (izin papan klip butuh koneksi aman),
+tombolnya akan memilih seluruh teks — tinggal tekan Ctrl+C, atau tahan dan pilih Salin di ponsel.
+Halaman ini dan kedua berkasnya butuh token bot; tautan yang kamu buka sudah membawanya, dan
+tombol unduh di atas ikut membawanya sendiri.</p>
+
+</div>
+
+<script>
+(function () {
+  // Halaman ini dibuka dengan ?token=… dan kedua berkas SQL dijaga gerbang yang
+  // sama. fetch() dari halaman tidak otomatis membawa apa pun, jadi tokennya
+  // diteruskan sendiri — termasuk ke tombol unduh, supaya tautannya tidak
+  // mendarat di layar 401.
+  var tok = new URLSearchParams(location.search).get('token');
+  function beralamat(jalur) {
+    return jalur + (tok ? '?token=' + encodeURIComponent(tok) : '');
+  }
+
+  var isi = {};   // id kotak → teks SQL
+
+  for (var a of document.querySelectorAll('[data-unduh]')) {
+    a.href = beralamat(a.dataset.unduh);
+  }
+
+  for (var kotak of document.querySelectorAll('.kotak-sql')) {
+    muat(kotak);
+  }
+
+  function muat(kotak) {
+    var id = kotak.id;
+    var ukuran = document.querySelector('[data-ukuran="' + id + '"]');
+    fetch(beralamat(kotak.dataset.sumber), { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status === 401 ? 'token tidak diterima' : 'HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (teks) {
+        isi[id] = teks;
+        kotak.textContent = teks;
+        if (ukuran) {
+          ukuran.textContent = teks.split('\n').length.toLocaleString('id-ID') + ' baris · ' +
+                               Math.round(teks.length / 1024) + ' KB';
+        }
+      })
+      .catch(function (e) {
+        kotak.textContent = 'Gagal memuat ' + kotak.dataset.sumber + ' (' + e.message + ').\n' +
+          'Buka ulang halaman ini lewat tautan yang membawa ?token=…';
+        if (ukuran) ukuran.textContent = 'gagal dimuat';
+      });
+  }
+
+  function pilihSemua(kotak) {
+    var rentang = document.createRange();
+    rentang.selectNodeContents(kotak);
+    var pilihan = window.getSelection();
+    pilihan.removeAllRanges();
+    pilihan.addRange(rentang);
+  }
+
+  for (var tombol of document.querySelectorAll('[data-salin]')) {
+    tombol.addEventListener('click', function () {
+      var id = this.dataset.salin;
+      var kotak = document.getElementById(id);
+      var teks = isi[id];
+      if (teks === undefined) return;
+      var tbl = this;
+      var semula = tbl.textContent;
+      var selesai = function (pesan) {
+        tbl.textContent = pesan;
+        setTimeout(function () { tbl.textContent = semula; }, 2500);
+      };
+      // Papan klip butuh konteks aman dan izin; kalau ditolak jangan diam —
+      // pilih sendiri teksnya supaya pengguna tinggal menekan Ctrl+C.
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(teks)
+          .then(function () { selesai('Tersalin ✓'); })
+          .catch(function () { pilihSemua(kotak); selesai('Tekan Ctrl+C'); });
+      } else {
+        pilihSemua(kotak);
+        selesai('Tekan Ctrl+C');
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
