@@ -90,7 +90,7 @@ meneruskan ke `/api/admin/outbox` di situs.
 | `public/lomba.html` | 931 | Presentasi lomba 12 slide. **Satu-satunya halaman tanpa sandi.** |
 | `public/assets/ui.css` / `ui.js` | 1.051 / ~170 | Rupa bersama + navbar yang disuntik ke semua halaman + ikon SVG sebaris (menggantikan Font Awesome CDN) + tombol terang/gelap. |
 | `antrean.html`, `laporan.html`, `laporan-publik.html`, `jalankan.html` | 401/385/384/252 | Halaman antrean notifikasi, laporan analisis, dan penyaji SQL migrasi. |
-| `migrasi/migrasi.sql` | 1.679 | **27 BAGIAN** migrasi, dirancang aman diulang. |
+| `migrasi/migrasi.sql` | 1.824 | **29 BAGIAN** migrasi, dirancang aman diulang. |
 | `migrasi/migrasi-keamanan.sql` | 98 | Migrasi RLS terpisah. |
 | `penjaga-bot.sh` | 115 | Cron tiap 2 menit: cek `/health`, restart kalau mati. |
 | `cadangkan-sesi.sh` | 194 | Cadangan sesi terenkripsi AES ke repo GitHub privat. |
@@ -141,9 +141,11 @@ memindahkan tombol "Hubungi Admin" ke nomor cadangan saat bot padam.
 ### 1.3 Repo situs (`jualbeliusupolmed`) — 401 berkas
 
 - **38 halaman** (`src/app/**/page.js*`) — 14 di antaranya di bawah `/admin`.
-- **74 berkas rute API** (`src/app/api/**/route.js`), memuat **92 metode**
-  GET/POST/PUT/PATCH/DELETE. Kalau ada dua angka yang beredar untuk "jumlah
-  endpoint", ini sebabnya.
+- **78 berkas rute API** (`src/app/api/**/route.js`). Kalau ada dua angka yang
+  beredar untuk "jumlah endpoint", sebabnya satu berkas rute bisa memuat
+  beberapa metode GET/POST/PUT/PATCH/DELETE.
+- **`/admin-demo/*`** — kembaran terbuka panel admin, komponen yang sama persis
+  dengan `/admin`, data karangan dari `src/lib/demoData.js`. Lihat §2.6.
 - **63 berkas komponen** (34 akar, 7 admin, 21 `baileys/`, 1 `ui/`).
 - **31 modul** di `src/lib/` — logika bisnis dipisah dari tampilan.
 - Berkas terbesar: `src/app/api/wa/baileys/route.js` (**2.930 baris**) — otak
@@ -341,6 +343,81 @@ Kunci proses tunggal (`.bot.lock`, flag `wx`, atomik) mencegah dua proses menuli
 > **Pantangan:** kalau log menunjukkan 401 berturut-turut, nomornya sedang
 > dibatasi WhatsApp. **Jangan pindai QR** — menautkan ulang saat dibatasi justru
 > memperpanjangnya. Kembalikan folder `.bak-` kalau nomornya masih tertaut di HP.
+
+---
+
+### 2.5b Penjual menulis blog — dan badge yang memutuskan siapa antre
+
+**Pemicu:** penjual membuka `/dashboard` → tab **Blog**.
+
+```
+tulis  →  [ Simpan draf ]  →  status "draft", tidak ke mana-mana
+       →  [ Kirim ]        →  berbadge?  ya  → "published", langsung tayang
+                                         tidak → "menunggu", masuk antrean admin
+```
+
+Yang menentukan bukan tombolnya, melainkan `seller_profiles.blog_badge`, dan
+nilainya dibaca **di server** dari profil penulisnya. `status` dan `author_wa`
+tidak pernah diterima dari badan permintaan — kalau boleh, "menunggu persetujuan
+admin" cuma jadi saran yang sopan.
+
+Admin meninjau di `/admin/blogs` (antrean ditarik ke atas tabel) atau memberi
+badge di `/admin/penjual/[wa]`. Penulis dikabari lewat WhatsApp saat artikelnya
+terbit, ditolak, dan saat badge-nya berubah — tapi hanya kalau nilainya
+benar-benar berubah, supaya menekan tombol dua kali tidak mengirim dua pesan.
+
+⚠ **Yang perlu diketahui sebelum mengubah alur ini:** penulis tanpa badge yang
+menyunting artikel yang SUDAH terbit membuatnya kembali ke antrean, dan artikel
+itu turun dari `/blog` sampai disetujui lagi. Itu memang arti "setiap tulisan
+minta konfirmasi admin", dan formulirnya memperingatkan sebelum tombolnya
+ditekan. Kalau suatu saat ini terasa terlalu keras, yang dibutuhkan tabel
+revisi — bukan melonggarkan pemeriksaannya.
+
+### 2.6 Dua panel demo — satu kode, dua alamat
+
+Panel admin dan panel bot adalah bagian yang paling banyak menjelaskan cara
+kerja sistem ini, dan keduanya justru yang paling tidak bisa diperlihatkan:
+bergerbang sandi, dan isinya nomor telepon serta percakapan orang sungguhan.
+Jadi yang dibuka bukan panelnya, melainkan kembarannya.
+
+| Sungguhan | Kembaran terbuka | Data |
+|---|---|---|
+| `/admin/*` (situs) | `/admin-demo/*` | `src/lib/demoData.js` |
+| `/dashboard` (bot) | `/demo` (bot) | dirakit di dalam `halaman/dashboard.html` |
+
+**Bukan salinan — mount kedua.** Komponennya sama persis. Yang membedakan
+diturunkan dari **alamat halaman**, bukan dari prop yang disulam ke seluruh
+pohon komponen:
+
+- `useBasisAdmin()` → `/admin` atau `/admin-demo` (ke mana tautan menuju)
+- `useBasisApi()` → `/api/admin` atau `/api/admin-demo` (dari mana data datang)
+
+Alasannya: komponen nav sudah membaca `usePathname()` untuk menandai menu aktif,
+jadi prop `base` berarti dua sumber kebenaran untuk satu hal — dan yang satu
+pasti akan lupa diperbarui. **Menyalin panelnya jadi versi kedua akan berhasil
+hari ini dan salah dalam dua minggu**, dan yang dilihat orang untuk mempelajari
+sistem ini justru salinan yang basi.
+
+**Tiga lapis supaya tidak ada data asli yang bisa bocor:**
+1. Tidak ada satu pun `getAdminClient()` di seluruh cabang `/admin-demo`.
+   Bukan "tidak dipakai" — tidak ada jalannya. (Panel bot: `api()`/`post()`
+   tidak pernah memanggil jaringan di mode demo.)
+2. `AdminProvider` mengenali mode demo dan menolak mengirim aksi apa pun.
+3. Kalau lapis 1 dan 2 sama-sama bocor, `/api/admin/action` tetap menuntut
+   `isAdmin()`.
+
+Nomor di data contoh memakai awalan `0800000…` / `6280000…` yang tidak dipakai
+operator mana pun.
+
+⚠ **Kalau menambah tab atau kolom di panel admin, periksa `demoData.js`.**
+Bentuknya wajib sama dengan yang dikembalikan `getAdminStats()`. Sudah terbukti
+sekali: `sellersList` diisi baris profil mentah, dan `/admin-demo/penjual`
+menjawab 500 karena `s.seller_wa` undefined. Bentuk data yang salah tidak
+terlihat sampai halamannya benar-benar dirender.
+
+`/admin-demo/antrean` **sengaja tidak** memakai `TabAntrean`: komponen itu
+memanggil VPS bot untuk membaca antrean sungguhan, dan halaman terbuka yang
+mengetuk mesin produksi bukan demo yang jujur.
 
 ---
 
@@ -683,6 +760,47 @@ tangan seluruh kuki sesi penjual sekaligus — karena kuki itu ditandatangani HM
 dengan sandi admin. Dua rahasia berbeda tugas berbagi satu nilai. Sudah diputus
 lewat `SESSION_SECRET` (jatuh kembali ke `ADMIN_PASSWORD` kalau belum diisi,
 supaya rilisnya sendiri tidak mengeluarkan siapa pun).
+
+### 22 Agustus 2026 — dua panel demo, dan penjual yang boleh menulis
+
+Tiga pekerjaan yang saling terkait, semuanya atas permintaan pemilik: panel
+admin dan panel bot butuh kembaran terbuka supaya cara kerja sistem ini bisa
+dipelajari orang lain (termasuk juri lomba), dan penjual butuh jalan untuk
+menulis blog.
+
+**Blog penjual (BAGIAN 29).** Dua jalur — berbadge terbit langsung, tanpa badge
+antre di admin — dan yang menentukan dihitung di server, bukan diterima dari
+klien. Rincian alurnya di §2.5b.
+
+Satu lubang ikut ditutup: `/blog/[slug]` dulu mengambil artikel **tanpa
+menyaring status**. Selama hanya admin yang menulis, itu tidak apa-apa; begitu
+tabel `blogs` memuat draf dan tulisan yang menunggu persetujuan, ia jadi pintu
+belakang — "menunggu review" yang isinya sudah terbaca di internet bukan
+menunggu apa-apa.
+
+**Dua panel demo (§2.6).** Keputusan yang menentukan seluruh bentuk pekerjaan
+ini: satu kode, dua alamat — bukan dua salinan. Yang membedakan diturunkan dari
+alamat halaman lewat `useBasisAdmin()` / `useBasisApi()`.
+
+**Dua hal yang hanya ketahuan dengan membuka halamannya:**
+1. `/admin-demo/penjual` menjawab 500 karena `sellersList` demo diisi baris
+   profil mentah (`wa`), sementara tab itu membaca bentuk yang sudah diringkas
+   (`seller_wa`). Bentuk data yang salah tidak terlihat di pemeriksaan sintaks
+   maupun di build yang sukses.
+2. Angka yang terlihat seperti nomor telepon di HTML demo ternyata potongan
+   `4.081632653061225%` — CSS, bukan data. Pemeriksaan kebocoran yang benar
+   bukan mencari pola nomor di keluaran, melainkan membuktikan **tidak ada
+   jalan** dari cabang demo ke database.
+
+**Diverifikasi di produksi:** 24 tab demo dibuka satu per satu · halaman detail
+iklan, penjual, editor artikel, dan persetujuan toko semuanya 200 · `/demo` bot
+tayang lewat domain publik dengan spanduknya · `/api/blog/penulis` menolak
+tanpa sesi.
+
+**Yang tidak bisa diuji dari sini:** alur tulis-kirim-setujui dari sisi penjual
+dan admin sungguhan. Sejak `ADMIN_PASSWORD` dirotasi (21 Agu malam) sesi ini
+tidak punya jalan masuk ke `/admin` maupun ke akun penjual mana pun — dan itu
+memang yang diinginkan. Ujinya ada di tangan pemilik.
 
 ### Sebelum audit ini
 Riwayat perubahan lengkap kedua repo ada di **`/update`**, dirakit langsung dari

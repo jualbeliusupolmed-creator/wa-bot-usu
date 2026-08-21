@@ -1746,3 +1746,79 @@ SELECT 'search_path increment_listing_views',
        COALESCE((SELECT array_to_string(p.proconfig, ', ') FROM pg_proc p
                    JOIN pg_namespace n ON n.oid = p.pronamespace
                   WHERE n.nspname='public' AND p.proname='increment_listing_views'), 'fungsi tidak ada');
+
+
+-- ---------------------------------------------------------------------
+-- BAGIAN 29 — Penjual boleh menulis blog, dengan dua pintu
+--
+-- Sampai sekarang `blogs` hanya bisa diisi admin, dan kolom `author` cuma
+-- teks bebas berisi "Admin". Bagian ini membuka penulisan untuk penjual,
+-- dengan dua jalur yang sengaja berbeda:
+--
+--   berbadge (blog_badge = true)  → tulisannya langsung terbit
+--   tanpa badge                    → tulisannya menunggu persetujuan admin
+--
+-- Badge diberikan admin, dan hanya admin yang bisa mencabutnya. Ia bukan
+-- hadiah kosmetik: ia memindahkan orang dari antrean moderasi ke jalur
+-- terbit-langsung, jadi memberikannya = mempercayakan nama situs ini.
+--
+-- Kenapa nilai statusnya campur bahasa ('published' dan 'draft' Inggris,
+-- 'menunggu' dan 'ditolak' Indonesia): dua yang pertama sudah dipakai 7
+-- baris yang ada, halaman /blog, dan editor admin. Menyeragamkannya berarti
+-- menyentuh ketiganya demi kerapian nama — utang yang lebih murah dibayar
+-- nanti daripada risiko artikel hilang dari beranda hari ini.
+-- ---------------------------------------------------------------------
+
+-- 1. BADGE PENULIS DI PROFIL PENJUAL ------------------------------------
+ALTER TABLE public.seller_profiles
+  ADD COLUMN IF NOT EXISTS blog_badge    boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS blog_badge_at timestamptz;
+
+-- 2. PENULIS DAN JEJAK PERSETUJUAN DI ARTIKEL ---------------------------
+ALTER TABLE public.blogs
+  ADD COLUMN IF NOT EXISTS author_wa    text,
+  ADD COLUMN IF NOT EXISTS reject_note  text,
+  ADD COLUMN IF NOT EXISTS submitted_at timestamptz,
+  ADD COLUMN IF NOT EXISTS reviewed_at  timestamptz;
+
+-- `author` (teks bebas) DIBIARKAN. Ia yang tampil di halaman publik dan
+-- sudah terisi di 7 artikel lama; `author_wa` yang menyimpan siapa
+-- pemiliknya di sistem. Artikel admin punya author_wa NULL, dan itu sah.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'blogs_author_wa_fkey') THEN
+    ALTER TABLE public.blogs
+      ADD CONSTRAINT blogs_author_wa_fkey
+      FOREIGN KEY (author_wa) REFERENCES public.seller_profiles(wa)
+      ON UPDATE CASCADE ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- 3. STATUS YANG SAH ----------------------------------------------------
+-- Tanpa CHECK, satu salah ketik di kode menghasilkan artikel yang tidak
+-- pernah tampil di mana pun dan tidak pernah muncul di antrean moderasi —
+-- hilang tanpa jejak, tanpa galat.
+ALTER TABLE public.blogs DROP CONSTRAINT IF EXISTS blogs_status_check;
+ALTER TABLE public.blogs ADD CONSTRAINT blogs_status_check
+  CHECK (status IN ('draft', 'menunggu', 'published', 'ditolak'));
+
+-- 4. INDEKS -------------------------------------------------------------
+-- Dasbor penjual selalu bertanya "artikel milik nomor ini, terbaru dulu".
+CREATE INDEX IF NOT EXISTS blogs_author_idx ON public.blogs (author_wa, created_at DESC);
+
+
+-- ---------------------------------------------------------------------
+-- RINGKASAN BAGIAN 29 — semuanya harus 'ada'
+-- ---------------------------------------------------------------------
+SELECT 'seller_profiles.blog_badge' AS objek,
+       CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+                          WHERE table_schema='public' AND table_name='seller_profiles'
+                            AND column_name='blog_badge') THEN 'ada' ELSE 'TIDAK ADA' END AS status
+UNION ALL SELECT 'blogs.author_wa',
+       CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+                          WHERE table_schema='public' AND table_name='blogs'
+                            AND column_name='author_wa') THEN 'ada' ELSE 'TIDAK ADA' END
+UNION ALL SELECT 'blogs_author_wa_fkey',
+       CASE WHEN EXISTS (SELECT 1 FROM pg_constraint WHERE conname='blogs_author_wa_fkey') THEN 'ada' ELSE 'TIDAK ADA' END
+UNION ALL SELECT 'blogs_status_check',
+       CASE WHEN EXISTS (SELECT 1 FROM pg_constraint WHERE conname='blogs_status_check') THEN 'ada' ELSE 'TIDAK ADA' END;
