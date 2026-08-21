@@ -78,11 +78,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ALASAN: ${{ steps.periksa.outputs.alasan }}
         run: |
+          # -R di tiap perintah gh: job ini sengaja TIDAK meng-checkout repo —
+          # yang diperiksa sebuah URL, bukan kode — dan tanpa folder .git di
+          # sekitarnya gh tidak bisa menebak repo mana yang dimaksud. Itu yang
+          # menggagalkan percobaan kedua: "fatal: not a git repository".
           JUDUL="🔴 Bot padam — /health tidak sehat"
-          NOMOR="$(gh issue list --state open --label padam --json number --jq '.[0].number' 2>/dev/null || true)"
+          NOMOR="$(gh issue list -R "$GITHUB_REPOSITORY" --state open --label padam --json number --jq '.[0].number' 2>/dev/null || true)"
 
           if [ -z "$NOMOR" ]; then
-            gh label create padam --color B60205 --description "Bot WhatsApp tidak menjawab /health" 2>/dev/null || true
+            gh label create -R "$GITHUB_REPOSITORY" padam --color B60205 --description "Bot WhatsApp tidak menjawab /health" 2>/dev/null || true
             # Isi issue dirakit dengan echo, bukan heredoc. Penutup heredoc harus
             # duduk di kolom 1, dan kolom 1 mengakhiri blok `run: |` di atasnya —
             # itulah yang membuat berkas ini ditolak GitHub pada percobaan pertama
@@ -102,9 +106,9 @@ jobs:
               echo
               echo "Issue ini ditutup otomatis begitu satu pemeriksaan berhasil lagi."
             } > "$RUNNER_TEMP/pesan-padam.md"
-            gh issue create --title "$JUDUL" --label padam --body-file "$RUNNER_TEMP/pesan-padam.md"
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$JUDUL" --label padam --body-file "$RUNNER_TEMP/pesan-padam.md"
           else
-            gh issue comment "$NOMOR" --body "Masih padam pada $(date -u '+%Y-%m-%d %H:%M:%S') UTC — $ALASAN"
+            gh issue comment -R "$GITHUB_REPOSITORY" "$NOMOR" --body "Masih padam pada $(date -u '+%Y-%m-%d %H:%M:%S') UTC — $ALASAN"
           fi
 
       - name: Tutup laporan kalau sudah pulih
@@ -112,7 +116,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOMOR="$(gh issue list --state open --label padam --json number --jq '.[0].number' 2>/dev/null || true)"
+          NOMOR="$(gh issue list -R "$GITHUB_REPOSITORY" --state open --label padam --json number --jq '.[0].number' 2>/dev/null || true)"
           [ -n "$NOMOR" ] || exit 0
-          gh issue comment "$NOMOR" --body "✅ Sehat lagi pada $(date -u '+%Y-%m-%d %H:%M:%S') UTC."
-          gh issue close "$NOMOR"
+          gh issue comment -R "$GITHUB_REPOSITORY" "$NOMOR" --body "✅ Sehat lagi pada $(date -u '+%Y-%m-%d %H:%M:%S') UTC."
+          gh issue close -R "$GITHUB_REPOSITORY" "$NOMOR"

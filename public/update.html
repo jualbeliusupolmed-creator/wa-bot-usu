@@ -63,11 +63,14 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Isi tujuan cadangan di luar server.</strong> Skripnya sudah siap: begitu
-      <code>TUJUAN_LUAR</code> diisi (mis. <code>user@host:/cadangan</code>), cadangan harian
-      dienkripsi AES-256 lalu dikirim ke sana, dan kuncinya dibuat sekali di
-      <code>/root/.kunci-cadangan-sesi</code> — kunci itu <b>tidak</b> ikut terkirim, jadi harus
-      disalin sendiri ke tempat aman. Selama kosong, semua cadangan masih satu disk dengan sesinya.
+      <strong>Salin kunci enkripsi cadangan ke luar server.</strong> Cadangan hariannya sendiri
+      sudah keluar dari VPS: tiap 03:10 arsip sesi dienkripsi AES-256 lalu didorong ke repo GitHub
+      <b>privat</b> <code>cadangan-sesi-wa</code>, tujuh terakhir, riwayat ditulis ulang tiap
+      putaran supaya repo tidak menggemuk. Yang belum keluar cuma kuncinya:
+      <code>/root/.kunci-cadangan-sesi</code> ada di VPS ini saja. Kalau VPS-nya hilang, arsipnya
+      selamat dan kuncinya tidak — dan arsip tanpa kunci sama saja dengan tidak punya cadangan.
+      Buka isinya sekali (<code>cat /root/.kunci-cadangan-sesi</code>), simpan di pengelola kata
+      sandi atau catatan terkunci, selesai.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
