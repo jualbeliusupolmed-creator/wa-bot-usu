@@ -14,7 +14,7 @@
 <style>
   .bar-aksi {
     display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-    padding: 12px; margin: 24px 0;
+    padding: 12px; margin: 16px 0;
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
   }
   .bar-aksi .kanan { margin-left: auto; font-size: .85rem; color: var(--ink-faint); }
@@ -35,6 +35,9 @@
   .item .bawah { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
   .item .galat { font-size: .75rem; color: var(--bad); flex: 1 1 12rem; }
   .kosong { text-align: center; padding: 40px 20px; color: var(--ink-faint); }
+  section.antrean-blok { margin-top: 40px; }
+  section.antrean-blok > h2 { margin-bottom: 6px; }
+  section.antrean-blok > p.muted { margin-top: 0; }
 </style>
 </head>
 <body>
@@ -43,51 +46,73 @@
 <header>
   <div class="kicker">Antrean Notifikasi</div>
   <h1>Pesan yang belum sampai ke WhatsApp</h1>
-  <p class="lead">Setiap notifikasi dari situs — iklan tayang, sundul, perpanjangan — yang
-  gagal dikirim karena bot sedang putus, mendarat di sini alih-alih lenyap. Tekan
-  <b>Kirim</b> begitu bot tersambung lagi.</p>
-  <p class="muted">Daftarnya milik situs (tabel <code>wa_outbox</code> di Supabase), bukan milik
-  server ini — halaman ini menanyakannya lewat token bot. Jadi isinya sama persis dengan yang
-  terlihat di panel admin situs, bukan salinan yang bisa berbeda.</p>
+  <p class="lead">Setiap notifikasi — iklan tayang, sundul, perpanjangan — yang belum sampai
+  ke penerimanya menunggu di salah satu dari <b>dua</b> antrean di bawah. Yang menentukan
+  antrean mana adalah <i>di mana</i> pesannya berhenti.</p>
+  <p class="muted"><b>Antrean bot</b> terisi kalau bot ini hidup tapi WhatsApp-nya putus
+  (menunggu QR, sesi terkunci): pesannya sudah diterima dan disimpan di server ini, dan
+  berangkat sendiri begitu WhatsApp tersambung. <b>Antrean situs</b> terisi kalau
+  situs tidak berhasil menitipkan pesannya sama sekali — VPS mati, nginx tumbang —
+  dan yang itu HANYA berangkat kalau tombol Kirim ditekan.</p>
 </header>
 
-<div class="bar-aksi">
-  <button class="btn primary" id="kirim-semua">Kirim semua</button>
-  <button class="btn ghost" id="muat-ulang">Muat ulang</button>
-  <select id="saring" class="btn" style="padding:8px 11px">
-    <option value="tertunda">Tertunda</option>
-    <option value="terkirim">Sudah terkirim</option>
-    <option value="dibatalkan">Dibatalkan</option>
-    <option value="semua">Semua</option>
-  </select>
-  <span class="kanan" id="ringkas">memuat…</span>
-</div>
+<!-- ── 1. Antrean milik bot ini (outbox.json) ───────────────────────────── -->
+<section class="antrean-blok">
+  <h2>1. Antrean di bot ini</h2>
+  <p class="muted">Tersimpan di <code>outbox.json</code> pada server ini. Berangkat otomatis
+  begitu WhatsApp tersambung — tidak perlu ditekan.</p>
 
-<div id="status-bot" class="card" style="display:none"></div>
+  <div class="bar-aksi">
+    <button class="btn primary" id="lokal-kirim">Kirim sekarang</button>
+    <button class="btn ghost" id="lokal-muat">Muat ulang</button>
+    <button class="btn ghost" id="lokal-hapus-semua">Hapus semua</button>
+    <span class="kanan" id="lokal-ringkas">memuat…</span>
+  </div>
 
-<div class="antre" id="antre"></div>
+  <div id="lokal-status" class="card" style="display:none"></div>
+  <div class="antre" id="lokal-antre"></div>
+</section>
+
+<!-- ── 2. Antrean milik situs (wa_outbox) ───────────────────────────────── -->
+<section class="antrean-blok">
+  <h2>2. Antrean di situs</h2>
+  <p class="muted">Tersimpan di tabel <code>wa_outbox</code> milik situs, bukan di server ini —
+  halaman ini menanyakannya lewat token bot. Isinya sama persis dengan yang terlihat di panel
+  admin situs, bukan salinan yang bisa berbeda.</p>
+
+  <div class="bar-aksi">
+    <button class="btn primary" id="kirim-semua">Kirim semua</button>
+    <button class="btn ghost" id="muat-ulang">Muat ulang</button>
+    <select id="saring" class="btn" style="padding:8px 11px">
+      <option value="tertunda">Tertunda</option>
+      <option value="terkirim">Sudah terkirim</option>
+      <option value="dibatalkan">Dibatalkan</option>
+      <option value="semua">Semua</option>
+    </select>
+    <span class="kanan" id="ringkas">memuat…</span>
+  </div>
+
+  <div id="status-bot" class="card" style="display:none"></div>
+  <div class="antre" id="antre"></div>
+</section>
 
 </div>
 
 <script>
 (function () {
   var tok = new URLSearchParams(location.search).get('token');
-  var elAntre = document.getElementById('antre');
-  var elRingkas = document.getElementById('ringkas');
-  var elStatus = document.getElementById('status-bot');
-  var elSaring = document.getElementById('saring');
 
   function kepala() {
     return tok ? { 'Authorization': tok, 'Content-Type': 'application/json' }
                : { 'Content-Type': 'application/json' };
   }
 
-  function tglSingkat(iso) {
-    if (!iso) return '';
+  function tglSingkat(nilai) {
+    if (!nilai) return '';
     try {
-      return new Date(iso).toLocaleString('id-ID',
+      return new Date(nilai).toLocaleString('id-ID',
         { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    } catch (e) { return iso; }
+    } catch (e) { return String(nilai); }
   }
 
   function lolos(s) {
@@ -96,16 +121,123 @@
       .replace(/"/g, '&quot;');
   }
 
-  function pesanKotak(teks, jenis) {
-    elStatus.style.display = 'block';
-    elStatus.innerHTML = '<p style="margin:0">' + lolos(teks) + '</p>';
-    elStatus.style.borderColor = jenis === 'bad' ? 'var(--bad)' : 'var(--line)';
+  function kotak(el, teks, jenis) {
+    el.style.display = 'block';
+    el.innerHTML = '<p style="margin:0">' + lolos(teks) + '</p>';
+    el.style.borderColor = jenis === 'bad' ? 'var(--bad)' : 'var(--line)';
   }
+
+  // ── Antrean bot ────────────────────────────────────────────────────────
+  var elLokal = document.getElementById('lokal-antre');
+  var elLokalRingkas = document.getElementById('lokal-ringkas');
+  var elLokalStatus = document.getElementById('lokal-status');
+
+  // Sisa umur pesan disebut apa adanya. Antrean ini membuang pesan yang lewat
+  // TTL-nya (72 jam untuk notifikasi), dan orang yang melihat daftar ini berhak
+  // tahu berapa lama lagi sebelum pesannya hilang tanpa pernah terkirim.
+  function sisaUmur(kedaluwarsa) {
+    if (!kedaluwarsa) return '';
+    var ms = kedaluwarsa - Date.now();
+    if (ms <= 0) return 'kedaluwarsa';
+    var jam = Math.floor(ms / 3600000);
+    if (jam >= 24) return 'sisa ' + Math.floor(jam / 24) + ' hari';
+    if (jam >= 1) return 'sisa ' + jam + ' jam';
+    return 'sisa ' + Math.max(1, Math.round(ms / 60000)) + ' menit';
+  }
+
+  function gambarLokal(items) {
+    if (!items.length) {
+      elLokal.innerHTML = '<div class="kosong">Tidak ada pesan yang menunggu di bot ini.</div>';
+      return;
+    }
+    var h = '';
+    for (var it of items) {
+      h += '<div class="item">'
+        + '<div class="atas">'
+        + '<span class="nomor">' + lolos(it.jid) + '</span>'
+        + '<span class="pill ' + (it.grup ? 'info' : '') + '">' + (it.grup ? 'grup' : 'pribadi') + '</span>'
+        + (it.url ? '<span class="pill">bergambar</span>' : '')
+        + (it.percobaan ? '<span class="pill warn">' + it.percobaan + '× dicoba</span>' : '')
+        + '<span class="waktu">' + lolos(tglSingkat(it.ts)) + ' · ' + lolos(sisaUmur(it.kedaluwarsa)) + '</span>'
+        + '</div>'
+        + '<div class="teks">' + lolos(it.message) + '</div>'
+        + '<div class="bawah"><span class="galat"></span>'
+        + '<button class="btn small ghost" data-hapus="' + lolos(it.id) + '">Hapus</button>'
+        + '</div></div>';
+    }
+    elLokal.innerHTML = h;
+  }
+
+  function muatLokal() {
+    elLokalRingkas.textContent = 'memuat…';
+    fetch('/antrean/lokal', { headers: kepala(), cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (h) {
+        if (h.s !== 200) {
+          elLokalRingkas.textContent = 'gagal';
+          kotak(elLokalStatus, h.j.error || ('HTTP ' + h.s), 'bad');
+          elLokal.innerHTML = '';
+          return;
+        }
+        var j = h.j;
+        elLokalRingkas.textContent = j.tertunda + ' menunggu';
+        // Keadaan WhatsApp ditulis di sini, bukan disembunyikan: daftar berisi
+        // pesan yang tidak bergerak selalu memancing pertanyaan "kenapa".
+        if (j.siap) {
+          if (j.tertunda) kotak(elLokalStatus, 'WhatsApp tersambung — antrean sedang berjalan sendiri.');
+          else elLokalStatus.style.display = 'none';
+        } else {
+          kotak(elLokalStatus, (j.sebab || 'WhatsApp belum tersambung.')
+            + ' Pesan di bawah tetap tersimpan dan berangkat sendiri begitu tersambung.', 'bad');
+        }
+        gambarLokal(j.items || []);
+      })
+      .catch(function (e) {
+        elLokalRingkas.textContent = 'gagal';
+        kotak(elLokalStatus, 'Gagal menghubungi server: ' + e.message, 'bad');
+      });
+  }
+
+  function aksiLokal(badan, tombol) {
+    var semula = tombol ? tombol.textContent : null;
+    if (tombol) { tombol.disabled = true; tombol.textContent = 'Memproses…'; }
+    fetch('/antrean/lokal', { method: 'POST', headers: kepala(), body: JSON.stringify(badan) })
+      .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
+      .then(function (h) {
+        if (h.s !== 200) { kotak(elLokalStatus, h.j.error || ('HTTP ' + h.s), 'bad'); return; }
+        if (h.j.dibangunkan) kotak(elLokalStatus, 'Antrean dibangunkan — sisa ' + h.j.sisa + ' pesan.');
+        else if (h.j.dihapus) kotak(elLokalStatus, h.j.dihapus + ' pesan dihapus. Sisa ' + h.j.sisa + '.');
+        muatLokal();
+      })
+      .catch(function (e) { kotak(elLokalStatus, 'Gagal: ' + e.message, 'bad'); })
+      .finally(function () { if (tombol) { tombol.disabled = false; tombol.textContent = semula; } });
+  }
+
+  elLokal.addEventListener('click', function (ev) {
+    var t = ev.target.closest('[data-hapus]');
+    if (!t) return;
+    if (!confirm('Hapus pesan ini dari antrean? Ia tidak akan pernah terkirim.')) return;
+    aksiLokal({ hapus: t.dataset.hapus }, t);
+  });
+  document.getElementById('lokal-kirim').addEventListener('click', function () {
+    aksiLokal({ kirim: true }, this);
+  });
+  document.getElementById('lokal-hapus-semua').addEventListener('click', function () {
+    if (!confirm('Hapus SEMUA pesan yang menunggu di bot ini? Tidak bisa dibatalkan.')) return;
+    aksiLokal({ hapus_semua: true }, this);
+  });
+  document.getElementById('lokal-muat').addEventListener('click', muatLokal);
+
+  // ── Antrean situs ──────────────────────────────────────────────────────
+  var elAntre = document.getElementById('antre');
+  var elRingkas = document.getElementById('ringkas');
+  var elStatus = document.getElementById('status-bot');
+  var elSaring = document.getElementById('saring');
 
   function gambar(items) {
     if (!items.length) {
-      elAntre.innerHTML = '<div class="kosong">Tidak ada yang tertunda. '
-        + 'Semua notifikasi sudah sampai.</div>';
+      elAntre.innerHTML = '<div class="kosong">Tidak ada yang tertunda di situs. '
+        + 'Semua notifikasi berhasil dititipkan ke bot.</div>';
       return;
     }
     var h = '';
@@ -137,7 +269,7 @@
       .then(function (h) {
         if (h.s !== 200) {
           elRingkas.textContent = 'gagal';
-          pesanKotak(h.j.error || ('HTTP ' + h.s), 'bad');
+          kotak(elStatus, h.j.error || ('HTTP ' + h.s), 'bad');
           elAntre.innerHTML = '';
           return;
         }
@@ -147,7 +279,7 @@
       })
       .catch(function (e) {
         elRingkas.textContent = 'gagal';
-        pesanKotak('Gagal menghubungi server: ' + e.message, 'bad');
+        kotak(elStatus, 'Gagal menghubungi server: ' + e.message, 'bad');
       });
   }
 
@@ -157,20 +289,24 @@
     fetch('/antrean/kirim', { method: 'POST', headers: kepala(), body: JSON.stringify(badan) })
       .then(function (r) { return r.json().then(function (j) { return { s: r.status, j: j }; }); })
       .then(function (h) {
-        if (h.s !== 200) { pesanKotak(h.j.error || ('HTTP ' + h.s), 'bad'); return; }
+        if (h.s !== 200) { kotak(elStatus, h.j.error || ('HTTP ' + h.s), 'bad'); return; }
         var j = h.j;
-        if (j.dibatalkan) pesanKotak('Dibatalkan.');
+        if (j.dibatalkan) kotak(elStatus, 'Dibatalkan.');
         else if (j.gagal) {
           // Sebutkan alasannya. "Gagal" tanpa sebab membuat orang menekan
           // tombolnya berulang kali pada bot yang memang belum tersambung.
-          pesanKotak(j.terkirim + ' terkirim, ' + j.gagal + ' masih gagal — '
+          kotak(elStatus, j.terkirim + ' terkirim, ' + j.gagal + ' masih gagal — '
             + (j.alasan && j.alasan.length ? j.alasan.join('; ') : 'sebab tidak disebutkan'), 'bad');
         } else if (j.terkirim) {
-          pesanKotak(j.terkirim + ' terkirim. Sisa ' + j.sisa + ' tertunda.');
+          kotak(elStatus, j.terkirim + ' terkirim. Sisa ' + j.sisa + ' tertunda.');
         }
         muat();
+        // Pesan yang baru dititipkan ke bot mendarat di antrean bot, bukan
+        // langsung ke WhatsApp. Muat ulang keduanya supaya angkanya tidak
+        // saling berbohong sesaat setelah tombol ditekan.
+        muatLokal();
       })
-      .catch(function (e) { pesanKotak('Gagal: ' + e.message, 'bad'); })
+      .catch(function (e) { kotak(elStatus, 'Gagal: ' + e.message, 'bad'); })
       .finally(function () { if (tombol) { tombol.disabled = false; tombol.textContent = semula; } });
   }
 
@@ -187,6 +323,7 @@
   document.getElementById('muat-ulang').addEventListener('click', muat);
   elSaring.addEventListener('change', muat);
 
+  muatLokal();
   muat();
 })();
 </script>

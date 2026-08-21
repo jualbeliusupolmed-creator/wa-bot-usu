@@ -1407,6 +1407,93 @@ app.post('/antrean/kirim', requireAuth, (req, res) => {
     });
 });
 
+// ── Antrean MILIK BOT INI (outbox.json) ──────────────────────────────────────
+// Ada DUA antrean, dan halaman /antrean dulu cuma memperlihatkan salah satunya.
+//
+//   wa_outbox (Supabase) terisi kalau situs GAGAL menitipkan pesannya — VPS
+//   mati, nginx tumbang, DNS gagal. Situs tahu pesannya tidak diterima siapa pun.
+//
+//   outbox.json (berkas ini) terisi kalau bot HIDUP tapi WhatsApp-nya yang putus:
+//   menunggu QR dipindai, sesi terkunci, koneksi tumbang. /send menerima
+//   pesannya, menjawab ok=true dengan jujur (ia memang sudah menyimpannya), dan
+//   situs tidak punya alasan untuk menampung apa pun.
+//
+// Akibatnya keadaan yang paling sering terjadi — bot nyala, WA putus — membuat
+// halaman antrean menampilkan "semua sudah sampai" sementara enam notifikasi
+// duduk di berkas ini. Persis yang terjadi 21 Agustus 2026 pada iklan "Cimory".
+// Karena itu halaman yang sama sekarang membaca kedua antrean.
+
+// Tugas di antrean tidak lahir dengan id — dulu tidak ada yang perlu menyebut
+// satu baris tertentu. Id ditempelkan saat pertama kali dilihat, lalu ikut
+// tersimpan ke disk, jadi tombol Hapus di halaman menunjuk baris yang sama
+// meski daftarnya sudah bergeser di antara dua muat.
+function idTugas(t) {
+    if (!t.id) t.id = `${t.ts || 0}-${Math.random().toString(36).slice(2, 8)}`;
+    return t.id;
+}
+
+app.get('/antrean/lokal', requireAuth, (req, res) => {
+    const sekarang = Date.now();
+    const items = messageQueue.map((t) => ({
+        id: idTugas(t),
+        jid: t.jid,
+        message: t.poll ? `[poll] ${t.poll.name || ''}` : (t.message || ''),
+        url: t.url || null,
+        ts: t.ts || null,
+        kedaluwarsa: (t.ts || sekarang) + (t.ttl || TTL_BALASAN_MS),
+        percobaan: t.attempts || 0,
+        grup: String(t.jid || '').includes('@g.us'),
+    }));
+    simpanOutbox();
+    res.json({
+        ok: true,
+        // Kenapa antreannya belum berangkat — pertanyaan pertama siapa pun yang
+        // melihat daftar ini, dan jawabannya tidak boleh perlu dicari di halaman lain.
+        siap: botSiap(),
+        tersambung: socketAlive(),
+        menungguPindai,
+        terkunci: sesiTerkunci,
+        sebab: botSiap() ? null
+            : sesiTerkunci ? 'Sesi WhatsApp terkunci — perlu dibuka dari dashboard.'
+            : menungguPindai ? 'Perangkat belum tertaut — QR/pairing menunggu dipindai.'
+            : 'WhatsApp belum tersambung.',
+        tertunda: items.length,
+        items,
+    });
+});
+
+// Yang bisa dilakukan di sini cuma dua, dan keduanya jujur soal batasnya:
+// "kirim sekarang" hanya membangunkan antrean (pengirimannya tetap butuh WA
+// tersambung — tidak ada tombol yang bisa menyambungkannya), dan "hapus"
+// membuang pesan yang memang sudah tidak pantas berangkat.
+app.post('/antrean/lokal', requireAuth, (req, res) => {
+    const b = req.body || {};
+    if (b.hapus) {
+        const sebelum = messageQueue.length;
+        const sisa = messageQueue.filter((t) => idTugas(t) !== String(b.hapus));
+        messageQueue.length = 0;
+        messageQueue.push(...sisa);
+        simpanOutbox();
+        return res.json({ ok: true, dihapus: sebelum - messageQueue.length, sisa: messageQueue.length });
+    }
+    if (b.hapus_semua) {
+        const dihapus = messageQueue.length;
+        messageQueue.length = 0;
+        simpanOutbox();
+        return res.json({ ok: true, dihapus, sisa: 0 });
+    }
+    if (b.kirim) {
+        if (!botSiap()) {
+            return res.status(409).json({
+                error: 'WhatsApp belum tersambung — antrean tetap disimpan dan berangkat sendiri begitu tersambung.',
+            });
+        }
+        kickQueue();
+        return res.json({ ok: true, dibangunkan: true, sisa: messageQueue.length });
+    }
+    return res.status(400).json({ error: 'Sebutkan hapus, hapus_semua, atau kirim.' });
+});
+
 // Teks biasa, bukan application/sql: kalau tipenya dibiarkan apa adanya,
 // peramban mengunduhnya alih-alih menampilkan, dan curl kehilangan gunanya.
 for (const berkas of ['migrasi.sql', 'migrasi-keamanan.sql']) {
