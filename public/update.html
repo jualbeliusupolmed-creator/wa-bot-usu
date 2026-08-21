@@ -61,6 +61,11 @@ semuanya menulis ke sana — tujuh di antaranya bernama sama persis dengan setel
 Aksi, jadi ada dua sakelar untuk satu hal dan cuma satu yang bekerja. Sakelarnya dicabut; yang
 tersisa daftar baca-saja berisi 35 kemampuan yang benar-benar ada, masing-masing menyebut
 endpoint atau berkasnya.</p>
+<p class="muted">Kunci enkripsi cadangan juga turun dari daftar pada hari yang sama:
+pemilik menyalinnya keluar dari VPS lewat <code>scp</code>. Itu penting bukan cuma karena
+arsipnya jadi bisa dibuka — <code>cadangkan-sesi.sh</code> membuat kunci BARU tanpa mengeluh
+kalau berkasnya hilang, jadi kunci yang cuma hidup di satu server adalah satu penghapusan
+tak sengaja dari membuat seluruh arsip di GitHub jadi derau permanen.</p>
 <div class="card">
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
@@ -73,17 +78,6 @@ endpoint atau berkasnya.</p>
       sedang dibatasi WhatsApp, dan menautkan ulang saat sedang dibatasi justru memperpanjangnya.
       Yang paling aman: kembalikan folder <code>.bak-</code> itu kalau nomornya masih tertaut di HP.
       Pindai QR / kode pairing hanya kalau perangkatnya memang sudah dilepas.
-    </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Salin kunci enkripsi cadangan ke luar server.</strong> Cadangan hariannya sendiri
-      sudah keluar dari VPS: tiap 03:10 arsip sesi dienkripsi AES-256 lalu didorong ke repo GitHub
-      <b>privat</b> <code>cadangan-sesi-wa</code>, tujuh terakhir, riwayat ditulis ulang tiap
-      putaran supaya repo tidak menggemuk. Yang belum keluar cuma kuncinya:
-      <code>/root/.kunci-cadangan-sesi</code> ada di VPS ini saja. Kalau VPS-nya hilang, arsipnya
-      selamat dan kuncinya tidak — dan arsip tanpa kunci sama saja dengan tidak punya cadangan.
-      Buka isinya sekali (<code>cat /root/.kunci-cadangan-sesi</code>), simpan di pengelola kata
-      sandi atau catatan terkunci, selesai.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
