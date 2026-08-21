@@ -678,10 +678,41 @@
             } else if (status.connected) {
                 $('pairing-container').style.display = 'none';
                 $('qr-container').innerHTML = '<p style="color:var(--success);font-weight:600"><i class="fa-solid fa-circle-check"></i> Perangkat tersambung</p>';
+            } else if (status.menungguPindai) {
+                // Bot sengaja diam. Tanpa kartu ini, layarnya cuma bertuliskan
+                // "sedang menghubungkan…" selamanya dan tidak ada yang tahu bahwa
+                // yang ditunggu justru orang yang sedang membacanya.
+                // Form kode pairing tetap dibuka: meminta kode juga membangunkan
+                // bot, dan justru ini saat orang menautkan perangkat — sama seperti
+                // perangkat kedua di bawah, jangan cuma satu jalan yang tersedia.
+                $('pairing-container').style.display = 'block';
+                $('qr-container').innerHTML = kartuMenungguPindai(1, status.pindaiRetryMenit);
             } else {
                 $('pairing-container').style.display = 'none';
                 $('qr-container').innerHTML = '<p class="muted"><i class="fa-solid fa-spinner fa-spin"></i> Sedang menghubungkan…</p>';
             }
+        }
+
+        // Bot berhenti menampilkan QR karena tidak ada yang memindai. Yang
+        // membangunkannya adalah TINDAKAN — tombol di bawah ini — bukan halaman
+        // yang kebetulan terbuka; itulah bedanya dengan ketukan tanpa henti yang
+        // dulu bikin nomor kedua mencoba login 533 kali dalam 32 jam.
+        function kartuMenungguPindai(perangkat, menit) {
+            return '<p class="muted" style="text-align:center;max-width:320px">'
+                + '<i class="fa-solid fa-mobile-screen-button"></i> Perangkat belum tertaut. '
+                + 'QR berhenti ditampilkan karena tidak ada yang memindainya — bot sengaja diam '
+                + 'supaya tidak mengetuk WhatsApp terus-menerus.</p>'
+                + `<button class="small" onclick="bangunkanQr(${perangkat})">Tampilkan QR</button>`
+                + `<p class="tiny muted">Siapkan HP dulu (WhatsApp → Perangkat tertaut), baru tekan. `
+                + `Tanpa ditekan, bot mencoba sendiri tiap ${menit || 30} menit.</p>`;
+        }
+
+        // Permintaan /qr ITU tandanya: bot yang sedang diam akan menyiapkan socket
+        // baru begitu menerimanya, dan QR-nya muncul lewat polling biasa.
+        async function bangunkanQr(perangkat) {
+            const wadah = perangkat === 2 ? 'qr2-container' : 'qr-container';
+            $(wadah).innerHTML = '<p class="muted"><i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan QR… (±15 detik)</p>';
+            await api(perangkat === 2 ? '/perangkat2/qr' : '/qr');
         }
 
         // Perangkat kedua. Gagal di sini tidak boleh mengganggu apa pun di atas:
@@ -702,8 +733,13 @@
                 if (qr && qr.qr) $('qr2-container').innerHTML = `<img src="${qr.qr}" alt="QR perangkat 2">`;
             } else if (st.connected) {
                 $('pairing2-container').style.display = 'none';
+                // `st.phone`, bukan `st.connectedPhone`: /status memang menamainya
+                // `phone`, jadi yang lama selalu undefined dan nomornya tidak pernah muncul.
                 $('qr2-container').innerHTML = '<p style="color:var(--success);font-weight:600"><i class="fa-solid fa-circle-check"></i> Perangkat 2 tersambung'
-                    + (st.connectedPhone ? ` (${st.connectedPhone})` : '') + '</p>';
+                    + (st.phone ? ` (${st.phone})` : '') + '</p>';
+            } else if (st.menungguPindai) {
+                $('pairing2-container').style.display = 'block';
+                $('qr2-container').innerHTML = kartuMenungguPindai(2, st.pindaiRetryMenit);
             } else {
                 $('pairing2-container').style.display = 'none';
                 $('qr2-container').innerHTML = '<p class="muted"><i class="fa-solid fa-spinner fa-spin"></i> Sedang menghubungkan…</p>';

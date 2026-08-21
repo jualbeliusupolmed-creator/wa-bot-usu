@@ -285,6 +285,29 @@ const KUNCI_SESI = String(process.env.KUNCI_SESI ?? 'true') !== 'false';
 const KUNCI_RETRY_MS = Number(process.env.KUNCI_RETRY_MINUTES || 10) * 60 * 1000;
 let sesiTerkunci = false;
 
+// ── Menunggu ditautkan ───────────────────────────────────────────────────────
+// Bot tanpa sesi menampilkan QR lalu menunggu. Kalau tidak ada yang memindai,
+// Baileys menutup koneksi (408) dan rantai sambung-ulang membuka koneksi baru
+// tiap ~60 detik — selamanya. Bot kedua sempat begitu 533 kali dalam 32 jam:
+// ratusan percobaan login pada nomor yang justru sedang minta ditautkan, persis
+// pola yang bikin nomor dicurigai WhatsApp, dan tidak satu pun berguna karena
+// yang ditunggu adalah manusia dengan HP di tangan, bukan jaringan yang pulih.
+//
+// Jadi setelah beberapa siklus QR yang mati sia-sia, bot DIAM. Diamnya bukan
+// menyerah: ia menunggu tanda bahwa ada orang yang siap memindai, dan tandanya
+// konkret — seseorang membuka kartu QR (GET /qr) atau meminta kode pairing dari
+// dashboard. Begitu tanda itu datang, bangunkanPindai() menyiapkan QR baru dalam
+// hitungan detik. Sisanya cuma denyut lambat sebagai jaring pengaman.
+// 5 siklus ≈ 5 menit QR yang tidak dipindai sebelum bot diam. Sengaja tidak
+// dinolkan oleh dashboard yang sedang membuka kartu QR: tab yang lupa ditutup
+// akan terlihat persis seperti orang yang siap memindai, dan justru itu yang
+// bikin bot kedua mengetuk 533 kali. Yang menghidupkannya lagi adalah tindakan
+// (tombol "Tampilkan QR"), bukan sekadar halaman yang kebetulan terbuka.
+const PINDAI_MAKS_SIKLUS = Number(process.env.PINDAI_MAKS_SIKLUS || 5);
+const PINDAI_RETRY_MS = Number(process.env.PINDAI_RETRY_MINUTES || 30) * 60 * 1000;
+let menungguPindai = false;
+let siklusQrSiaSia = 0;
+
 
 const app = express();
 // Semua trafik masuk lewat nginx di loopback, jadi req.ip apa adanya selalu
@@ -962,6 +985,9 @@ app.get('/health', (req, res) => {
         // Dibaca penjaga-bot.sh: sesi terkunci berarti yang dibutuhkan tangan
         // manusia, dan restart proses hanya menambah ketukan yang sia-sia.
         terkunci: sesiTerkunci,
+        // Sama alasannya: perangkat belum tertaut dan bot sedang diam menunggu
+        // ada yang memindai. Proses baru tidak memindai QR-nya sendiri.
+        menungguPindai,
     });
 });
 
@@ -1073,7 +1099,15 @@ app.get('/riwayat', async (req, res) => {
 
 // ── QR JSON endpoint (untuk admin panel web) ─────────────────────────────────
 app.get('/qr', requireAuth, async (req, res) => {
-    if (!currentQR) return res.json({ qr: null, connected: true });
+    if (!currentQR) {
+        // Membuka kartu QR itu sendiri tandanya: kalau bot sedang diam menunggu
+        // ditautkan, permintaan inilah yang membangunkannya. Dulu di sini selalu
+        // dijawab `connected: true` — padahal "tidak ada QR" juga berarti belum
+        // tersambung sama sekali, dan dashboard jadi tidak bisa membedakannya.
+        const dibangunkan = bangunkanPindai();
+        const tersambung = !!(waSocket && connectedPhone);
+        return res.json({ qr: null, connected: tersambung, menyiapkan: dibangunkan || !tersambung });
+    }
     try {
         const qrImage = await QRCode.toDataURL(currentQR, { width: 300 });
         res.json({ qr: qrImage, connected: false });
@@ -1111,6 +1145,11 @@ app.get('/status', requireAuth, (req, res) => {
         sesiTerkunci,
         kunciSesiAktif: KUNCI_SESI,
         kunciRetryMenit: Math.round(KUNCI_RETRY_MS / 60000),
+        // Perangkat belum tertaut dan bot berhenti mengetuk sampai ada yang siap
+        // memindai. Dashboard memakai ini untuk menawarkan tombol "Tampilkan QR".
+        menungguPindai,
+        siklusQrSiaSia,
+        pindaiRetryMenit: Math.round(PINDAI_RETRY_MS / 60000),
         logoutStrikes,
         // Ringkasan hari ini, biar dashboard tidak perlu dua panggilan untuk kartu utama.
         today: stats.daily[statsDay()] || {},
@@ -1445,6 +1484,20 @@ function exitAfterFlush(code) {
     setTimeout(bye, 5000).unref();
 }
 
+// Tanda "ada manusia siap memindai" → siapkan QR baru SEKARANG, jangan tunggu
+// denyut lambat. Dipanggil dari /qr dan /pairing-code, termasuk saat dashboard
+// bot pertama meneruskannya ke bot kedua lewat /perangkat2/*.
+function bangunkanPindai() {
+    if (!menungguPindai) return false;
+    menungguPindai = false;
+    siklusQrSiaSia = 0;
+    console.log('[pindai] Ada yang membuka kartu QR — menyiapkan QR baru sekarang.');
+    // startBot() menolak jalan ganda (startingBot) dan menaikkan botGeneration,
+    // jadi timer denyut lambat yang masih menggantung otomatis jadi tidak berlaku.
+    if (!socketAlive()) startBot().catch((e) => console.error('[pindai] startBot gagal:', e?.message || e));
+    return true;
+}
+
 // Pemantau padam berkepanjangan. Dijalankan tiap menit; lihat catatan di
 // OFFLINE_RESTART_MS soal kenapa restart proses adalah obat yang berbeda dari
 // sekadar startBot() sekali lagi.
@@ -1457,7 +1510,10 @@ function watchProlongedOutage() {
     // dinanti adalah keputusan manusia, bukan socket baru. Restart di sini malah
     // menghapus penanda kunci (ia cuma di memori) sehingga tiap proses baru
     // mengulang ketukan login dari nol — persis pola yang bikin nomor dicurigai.
-    if (currentQR || sessionLostAt || sesiTerkunci) return;
+    // `menungguPindai` sekategori: QR-nya sengaja tidak dipajang karena tidak ada
+    // yang memindai, jadi restart di sini cuma menghidupkan lagi ketukan yang
+    // barusan sengaja dihentikan.
+    if (currentQR || sessionLostAt || sesiTerkunci || menungguPindai) return;
     // Belum pernah tersambung sejak proses hidup pun terhitung padam: kalau
     // startBot() membeku sebelum socket lahir, tidak ada event 'close' yang
     // mengisi offlineSince dan pemantau ini akan tidur selamanya.
@@ -1566,7 +1622,14 @@ app.post('/pairing-code', requireAuth, requireRelink, async (req, res) => {
         const { phone } = req.body;
         if (!phone) return res.status(400).json({ error: 'Nomor HP wajib diisi' });
         
-        if (!waSocket) return res.status(503).json({ error: 'Bot sedang tidak aktif/terhubung' });
+        if (!waSocket) {
+            // Minta kode pairing = ada orang yang sedang menautkan. Bangunkan dulu,
+            // lalu minta ia mencoba lagi sebentar — soket baru butuh beberapa detik.
+            const dibangunkan = bangunkanPindai();
+            return res.status(503).json({ error: dibangunkan
+                ? 'Bot tadi diam menunggu ditautkan. Koneksi sedang disiapkan — coba lagi ~15 detik.'
+                : 'Bot sedang tidak aktif/terhubung' });
+        }
         
         if (waSocket.authState.creds.registered || connectedPhone) {
             return res.status(400).json({ error: 'Bot sudah login dan terdaftar' });
@@ -2196,6 +2259,10 @@ async function startBotInner(myGen) {
     // oleh handler 'close' atau oleh watchdog di bawah, jangan dua-duanya.
     let reconnectScheduled = false;
     let connectWatchdog = null;
+    // Riwayat singkat socket ini, dipakai untuk membedakan "QR mati karena tidak
+    // ada yang memindai" dari "koneksi putus di tengah jalan".
+    let qrSiklusIni = false;
+    let pernahTersambung = false;
     const scheduleRestart = (delayMs) => {
         if (reconnectScheduled) return;
         // Socket generasi lama tidak boleh menjadwalkan apa pun: yang aktif sekarang
@@ -2203,12 +2270,19 @@ async function startBotInner(myGen) {
         if (myGen !== botGeneration) return;
         reconnectScheduled = true;
         if (connectWatchdog) clearTimeout(connectWatchdog);
-        setTimeout(() => startBot().catch((e) => {
+        setTimeout(() => {
+            // Penjaga waktu-nyala. Jeda di sini bisa berjam-jam (kunci sesi) atau
+            // puluhan menit (menunggu dipindai), dan selama itu socket lain bisa
+            // sudah lahir — mis. karena ada yang menekan "Tampilkan QR". Tanpa
+            // pemeriksaan ini, timer lama akan membunuh socket baru yang sehat.
+            if (myGen !== botGeneration) return;
             // Tanpa catch di sini, startBot() yang reject bikin rantai reconnect
             // putus diam-diam dan bot "hidup" tapi tidak pernah nyambung lagi.
-            console.error('[reconnect] startBot gagal:', e?.message || e);
-            setTimeout(() => startBot().catch(() => {}), 10000);
-        }), delayMs);
+            startBot().catch((e) => {
+                console.error('[reconnect] startBot gagal:', e?.message || e);
+                setTimeout(() => startBot().catch(() => {}), 10000);
+            });
+        }, delayMs);
     };
 
     // Watchdog: pernah kejadian socket berhenti di 'connecting' tanpa event lanjutan,
@@ -2291,6 +2365,7 @@ async function startBotInner(myGen) {
         if (myGen !== botGeneration) return;
         if (qr) {
             currentQR = qr;
+            qrSiklusIni = true;
             // Nunggu QR discan itu WAJAR, bukan nyangkut — jangan diputus watchdog
             // 90 detik. Baileys punya qrTimeout sendiri yang menutup koneksi kalau
             // QR kedaluwarsa; watchdog di sini cuma jaring pengaman terakhir.
@@ -2319,6 +2394,29 @@ async function startBotInner(myGen) {
             conversationContext.clear();
             if (reconnectScheduled) return; // watchdog sudah menjadwalkan sambung ulang
             const statusCode = lastDisconnect?.error?.output?.statusCode;
+            // Siklus yang memunculkan QR lalu mati tanpa pernah tersambung berarti
+            // TIDAK ADA yang memindai. Itu bukan gangguan jaringan — WhatsApp
+            // menjawab dengan benar, yang tidak datang manusianya — jadi menyambung
+            // ulang tiap menit tidak mempercepat apa pun. (515 dikecualikan: itu
+            // restart normal tepat SETELAH pairing berhasil.)
+            if (qrSiklusIni && !pernahTersambung && statusCode !== 515) {
+                siklusQrSiaSia++;
+                if (siklusQrSiaSia >= PINDAI_MAKS_SIKLUS) {
+                    if (!menungguPindai) {
+                        menungguPindai = true;
+                        console.warn(`[pindai] ${siklusQrSiaSia} QR berturut-turut kedaluwarsa tanpa dipindai — `
+                            + 'bot BERHENTI mengetuk WhatsApp. Buka kartu QR di dashboard (atau minta kode '
+                            + `pairing) untuk memunculkan QR baru; kalau tidak, dicoba lagi tiap `
+                            + `${Math.round(PINDAI_RETRY_MS / 60000)} menit.`);
+                    }
+                    // QR-nya mati bersama socket ini. Memajangnya lebih lama cuma
+                    // membuat orang memindai gambar yang sudah tidak berlaku.
+                    currentQR = '';
+                    reconnectAttempts = 0;
+                    scheduleRestart(PINDAI_RETRY_MS);
+                    return;
+                }
+            }
             // PENTING: HANYA 401 (loggedOut) yang boleh menghapus sesi. Kode lain
             // (428 gangguan sementara, 515 restartRequired yang NORMAL) cukup sambung
             // ulang dgn creds yang sama. Menghapus sesi → QR scan ulang berulang =
@@ -2387,6 +2485,9 @@ async function startBotInner(myGen) {
             // Wajib: kalau tidak dimatikan, watchdog ikut menembak socket yang sehat.
             if (connectWatchdog) { clearTimeout(connectWatchdog); connectWatchdog = null; }
             currentQR = '';
+            pernahTersambung = true;
+            menungguPindai = false;
+            siklusQrSiaSia = 0;
             connectedPhone = sock.user?.id?.split(':')[0] || '';
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;

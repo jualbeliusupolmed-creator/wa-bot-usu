@@ -389,7 +389,16 @@
                     + '<img src="' + d.qr + '" alt="QR WhatsApp" width="300" height="300">'
                     + '<p class="muted" style="margin-top:10px">QR berganti berkala — kalau kedaluwarsa, klik tombol QR Login lagi.</p></div>';
             }
-            return emptyState('✅', 'Tidak ada QR — bot sudah tersambung ke WhatsApp.');
+            // "Tidak ada QR" tidak selalu berarti tersambung. Bot yang berhenti
+            // menampilkan QR karena tak ada yang memindai juga menjawab tanpa QR —
+            // dulu di sini keduanya diberi kabar gembira yang sama, dan orang yang
+            // datang justru untuk menautkan perangkat pulang dengan salah paham.
+            if (d.connected) return emptyState('✅', 'Tidak ada QR — bot sudah tersambung ke WhatsApp.');
+            // Membuka panel ini SUDAH membangunkan bot (server memperlakukan
+            // permintaan /qr sebagai tanda ada orang siap memindai), jadi yang
+            // dibutuhkan tinggal menunggu sebentar lalu membukanya lagi.
+            return emptyState('⏳', 'Belum ada QR. Bot sedang menyiapkan koneksi — siapkan HP '
+                + '(WhatsApp → Perangkat tertaut), lalu klik tombol QR Login lagi ±15 detik dari sekarang.');
         }
 
         function renderStats(d) {

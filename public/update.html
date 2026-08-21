@@ -148,13 +148,6 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
       <code>DATA_DIR</code>. Yang belum ada tinggal nomornya: sebuah nomor WhatsApp aktif untuk
       ditautkan lewat kode pairing.
     </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Rute dashboard bot kedua.</strong> Instance kedua sengaja hanya mendengar di
-      127.0.0.1 dan belum dipasang di nginx. Karena dashboard memanggil endpoint dengan path
-      absolut (<code>/status</code>, <code>/qr</code>), proxy lewat awalan path akan nyasar ke bot
-      pertama — jadi pilihannya subdomain tersendiri, atau terowongan SSH seperlunya.
-    </span></li>
     <li><span class="kotak"></span><span>
       <strong>Kembalikan jeda coba-ulang ke bawaan</strong> setelah pembatasan nomor bot pertama
       dicabut. Sekarang <code>KUNCI_RETRY_MINUTES=60</code> dipasang lewat env pm2 supaya bot tidak
