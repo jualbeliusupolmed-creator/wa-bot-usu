@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Menyeluruh — Bot USU Polmed</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Hasil audit menyeluruh ekosistem Jual Beli USU Polmed: peta sistem, alur bisnis, temuan keamanan, dan utang teknis.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
+<link rel="stylesheet" href="/assets/ui.css?v=20260821d">
+<script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<script src="/assets/ui.js?v=20260821d" defer></script>
+<style>
+  /* Diagram arsitektur digambar dengan teks monospace, bukan gambar: tidak ada
+     berkas yang harus ikut di-deploy, dan tidak ada gambar yang perlahan
+     berbeda dari sistem aslinya. */
+  .peta {
+    margin: 0;
+    padding: 18px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: .72rem;
+    line-height: 1.5;
+    white-space: pre;
+    color: var(--ink-soft);
+    background: var(--sunk);
+    border-radius: var(--r-lg);
+  }
+  @media (min-width: 620px) { .peta { font-size: .8rem; } }
+
+  /* Bagian temuan diambil saat halaman dibuka, bukan ditulis di berkas ini.
+     Alasannya ada di kotak penjelasan tepat di atasnya. */
+  #temuan h2 { font-size: 1.05rem; margin: 26px 0 8px; padding: 0; border: 0; }
+  #temuan h2::before { content: none; }
+  #temuan h3 { font-size: .95rem; margin: 20px 0 6px; }
+  #temuan p { margin: 8px 0; font-size: .9rem; line-height: 1.65; }
+  #temuan ul { margin: 8px 0 8px 1.1rem; font-size: .9rem; line-height: 1.65; }
+  #temuan li { margin: 4px 0; }
+  #temuan hr { border: 0; border-top: 1px solid var(--line); margin: 26px 0; }
+  #temuan code { font-size: .82em; }
+  #temuan .lvl-kritis { color: var(--bad); }
+  #temuan .lvl-menengah { color: var(--warn); }
+  #temuan .lvl-ringan { color: var(--info); }
+  #temuan .lvl-aman { color: var(--ok); }
+
+  .langkah { counter-reset: langkah; list-style: none; margin: 0; padding: 0; }
+  .langkah li {
+    counter-increment: langkah;
+    position: relative;
+    padding: 0 0 0 42px;
+    margin: 0 0 16px;
+    font-size: .92rem;
+    line-height: 1.65;
+  }
+  .langkah li::before {
+    counter-reset: none;
+    content: counter(langkah);
+    position: absolute; left: 0; top: 0;
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: .78rem;
+    color: var(--ink-faint);
+    background: var(--sunk);
+    border-radius: 9px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Audit Menyeluruh · 21 Agustus 2026</div>
+  <h1>Seluruh sistem, dibaca sampai dasarnya</h1>
+  <p class="lead">Halaman ini hasil satu audit penuh atas <strong>dua repositori dan satu
+  database</strong> — bukan ringkasan yang ditulis dari ingatan. Setiap angka di bawah
+  dihitung langsung dari sumbernya: berkas dari git, skema dari Supabase, rute dari
+  <code>index.js</code> dan <code>src/app/api/</code>, kerentanan dari <code>npm audit</code>.
+  Yang tidak bisa diverifikasi ditandai terang-terangan, bukan ditebak.</p>
+</header>
+
+<div class="card">
+  <div class="stats">
+    <div class="stat"><div class="n">2</div><div class="l">repositori</div></div>
+    <div class="stat"><div class="n">149</div><div class="l">endpoint dipetakan</div></div>
+    <div class="stat"><div class="n">32</div><div class="l">tabel database</div></div>
+    <div class="stat"><div class="n">18</div><div class="l">temuan</div></div>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Ruang lingkup.</strong> Sistem ini dua repo, bukan satu: bot WhatsApp
+  (<code>wa-bot-usu</code>, di VPS) dan situs Next.js (<code>jualbeliusupolmed</code>, di
+  Vercel). Hampir setiap alur bisnis melintasi keduanya, jadi audit yang cuma menyentuh
+  salah satunya akan salah membaca sistem. Skema database dibaca langsung dari Supabase
+  lewat konektor, bukan dari berkas migrasi — berkas migrasi menyatakan apa yang
+  <em>seharusnya</em> ada, database menyatakan apa yang <em>benar-benar</em> ada. Pada audit
+  ini dua-duanya ternyata memang berbeda.
+</div>
+
+<h2><span class="no">01</span>Peta sistem</h2>
+
+<p>Marketplace barang bekas untuk mahasiswa USU dan Polmed, dengan dua pintu masuk ke satu
+database. Keputusan yang membentuk seluruh arsitekturnya sederhana: <strong>penjual tidak
+perlu pindah</strong>. Karena itu bot bukan pelengkap, melainkan pintu setara.</p>
+
+<pre class="peta">   Pembeli                          Penjual
+   (peramban)                       (chat WhatsApp)
+       │                                 │
+       ▼                                 ▼
+┌──────────────────┐            ┌──────────────────┐
+│  SITUS           │            │  BOT             │
+│  Next.js 14      │            │  Node + Baileys  │
+│  Vercel          │            │  VPS, pm2+nginx  │
+│                  │            │                  │
+│  • tampilan      │◄───────────┤  • sambungan WA  │
+│  • SEMUA logika  │  webhook   │  • gerbang titik │
+│    bisnis        │  multipart │  • antrean kirim │
+│  • satu-satunya  ├───────────►│  • panel operasi │
+│    yang menulis  │   /send    │                  │
+│    ke database   │            │  TIDAK punya     │
+└────────┬─────────┘            │  kredensial DB   │
+         │                      └──────────────────┘
+         ▼
+   ┌───────────┐
+   │ Supabase  │  32 tabel
+   └───────────┘</pre>
+
+<p>Batas yang paling penting untuk dijaga ada di sudut kanan bawah diagram itu:
+<strong>bot tidak punya kredensial Supabase.</strong> Aku memeriksanya —
+<code>pm2 env</code> memang tidak memuat satu pun variabel Supabase. Itu disengaja: VPS
+terbuka di internet lewat nginx dan reponya publik. Bot memanggil situs; situslah yang
+menulis ke database.</p>
+
+<p>Konsekuensinya yang sering membingungkan: antrean notifikasi <code>wa_outbox</code> itu
+milik situs, bukan bot. Halaman <a href="/antrean">/antrean</a> di panel ini hanyalah proxy
+yang meneruskan ke situs.</p>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-header">Bot — <code>wa-bot-usu</code></div>
+    <p class="small">24 berkas dilacak git. <code>index.js</code> memuat ±4.020 baris:
+    server Express, soket Baileys, gerbang, antrean, dan seluruh API panel dalam satu
+    berkas — sengaja, dan konsisten.</p>
+    <p class="small"><strong>74 rute.</strong> 6 publik, 10 halaman bergerbang sandi,
+    58 API bergerbang token.</p>
+    <p class="small">State runtime (kontak, chat, arsip pesan, sesi) hidup sebagai berkas
+    JSON di VPS dan <strong>semuanya di-<code>.gitignore</code></strong>.</p>
+  </div>
+  <div class="card">
+    <div class="card-header">Situs — <code>jualbeliusupolmed</code></div>
+    <p class="small">408 berkas. <strong>38 halaman</strong> (15 di bawah
+    <code>/admin</code>) dan <strong>75 endpoint API</strong>.</p>
+    <p class="small">Berkas terbesar <code>api/wa/baileys/route.js</code> —
+    <strong>2.930 baris</strong>, otak balasan bot. Logika bisnis dipisah ke 34 modul di
+    <code>src/lib/</code>.</p>
+    <p class="small">Tarif, kata-kata pesan WhatsApp, dan pengaturan masing-masing punya
+    satu sumber kebenaran — pola yang bagus dan layak dipertahankan.</p>
+  </div>
+</div>
+
+<h3>Tiga lapis gerbang di bot</h3>
+<p>Ini bagian yang paling rapi dari seluruh sistem, dan alasan tiap lapisnya tertulis di
+kodenya sendiri:</p>
+<ul>
+  <li><code>requireAuth</code> — kuki sesi, <code>Authorization</code>, <code>?token=</code>,
+  atau sandi panel. Dengan rem: 10 kegagalan per 5 menit per IP.</li>
+  <li><code>requireRelink</code> — mengunci <code>/reset</code> dan <code>/restart</code>.
+  Tanpa ini, token yang bocor berarti: hapus sesi → minta kode pairing → ambil alih
+  WhatsApp bisnisnya.</li>
+  <li><code>requirePemulihan</code> — kebalikannya, dan ini yang menarik. Ia
+  <em>membuka</em> jalan taut-ulang justru ketika sesi memang sudah mati. Kalau tidak ada
+  yang bisa direbut, mengunci pintu hanya mengunci pemiliknya sendiri di luar — dan itu
+  betul-betul pernah terjadi.</li>
+</ul>
+
+<h2><span class="no">02</span>Alur bisnis</h2>
+
+<h3>Gerbang titik — keputusan yang menentukan segalanya</h3>
+<p>Aturannya dibalik dari bot toko pada umumnya: <strong>chat pelanggan adalah milik admin
+manusia</strong>, sampai pelanggan sendiri memanggil bot dengan mengawali pesannya memakai
+titik. Pesan tanpa titik tidak pernah sampai ke webhook — bukan diabaikan diam-diam, tapi
+memang tidak pernah dikirim ke otak balasan otomatis.</p>
+
+<ol class="langkah">
+  <li>Duplikat dibuang, status WA dan reaksi/poll disaring keluar.</li>
+  <li>Pesan <code>fromMe</code> tanpa <code>#</code> berarti <strong>admin sedang turun
+  tangan</strong>: sesi bot di kontak itu ditutup dan webhook diberi sinyal supaya bot
+  senyap di sana. Detail kecil yang menyelamatkan banyak percakapan.</li>
+  <li>Nomor <code>@lid</code> dicari nomor aslinya lewat empat sumber berurutan, dan yang
+  baru dipelajari ikut disimpan. Sekali per kontak, penanda <code>prev_lid</code> dikirim
+  ke situs supaya data lama dimigrasi — mencegah satu orang punya dua profil.</li>
+  <li><strong>Gerbang.</strong> Panggilan “min” selalu dijawab sapaan (dengan jeda 60
+  detik). Kata <code>admin</code>/<code>stop</code>/<code>selesai</code> menutup sesi. Tanpa
+  titik dan tanpa sesi: sapaan sekali seumur kontak, sesudah itu bot diam total.</li>
+  <li>Media baru diunduh <strong>setelah</strong> gerbang — pesan untuk admin tidak perlu
+  ongkos unduh foto. Foto beruntun ditahan 4 detik supaya jadi satu iklan multi-foto.</li>
+</ol>
+
+<p>Yang menurutku paling matang: bot <em>menghitung</em> berapa kali orang mengetik perintah
+tanpa titik (<code>jual</code>, <code>cari</code>, …) dan menyimpannya terpisah. Artinya
+keputusan melonggarkan gerbang nanti bisa diambil dari angka, bukan firasat.</p>
+
+<h3>Pasang iklan lewat WhatsApp</h3>
+<p>Foto + keterangan → webhook (token diperiksa, fail-closed) → Gemini membaca teks
+<em>dan</em> gambar jadi judul/harga/kategori → profil penjual dibuat kalau belum ada →
+<strong>batas iklan aktif ditegakkan</strong> (5 biasa, 30 distributor) → gambar
+dikonversi WebP → <code>listings</code> pending + <code>payments</code> pending → penjual
+bayar QRIS dan memotret struknya → Gemini membaca struk → iklan aktif.</p>
+<p>Begitu aktif, satu perubahan memicu enam efek samping: notifikasi admin, posting grup
+WA, kabar ke pelanggan kategori, push ke semua peramban berlangganan, dan (kalau
+dinyalakan) Facebook serta Instagram.</p>
+<p><strong>Edge case yang sudah dipikirkan:</strong> alur yang terputus di tengah disimpan
+di <code>wa_listing_drafts</code>, jadi pesan berikutnya melanjutkan alih-alih mengulang
+dari nol. AI yang gagal membaca akan minta ditulis ulang, bukan menebak.</p>
+
+<h3>Notifikasi keluar, dan kenapa tidak ada yang hilang</h3>
+<p>Endpoint <code>/send</code> menerima <code>ttlDetik</code> dari pemanggilnya, karena
+hanya pemanggil yang tahu pesannya masih berguna atau tidak kalau terlambat.</p>
+<p>Dari situ lahir satu aturan yang isinya pelajaran mahal: pesan berumur pendek — artinya
+OTP — <strong>ditolak 503</strong> kalau bot belum tersambung. Menerimanya berarti situs
+terlanjur memberi tahu pendaftar “OTP sudah terkirim”, sementara pesannya mati kedaluwarsa
+di antrean tanpa seorang pun tahu. Itu betul-betul terjadi pada 21 Agustus 2026. Pesan
+berumur panjang tetap diterima — ia memang dibuat untuk menunggu.</p>
+
+<h2><span class="no">03</span>Temuan keamanan</h2>
+
+<div class="note">
+  <strong>Kenapa bagian ini dimuat terpisah.</strong> Repo bot ini publik. Daftar endpoint
+  yang belum bergerbang, lengkap dengan nama berkas dan nomor barisnya, adalah peta serangan
+  yang sudah jadi — menuliskannya ke dalam berkas yang ikut di-<code>git push</code> sama
+  saja dengan menerbitkannya. Jadi isinya tinggal di
+  <code>catatan/temuan-keamanan.md</code> yang sengaja di-<code>.gitignore</code>, hidup
+  hanya di VPS ini, dan diambil saat halaman dibuka oleh orang yang sudah punya sandi panel.
+  Hapus barisnya dari berkas itu setiap kali temuannya benar-benar diperbaiki.
+</div>
+
+<p class="muted" id="temuan-status">Memuat temuan…</p>
+<div id="temuan"></div>
+
+<h2><span class="no">04</span>Utang teknis</h2>
+
+<p>Terpisah dari keamanan: ini hal-hal yang tidak membahayakan siapa pun, tapi membuat
+sistemnya makin mahal untuk diubah.</p>
+
+<div class="finds">
+
+  <article class="find t-med">
+    <div class="tag"><span class="lvl">Perlu diputuskan</span><span class="ref">U-1</span></div>
+    <div class="find-body">
+      <h3>16 dari 32 tabel kosong, dan dua di antaranya menamai hal yang sama</h3>
+      <p>Setengah skema database tidak pernah menerima satu baris pun.
+      <code>offers</code> dan <code>price_offers</code> dua-duanya kosong dan
+      dua-duanya berarti “tawaran harga”. Salah satunya hampir pasti sisa dari
+      perancangan yang berubah di tengah jalan — dan selama keduanya berdiri, ada
+      kemungkinan nyata kode baru menulis ke tabel yang salah.</p>
+      <div class="evidence">kosong: blacklist, seller_ratings, reports, verified_sellers,
+        referrals, pwa_installs, price_offers, category_subscriptions,
+        offers, scheduled_broadcasts, group_posts, search_logs,
+        distributor_categories, wa_auth, wa_state, wa_outbox</div>
+    </div>
+  </article>
+
+  <article class="find t-med">
+    <div class="tag"><span class="lvl">Perlu diputuskan</span><span class="ref">U-2</span></div>
+    <div class="find-body">
+      <h3>Lima dependensi situs tidak pernah di-import satu kali pun</h3>
+      <p><code>midtrans-client</code>, <code>pg</code>, <code>html2canvas</code>,
+      <code>html-to-image</code>, dan <code>qrcode</code> terpasang tapi tidak dipakai
+      di mana pun dalam <code>src/</code>. Yang paling perlu dijawab
+      <code>midtrans-client</code>: seluruh alur pembayaran yang berjalan memakai QRIS
+      manual dengan struk difoto, jadi pembayaran otomatis kemungkinan ditinggalkan
+      setengah jalan. <strong>Perlu klarifikasi:</strong> masih rencana, atau sudah
+      dibuang?</p>
+    </div>
+  </article>
+
+  <article class="find t-med">
+    <div class="tag"><span class="lvl">Perlu dirapikan</span><span class="ref">U-3</span></div>
+    <div class="find-body">
+      <h3>Komentar model AI tertinggal di kode yang sedang melayani orang</h3>
+      <p>Satu berkas rute pembayaran memuat kalimat yang jelas-jelas isi kepala sebuah
+      model saat menulisnya — termasuk janji memperbaiki sesuatu “sebentar lagi” yang
+      tidak pernah ditepati, dan variabel yang dihitung lalu langsung ditimpa dua baris
+      kemudian. Ini bukan sekadar jelek dibaca: di berkas yang persis sama ada bug
+      otorisasi yang masuk daftar kritis di atas. Komentar seperti itu penanda bahwa
+      berkasnya belum pernah benar-benar dibaca ulang oleh manusia.</p>
+      <div class="evidence">src/app/api/payments/resume/route.js
+  // Wait, sold_fee is soldFeeFrom, not adFeeFrom! I will fix this in a moment
+  // Actually, let's fetch the existing pending payment to get the exact amount!</div>
+    </div>
+  </article>
+
+  <article class="find t-med">
+    <div class="tag"><span class="lvl">Perlu dirapikan</span><span class="ref">U-4</span></div>
+    <div class="find-body">
+      <h3>93% baris pembayaran adalah sampah yang tidak pernah dibersihkan</h3>
+      <p>Tabel <code>payments</code> berisi 497 baris: <strong>460 pending, 37 paid</strong>.
+      Penyebabnya bukan pelanggan yang batal — tiap penekanan “lanjutkan bayar”
+      meng-<em>insert</em> satu baris baru, dan tidak ada apa pun yang menghapus yang
+      lama. Angka di laporan keuangan yang menghitung baris pending akan terus melenceng
+      semakin jauh.</p>
+    </div>
+  </article>
+
+  <article class="find t-med">
+    <div class="tag"><span class="lvl">Perlu dirapikan</span><span class="ref">U-5</span></div>
+    <div class="find-body">
+      <h3>Indeks kembar dan kebijakan RLS ganda — bekas migrasi yang dijalankan dua kali</h3>
+      <p>Lima pasang indeks identik (<code>listings</code> sendirian punya tiga pasang)
+      dan enam tabel punya dua kebijakan RLS bernama beda untuk aturan yang sama. Pola
+      penamaannya bercerita: satu migrasi pernah dijalankan dua kali dengan konvensi nama
+      berbeda. Ongkosnya kecil tapi permanen — setiap tulisan memelihara indeks kembar,
+      setiap query mengevaluasi dua kebijakan.</p>
+      <div class="evidence">kembar: idx_listings_bumped_at ↔ listings_bumped_idx
+        idx_listings_seller_wa ↔ listings_seller_idx
+        idx_listings_status    ↔ listings_status_idx
+        idx_reports_listing_id ↔ reports_listing_idx
+        seller_profiles_pkey   ↔ seller_profiles_wa_key
+tak pernah terpakai: 13 indeks</div>
+    </div>
+  </article>
+
+  <article class="find t-med">
+    <div class="tag"><span class="lvl">Perlu dirapikan</span><span class="ref">U-6</span></div>
+    <div class="find-body">
+      <h3>Dua halaman menyebut angka berbeda untuk hal yang sama</h3>
+      <p><a href="/projek">/projek</a> masih menulis 31.538 baris situs, 323 commit, dan
+      12 tabel database. <a href="/lomba">/lomba</a> sudah menulis 34.181, 347, dan 30.
+      Jumlah tabel sebenarnya hari ini <strong>32</strong> — jadi keduanya meleset.
+      Halaman yang menyodorkan angka ke juri lomba sebaiknya tidak saling
+      membantah.</p>
+    </div>
+  </article>
+
+  <article class="find t-med">
+    <div class="tag"><span class="lvl">Kode mati</span><span class="ref">U-7</span></div>
+    <div class="find-body">
+      <h3><code>src/lib/middleware.js</code> tidak pernah dipanggil siapa pun</h3>
+      <p>65 baris salinan boilerplate Supabase SSR. Tidak ada <code>middleware.js</code>
+      di akar proyek, jadi Next.js tidak pernah menjalankannya, dan tidak ada satu berkas
+      pun yang meng-import <code>updateSession</code>. Yang bikin ini layak dicatat
+      bukan ukurannya: seandainya ada yang “menghidupkannya” karena mengira ia rusak,
+      isinya akan <strong>mengalihkan setiap pengunjung ke halaman login</strong> —
+      seluruh marketplace publik langsung tertutup.</p>
+    </div>
+  </article>
+
+  <article class="find t-high">
+    <div class="tag"><span class="lvl">Dependensi</span><span class="ref">U-8</span></div>
+    <div class="find-body">
+      <h3>10 kerentanan dependensi di situs, 1 di bot</h3>
+      <p>Situs: 6 tinggi, 4 sedang. Yang benar-benar hidup di produksi ada empat —
+      <code>next@14.2.35</code> (DoS lewat Image Optimizer), <code>nanoid</code>,
+      <code>fast-uri</code>, <code>brace-expansion</code>. Sisanya
+      (<code>postcss</code>, <code>serialize-javascript</code>, <code>workbox</code>)
+      hanya hidup saat build, jadi tidak tersentuh pengunjung. Bot cuma punya satu,
+      <code>protobufjs</code>, transitif dari Baileys dan tidak tersentuh masukan luar.</p>
+    </div>
+  </article>
+
+</div>
+
+<h2><span class="no">05</span>Yang aku sarankan dikerjakan berikutnya</h2>
+
+<p>Diurut menurut “kalau cuma sempat satu, kerjakan yang ini”.</p>
+
+<ol class="langkah">
+  <li><strong>Rotasi dua kredensial yang bocor.</strong> Ganti sandi admin situs dan token
+  Fonnte. Keduanya publik sejak 11 Juni — dua bulan lebih. Ini satu-satunya tindakan di
+  daftar ini yang tidak bisa digantikan oleh perubahan kode apa pun, karena yang harus
+  berubah adalah <em>nilainya</em>, bukan berkasnya.</li>
+  <li><strong>Pasang gerbang pada endpoint push yang terbuka.</strong> Pekerjaannya
+  beberapa baris. Mendesaknya karena migrasi kemarin baru saja membuka langganan
+  notifikasi untuk semua pengunjung — daftar penerimanya dirancang untuk tumbuh, dan
+  lubangnya tumbuh bersamanya.</li>
+  <li><strong>Ambil nomor penjual dari sesi, bukan dari badan permintaan</strong>, di dua
+  rute pembayaran. Sekalian membereskan 460 baris pending yatim.</li>
+  <li><strong>Pastikan <code>CRON_SECRET</code> terisi di Vercel.</strong> Aku tidak bisa
+  membaca env Vercel dari sini, jadi ini satu-satunya temuan yang statusnya masih
+  menggantung. Kalau kosong, empat rute cron terbuka untuk umum — dan salah satunya
+  mengirim WhatsApp massal.</li>
+  <li><strong>Bcrypt-kan 32 PIN yang masih plaintext</strong> tanpa menunggu penjualnya
+  login lagi, lalu cabut jalur mundur plaintext.</li>
+  <li><strong>Tautkan ulang kedua bot.</strong> Ini bukan pekerjaan kode — langkahnya ada
+  di tangan pemilik, dan tercatat di <a href="/update">/update</a>.</li>
+</ol>
+
+<div class="note ok-note">
+  <strong>Yang sudah diperiksa dan ternyata aman.</strong> Ditulis supaya audit berikutnya
+  tidak mengulang pekerjaan yang sama: XSS di panel bot (26 pemakaian
+  <code>innerHTML</code>, semuanya melewati <code>esc()</code> yang benar) · injeksi SQL
+  (klien Supabase parameterized di semua jalur) · token bot dan token webhook dua-duanya
+  fail-closed · rem tebak-token per IP · kuki panel <code>httpOnly</code> +
+  <code>sameSite=strict</code> + <code>secure</code> · pengalihan <code>?next=</code>
+  dibatasi ke jalur internal · kelayakan target broadcast ditegakkan di server, bukan
+  disembunyikan di UI · dan sesi WhatsApp tidak pernah ikut ke repo mana pun.
+</div>
+
+<h2><span class="no">06</span>Ke mana pemahaman ini disimpan</h2>
+
+<p>Halaman ini bisa dibaca, tapi tidak bisa dibaca oleh sesi kerja berikutnya. Karena itu
+seluruh isinya juga ditulis ke <code>PROJECT_KNOWLEDGE.md</code> di akar repo bot: peta
+struktur, ringkasan tiap alur, daftar utang teknis, dan log audit bertanggal. Berkas itu
+yang dibaca lebih dulu sebelum ada perubahan apa pun, dan diperbarui setiap kali ada yang
+masuk — tanpa menunggu diminta.</p>
+
+<p>Pembagiannya: <code>PROJECT_KNOWLEDGE.md</code> ikut git dan boleh dibaca siapa saja;
+<code>catatan/temuan-keamanan.md</code> tidak ikut git dan hanya bisa dibaca dari halaman
+ini. Yang belum benar-benar dipahami ditandai <code>⚠ perlu klarifikasi</code> di berkas
+itu, bukan dilewati diam-diam.</p>
+
+<div class="links">
+  <a href="/">Dashboard<span>Keadaan bot & inbox</span></a>
+  <a href="/update">Catatan Perubahan<span>Linimasa dari git</span></a>
+  <a href="/projek">Catatan Proyek<span>Cerita di balik pembuatannya</span></a>
+  <a href="/antrean">Antrean<span>Notifikasi yang belum sampai</span></a>
+</div>
+
+<footer>
+  <p class="muted tiny">Audit dijalankan 21 Agustus 2026 atas commit
+  <code>a01b9c5</code> (bot) dan <code>14d8def</code> (situs). Angka-angkanya sahih untuk
+  tanggal itu; jalankan ulang auditnya kalau sudah lewat sebulan.</p>
+</footer>
+
+</div>
+
+<script>
+/* Temuan keamanan tidak ditulis di berkas ini — lihat alasannya di bagian 03.
+   Ia diambil dari berkas markdown di VPS lewat rute yang butuh sandi panel. */
+(function () {
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+
+  /* Penyaji markdown seadanya: cukup untuk berkas yang kita tulis sendiri, dan
+     sengaja tidak lebih. Semua teks diescape LEBIH DULU, jadi tidak ada jalan
+     bagi tanda kurung sudut di dalam berkas untuk berubah jadi markup. */
+  function render(md) {
+    var keluar = '', daftarTerbuka = false;
+    var baris = md.split('\n');
+
+    function tutupDaftar() { if (daftarTerbuka) { keluar += '</ul>'; daftarTerbuka = false; } }
+
+    function sebaris(t) {
+      t = esc(t);
+      t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+      t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      return t;
+    }
+
+    function warnaJudul(t) {
+      var l = t.toLowerCase();
+      if (l.indexOf('kritis') === 0) return ' class="lvl-kritis"';
+      if (l.indexOf('menengah') === 0) return ' class="lvl-menengah"';
+      if (l.indexOf('ringan') === 0) return ' class="lvl-ringan"';
+      if (l.indexOf('aman') !== -1) return ' class="lvl-aman"';
+      return '';
+    }
+
+    for (var i = 0; i < baris.length; i++) {
+      var b = baris[i];
+      if (/^# /.test(b)) { continue; }                 /* judul berkas: halaman sudah punya */
+      if (/^---\s*$/.test(b)) { tutupDaftar(); keluar += '<hr>'; continue; }
+      if (/^## /.test(b)) {
+        tutupDaftar();
+        var j2 = b.slice(3).trim();
+        keluar += '<h2' + warnaJudul(j2) + '>' + sebaris(j2) + '</h2>';
+        continue;
+      }
+      if (/^### /.test(b)) { tutupDaftar(); keluar += '<h3>' + sebaris(b.slice(4)) + '</h3>'; continue; }
+      if (/^\s*[-*] /.test(b)) {
+        if (!daftarTerbuka) { keluar += '<ul>'; daftarTerbuka = true; }
+        keluar += '<li>' + sebaris(b.replace(/^\s*[-*] /, '')) + '</li>';
+        continue;
+      }
+      if (/^>\s?/.test(b)) { tutupDaftar(); keluar += '<p class="muted">' + sebaris(b.replace(/^>\s?/, '')) + '</p>'; continue; }
+      if (/^\s*$/.test(b)) { tutupDaftar(); continue; }
+      tutupDaftar();
+      /* Baris prosa berturut-turut digabung jadi satu paragraf. */
+      var kumpul = b;
+      while (i + 1 < baris.length && !/^\s*$/.test(baris[i + 1]) &&
+             !/^(#|-|\*|>|---)/.test(baris[i + 1].trim())) {
+        kumpul += ' ' + baris[++i].trim();
+      }
+      keluar += '<p>' + sebaris(kumpul) + '</p>';
+    }
+    tutupDaftar();
+    return keluar;
+  }
+
+  var status = document.getElementById('temuan-status');
+  fetch('/progres-claude/temuan', { cache: 'no-store' })
+    .then(function (r) {
+      if (r.status === 401 || r.status === 403) throw new Error('Sesi panel sudah habis — muat ulang halaman ini.');
+      if (r.status === 404) throw new Error('Berkas catatan/temuan-keamanan.md tidak ada di server. Ia sengaja tidak ikut git, jadi VPS yang baru di-deploy memang belum punya salinannya.');
+      if (!r.ok) throw new Error('Server menjawab ' + r.status + '.');
+      return r.text();
+    })
+    .then(function (md) {
+      document.getElementById('temuan').innerHTML = render(md);
+      status.textContent = 'Dimuat dari catatan/temuan-keamanan.md di VPS ini — tidak ikut git.';
+      if (window.UI && window.UI.ikon) window.UI.ikon(document);
+    })
+    .catch(function (e) {
+      status.textContent = 'Temuan tidak bisa dimuat: ' + e.message;
+    });
+})();
+</script>
+</body>
+</html>

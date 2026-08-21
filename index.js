@@ -1396,6 +1396,35 @@ app.get('/update', requireAuthPage, (req, res) => {
     res.sendFile(path.join(__dirname, 'halaman', 'update.html'));
 });
 
+// ── Halaman audit (butuh sandi) ──────────────────────────────────────────────
+// Dua halaman, dua sudut pandang atas audit yang sama. Dua-duanya BERGERBANG,
+// dan itu bukan kehati-hatian berlebihan: isinya menyebut endpoint yang belum
+// dijaga dan kredensial yang belum dirotasi. Daftar seperti itu adalah peta
+// serangan yang sudah jadi.
+//
+// progres.html sempat tinggal di public/ pada 21 Agustus 2026 — dan express.static
+// melayani apa pun di sana tanpa gerbang, jadi selama beberapa menit halaman itu
+// menyajikan sandi admin ke siapa saja yang mengetik alamatnya. Berkasnya
+// dipindah ke halaman/, yang tidak disajikan static. Jangan pernah menaruh berkas
+// bergerbang di public/.
+app.get('/progres', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'halaman', 'progres.html'));
+});
+
+app.get('/progres-claude', requireAuthPage, (req, res) => {
+    res.sendFile(path.join(__dirname, 'halaman', 'progres-claude.html'));
+});
+
+// Temuan keamanannya TIDAK ditulis di dalam HTML-nya: berkas HTML ikut git, dan
+// repo ini publik. Ia tinggal di catatan/ yang sengaja di-.gitignore, dan diambil
+// halamannya saat dibuka. Konsekuensinya jujur: VPS yang baru di-deploy tidak
+// punya salinannya, dan halamannya memang mengatakan itu apa adanya.
+app.get('/progres-claude/temuan', requireAuthPage, (req, res) => {
+    const berkas = path.join(__dirname, 'catatan', 'temuan-keamanan.md');
+    if (!fs.existsSync(berkas)) return res.status(404).type('text/plain; charset=utf-8').send('');
+    res.type('text/plain; charset=utf-8').send(fs.readFileSync(berkas, 'utf8'));
+});
+
 app.get('/lomba', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'lomba.html'));
 });
@@ -4003,6 +4032,7 @@ process.on('SIGINT', () => gracefulExit('SIGINT'));
 // Dengar HANYA di loopback: akses publik ditutup, semua trafik masuk lewat
 // reverse-proxy nginx (HTTPS) → 127.0.0.1:3000. Bisa di-override via env BIND_HOST
 // (mis. '0.0.0.0') kalau suatu saat perlu, tapi default aman.
+
 app.listen(PORT, process.env.BIND_HOST || '127.0.0.1', () => {
     console.log(`Bot Server listening on ${process.env.BIND_HOST || '127.0.0.1'}:${PORT}`);
     // unref: pemantau tidak boleh jadi alasan proses menolak keluar saat shutdown.

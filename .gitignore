@@ -29,3 +29,16 @@ push-ke-github.sh
 penjaga-bot.log
 .bot.lock
 outbox.json
+
+# Temuan keamanan yang BELUM diperbaiki. Repo ini publik: menerbitkan daftar
+# endpoint yang belum bergerbang sama saja dengan menerbitkan petanya. Berkasnya
+# tinggal di VPS dan disajikan lewat /progres-claude yang butuh sandi panel.
+catatan/
+
+# halaman/progres.html — halaman audit yang dibuat sesi lain. Ia MENGUTIP sandi
+# admin situs apa adanya sebagai bukti temuan. Sempat tinggal di public/ (yang
+# disajikan express.static tanpa gerbang) sampai 21 Agustus 2026; sekarang
+# bergerbang sandi. Tetap di luar git sampai sandinya dirotasi dan kutipannya
+# disensor — repo ini publik, dan meng-commit-nya akan menerbitkan ulang sandi
+# yang baru saja ditutup.
+halaman/progres.html

@@ -107,6 +107,8 @@
     { u: '/antrean',  t: 'Antrean' },
     { u: '/laporan',  t: 'Laporan' },
     { u: '/update',   t: 'Perubahan' },
+    { u: '/progres',  t: 'Progres' },
+    { u: '/progres-claude', t: 'Audit' },
     { u: '/projek',   t: 'Proyek' },
     { u: '/lomba',    t: 'Lomba' }
   ];
