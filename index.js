@@ -1947,16 +1947,28 @@ app.post('/send', requireAuth, async (req, res) => {
         ? Math.min(ttlDetik * 1000, OUTBOX_TTL_MS)
         : OUTBOX_TTL_MS;
 
-    // Sesi terkunci = yang ditunggu keputusan manusia, bisa berjam-jam. Untuk
-    // pesan berumur pendek (OTP) mengantre di sini adalah janji yang tidak bisa
-    // ditepati, dan 'status: true' yang tidak pernah mendarat membuat situs
-    // memberi tahu pendaftar bahwa kodenya sudah terkirim. Tolak terang-terangan
-    // supaya pemanggilnya bisa memilih jalan lain. Pesan berumur panjang tetap
-    // diterima — ia memang dibuat untuk menunggu.
-    if (sesiTerkunci && ttl <= 15 * 60 * 1000) {
+    // Pesan berumur pendek (OTP) yang mengantre saat bot tidak bisa mengirim
+    // adalah janji yang tidak bisa ditepati: 'status: true' membuat situs
+    // memberi tahu pendaftar bahwa kodenya sudah terkirim, lalu pesannya
+    // kedaluwarsa di antrean tanpa seorang pun tahu. Tolak terang-terangan
+    // supaya pemanggilnya bisa memilih jalan lain (mis. Fonnte). Pesan berumur
+    // panjang tetap diterima — ia memang dibuat untuk menunggu.
+    //
+    // Syaratnya botSiap(), BUKAN cuma sesiTerkunci. Sesi terkunci adalah satu
+    // dari beberapa cara bot tidak bisa mengirim; yang lain adalah belum
+    // ditautkan sama sekali — dan itu keadaan yang benar-benar terjadi pada 21
+    // Agustus 2026, saat dua OTP mengantre lalu dibuang kedaluwarsa sementara
+    // situs sudah terlanjur bilang "OTP terkirim ke WhatsApp".
+    //
+    // botSiap(), bukan socketAlive(): selama menunggu dipindai, WebSocket-nya
+    // sudah terbuka padahal belum ada nomor yang bisa mengirim apa pun.
+    if (!botSiap() && ttl <= 15 * 60 * 1000) {
         return res.status(503).json({
-            error: 'Sesi WhatsApp terkunci — pesan berumur pendek tidak bisa dijanjikan sekarang.',
-            terkunci: true,
+            error: sesiTerkunci
+                ? 'Sesi WhatsApp terkunci — pesan berumur pendek tidak bisa dijanjikan sekarang.'
+                : 'Bot belum tersambung ke WhatsApp — pesan berumur pendek tidak bisa dijanjikan sekarang.',
+            terkunci: sesiTerkunci,
+            tersambung: botSiap(),
         });
     }
 
@@ -1968,7 +1980,10 @@ app.post('/send', requireAuth, async (req, res) => {
     messageQueue.push({ jid, message, url, ts: Date.now(), ttl });
     simpanOutbox();
     kickQueue();
-    const tertunda = !socketAlive();
+    // botSiap(), bukan socketAlive(): kabel yang tersambung ke WhatsApp tanpa
+    // nomor yang login tetap tidak bisa mengirim apa pun, dan menjawab
+    // tertunda:false di keadaan itu adalah kabar baik yang keliru.
+    const tertunda = !botSiap();
     res.json({
         status: true,
         tertunda,
