@@ -48,6 +48,12 @@
 <h2><span class="no">02</span>Yang belum selesai</h2>
 <p>Bagian ini ditulis tangan, karena tidak ada commit untuk pekerjaan yang belum dikerjakan.
 Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
+<p class="muted">Dua baris hilang dari daftar ini pada <b>21 Agustus 2026</b>: seluruh migrasi
+database dijalankan sekali jalan lewat <a href="/jalankan">/jalankan</a>, termasuk kolom toko
+(<code>migration_storefront.sql</code>) dan penanda <code>wa_verified</code>
+(<code>migration_daftar_tanpa_otp.sql</code>) yang selama ini menunggu. Dicatat di sini karena
+menjalankan SQL di Supabase tidak meninggalkan commit — linimasa di atas tidak akan pernah
+tahu itu terjadi.</p>
 <div class="card">
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
@@ -80,24 +86,6 @@ Tanda kuning berarti langkahnya ada di tangan pemilik, bukan di kode.</p>
       langkah yang memang harus dilakukan dengan HP di tangan: kartu <b>Perangkat 2</b> di
       dashboard → "Minta Kode", lalu di HP buka WhatsApp → Perangkat tertaut → Tautkan dengan
       nomor telepon, dan ketik kodenya sebelum kedaluwarsa.
-    </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Jalankan <code>migration_storefront.sql</code> di Supabase.</strong> Kolom toko
-      (slug, nama toko, logo, jam buka) dibuat oleh berkas itu dan harus dijalankan manual dari
-      SQL Editor. Selama belum, penjual tidak bisa membuat toko dan halaman <code>/toko/[slug]</code>
-      tidak punya isi. Tab <b>Toko</b> di panel admin akan mengatakannya sendiri kalau kolomnya
-      memang belum ada — jadi cukup buka tab itu untuk memastikan.
-    </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Jalankan <code>migration_daftar_tanpa_otp.sql</code> di Supabase.</strong> Pendaftaran
-      di situs sekarang tidak memakai OTP lagi — cukup nomor WhatsApp dan sandi, dan OTP tinggal
-      dipakai untuk satu hal: membuktikan nomor saat sandinya lupa. Setiap akun baru ditulis dengan
-      kolom <code>wa_verified</code> yang dibuat berkas itu. Rutenya memang sudah dibuat tahan:
-      kalau kolomnya belum ada, akunnya tetap dibuat tanpa penanda dan log-nya berteriak. Tapi
-      selama migrasinya belum jalan, tidak ada yang bisa membedakan akun yang nomornya terbukti
-      dari akun yang cuma diketik orang.
     </span></li>
     <li><span class="kotak"></span><span>
       <strong>Tiga kartu setelan sisanya masih menulis ke ruang kosong.</strong> Dari enam kartu
