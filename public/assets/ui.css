@@ -758,4 +758,28 @@ header.bar { display: flex; align-items: flex-end; justify-content: space-betwee
 
 /* Halaman laporan menumpuk bagian-bagiannya dalam satu kolom berjarak. */
 .wrap:has(> .part) { display: flex; flex-direction: column; gap: 48px; }
-.wrap:has(> .part) > .masthead { margin-bottom: -8px; }
+.wrap:has(> .part) > .masthead { margin-bottom: 0; }   /* jaraknya sudah diurus gap kolom */
+
+/* ── daftar baris di /home (chat, kontak, peta LID) ──────────────────────────
+   Markup-nya dibuat JavaScript halaman: .rows > .row > (.avatar, .main, .side).
+   Ditulis di sini, bukan di halamannya, supaya bentuk barisnya sama dengan
+   daftar chat di dashboard. */
+.search { margin-bottom: 10px; }
+.rows { display: flex; flex-direction: column; gap: 2px; }
+.rows .row {
+  padding: 10px 12px; border-radius: var(--radius);
+  align-items: center; gap: 12px; border: 1px solid transparent; flex-wrap: nowrap;
+}
+.rows .row.click { cursor: pointer; }
+.rows .row.click:hover { background: var(--sunk); border-color: var(--line); }
+.rows .main { min-width: 0; flex: 1; }
+.rows .name { font-weight: 600; font-size: .9rem; color: var(--ink); word-break: break-word; }
+.rows .sub { font-size: .78rem; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rows .side { font-size: .74rem; color: var(--ink-faint); white-space: nowrap; }
+.empty .big { font-size: 2rem; margin-bottom: 6px; }
+.hero .big { font-size: 1.7rem; }
+.logline .time { color: var(--ink-faint); margin-right: 10px; font-variant-numeric: tabular-nums; }
+.logline .msg { color: var(--ink-soft); }
+.logline.error .msg { color: var(--bad); }
+.logline.warn .msg { color: var(--warn); }
+table.nice th { position: sticky; top: 0; }
