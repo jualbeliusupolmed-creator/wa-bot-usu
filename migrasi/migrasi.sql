@@ -1515,3 +1515,26 @@ SELECT 'Toko yang sudah dibuat',
        'INFO'
   FROM public.seller_profiles
  WHERE slug IS NOT NULL;
+
+
+-- ---------------------------------------------------------------------
+-- BAGIAN 25 — Notifikasi peramban untuk SEMUA pengunjung
+--
+-- push_subscriptions lahir dengan `wa NOT NULL`, dan itu diam-diam berarti
+-- "hanya orang yang sudah punya akun yang boleh dikabari". Padahal yang
+-- paling ingin tahu ada barang baru justru pembeli — dan pembeli tidak
+-- perlu punya akun di situs ini untuk membeli.
+--
+-- Satu baris di bawah membuka pintunya: peramban boleh berlangganan tanpa
+-- menyebut nomor. Barisnya tetap unik per endpoint (satu perangkat = satu
+-- baris), jadi tidak ada yang bisa dikirimi dua kali untuk hal yang sama.
+--
+-- Aman diulang: kalau kolomnya sudah nullable, PostgreSQL diam saja.
+-- ---------------------------------------------------------------------
+ALTER TABLE public.push_subscriptions ALTER COLUMN wa DROP NOT NULL;
+
+-- Broadcast membaca seluruh tabel dan mengecualikan penjualnya sendiri.
+-- Indeks endpoint sudah ada lewat UNIQUE; yang belum ada indeks waktu, dipakai
+-- untuk mengambil pelanggan terbaru dulu saat jumlahnya sudah besar.
+CREATE INDEX IF NOT EXISTS push_subscriptions_created_idx
+  ON public.push_subscriptions (created_at DESC);
