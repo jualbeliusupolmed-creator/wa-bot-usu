@@ -15,21 +15,30 @@ const { createClient } = require('@supabase/supabase-js');
 const { useSupabaseAuthState } = require('./useSupabaseAuthState');
 const { useFileAuthState } = require('./waAuthState');
 
-// Baris log libsignal yang dibungkam. Bukan sekadar berisik: empat di antaranya
-// ("Closing session:" dkk) mencetak objek SessionEntry UTUH — termasuk `privKey` —
-// ke file log pm2 di disk. Kunci sesi WhatsApp tidak boleh mendarat di file yang
-// bisa dibaca siapa pun yang punya akses server.
-const SIGNAL_NOISE = [
-    'Closing session:',
-    'Opening session:',
-    'Removing old closed session:',
-    'Session already closed',
-    'Session already open',
-    'Decrypted message with closed session.',
-    'Closing stale open session',
-    'Closing open session in favor of incoming prekey bundle',
-];
-const isSignalNoise = (args) => typeof args[0] === 'string' && SIGNAL_NOISE.some(p => args[0].startsWith(p));
+// Utilitas murni — dipindah ke src/lib/utils.js. Lihat catatan di sana soal
+// apa yang boleh dan tidak boleh tinggal di berkas itu.
+const {
+    SIGNAL_NOISE,
+    isSignalNoise,
+    safeStringify,
+    INVISIBLE_RE,
+    stripInvisible,
+    stripBotPrefix,
+    toJid,
+    BOT_PREFIX,
+    ADMIN_CALL_WORDS,
+    isAdminCall,
+    PLAIN_COMMAND_WORDS,
+    plainCommandWord,
+    boundedSet,
+    amanTujuan,
+    dgnBatas,
+    teksPesan,
+    META_KEYS,
+    extractMessage,
+} = require('./src/lib/utils');
+
+
 
 // Buffer untuk melacak console.log dan error (berguna untuk debugging)
 const systemLogs = [];
@@ -38,18 +47,6 @@ const originalError = console.error;
 const originalInfo = console.info;
 const originalWarn = console.warn;
 
-// Buffer & kunci mentah jangan ikut ter-serialize ke buffer yang disajikan /logs.
-function safeStringify(a) {
-    if (Buffer.isBuffer(a)) return `<Buffer ${a.length}B>`;
-    if (typeof a !== 'object' || a === null) return String(a);
-    try {
-        return JSON.stringify(a, (k, v) => {
-            if (v?.type === 'Buffer' && Array.isArray(v.data)) return `<Buffer ${v.data.length}B>`;
-            if (/priv|secret|key/i.test(k) && typeof v === 'string' && v.length > 32) return '<redacted>';
-            return v;
-        });
-    } catch (_) { return '[unserializable]'; }
-}
 function pushLog(level, args) {
     systemLogs.push(`[${new Date().toISOString()}] [${level}] ${args.map(safeStringify).join(' ')}`);
     if (systemLogs.length > 200) systemLogs.shift();
@@ -59,26 +56,7 @@ console.error = function(...args) { pushLog('ERROR', args); originalError.apply(
 console.info = function(...args) { if (isSignalNoise(args)) return; originalInfo.apply(console, args); };
 console.warn = function(...args) { if (isSignalNoise(args)) return; originalWarn.apply(console, args); };
 
-// Karakter tak terlihat (BOM, zero-width, soft hyphen) ikut terbawa dari HP dan
-// bikin FormData/pencocokan keyword meleset. Dulu regex ini disalin di 3 tempat
-// dengan isi yang berbeda-beda — sekarang satu definisi untuk semuanya.
-const INVISIBLE_RE = /[﻿​-‍⁠­]/g;
-const stripInvisible = (s) => String(s || '').replace(INVISIBLE_RE, '').trim();
-// Titik pemanggil bot dibuang sebelum pesan diteruskan: website mengenali perintah
-// polos ("JUAL", "CARI sepatu"), bukan ".JUAL".
-const stripBotPrefix = (s) => {
-    const t = String(s || '');
-    return t.startsWith(BOT_PREFIX) ? t.slice(BOT_PREFIX.length).trimStart() : t;
-};
 
-// '08xxx' / '+62 xxx' / '62xxx' → JID WhatsApp. Dulu disalin di 4 endpoint.
-function toJid(target) {
-    const raw = String(target || '');
-    if (raw.includes('@')) return raw;
-    let num = raw.replace(/[^0-9]/g, '');
-    if (num.startsWith('0')) num = '62' + num.slice(1);
-    return num + '@s.whatsapp.net';
-}
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://www.jualbeliusupolmed.web.id/api/wa/baileys';
 const API_TOKEN = process.env.API_TOKEN;
@@ -169,11 +147,6 @@ function lepasKunciProses() {
 ambilKunciProses();
 process.on('exit', lepasKunciProses);
 
-// ── Gerbang bot ───────────────────────────────────────────────────────────────
-// Default percakapan pelanggan adalah dengan ADMIN (manusia). Bot baru ikut campur
-// kalau pesan diawali tanda ini. Tanpa gerbang, bot menyahut tiap chat masuk dan
-// admin jadi tak leluasa membalas manual.
-const BOT_PREFIX = process.env.BOT_PREFIX || '.';
 // Titik cuma dipakai untuk MEMBUKA sesi. Alur bot itu bertahap (.JUAL → bot tanya
 // harga/kondisi → pelanggan kirim foto tanpa caption); kalau tiap pesan wajib
 // bertitik, alur itu putus di langkah kedua. Sesi disegarkan tiap pesan yang lolos.
@@ -182,32 +155,9 @@ const BOT_SESSION_MS = Number(process.env.BOT_SESSION_MINUTES || 15) * 60 * 1000
 // Sengaja pendek: kata seperti "sudah"/"oke" sering jadi JAWABAN wajar di tengah alur
 // .JUAL, jadi kalau dimasukkan ke sini sesi bisa putus di tengah pemasangan iklan.
 const BOT_END_WORDS = new Set(['admin', 'stop', 'selesai']);
-// Panggilan ke admin ("min"). Bedanya dengan BOT_END_WORDS: kata di sini BUKAN cuma
-// menutup sesi, tapi selalu dibalas sapaan — orang yang manggil "min" jelas sedang
-// mencari manusia, jadi dia harus langsung tahu chat ini dipegang admin dan bot
-// punya jalur titik sendiri. Sengaja dipisah supaya "admin"/"stop" di tengah alur
-// .JUAL tetap menutup sesi tanpa memuntahkan sapaan panjang.
-const ADMIN_CALL_WORDS = new Set(
-    (process.env.ADMIN_CALL_WORDS || 'min,mimin')
-        .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
-);
 // Jeda minimum antar sapaan untuk kontak yang sama. Tanpa ini, "min min min" tiga
 // kali dibalas tiga sapaan panjang — mirip spam dan bikin admin susah baca chat.
 const ADMIN_CALL_COOLDOWN_MS = Number(process.env.ADMIN_CALL_COOLDOWN_SECONDS || 60) * 1000;
-// Cocokkan hanya kalau SELURUH pesan berupa panggilan itu ("Min", "min?", "MIN!!").
-// Kalimat seperti "admin nya kemana" sengaja tidak kena: itu pesan untuk dibaca
-// admin, bukan permintaan menu.
-const isAdminCall = (s) => ADMIN_CALL_WORDS.has(
-    String(s || '').toLowerCase().replace(/[^a-z]/g, '')
-);
-// Kata perintah yang sering diketik TANPA titik. Tidak mengubah perilaku gerbang —
-// murni untuk dihitung, supaya keputusan "buka kata polos atau tidak" punya angka.
-const PLAIN_COMMAND_WORDS = new Set(['jual', 'cari', 'menu', 'perpanjang', 'upgrade', 'saya', 'beli']);
-function plainCommandWord(text) {
-    const first = String(text || '').trim().toLowerCase().split(/\s+/)[0] || '';
-    const word = first.replace(/[^a-z]/g, '');
-    return PLAIN_COMMAND_WORDS.has(word) ? word : '';
-}
 // Sapaan untuk pesan TANPA titik — dikirim SEKALI per kontak, sesudah itu bot diam
 // total di chat itu supaya admin bebas membalas manual.
 const DEFAULT_GREETING = process.env.GREETING_TEXT || [
@@ -457,15 +407,6 @@ function socketAlive() { return !!(waSocket && waSocket.ws?.isOpen); }
 // adalah adanya nomor yang tersambung.
 function botSiap() { return socketAlive() && !!connectedPhone; }
 
-// Permintaan ke WhatsApp yang tidak pernah dijawab. Sesekali terjadi meski sesi
-// sehat (server WA rewel, jaringan setengah mati), dan tanpa batas waktu ia
-// menahan satu koneksi HTTP selamanya. Lebih baik 504 yang jujur.
-function dgnBatas(janji, ms = 15000, apa = 'Permintaan ke WhatsApp') {
-    return Promise.race([
-        janji,
-        new Promise((_, tolak) => setTimeout(() => tolak(new Error(`${apa} tidak dijawab dalam ${Math.round(ms / 1000)} detik.`)), ms)),
-    ]);
-}
 
 // Laporan ke pemilik lewat WhatsApp. Tanpa OWNER_JID, dikirim ke nomor bot sendiri
 // (chat "pesan ke diri sendiri") — tetap sampai dan tidak mengganggu pelanggan.
@@ -983,15 +924,6 @@ let conversationContext = new Map(); // jid → [{ role, text, time }] max 5 ent
 let photoBuffer = new Map();         // jid → { images:[{buf,mime}], caption:string, timer }
 // Map @lid JID → phone JID (@s.whatsapp.net) agar nomor user konsisten
 let lidMap = new Map();
-// Set berukuran terbatas (FIFO) — cegah pertumbuhan memori tak terbatas pada bot
-// yang uptime-nya panjang di VPS.
-function boundedSet(cap) {
-  const s = new Set();
-  const q = [];
-  const _add = s.add.bind(s);
-  s.add = (v) => { if (!s.has(v)) { q.push(v); if (q.length > cap) s.delete(q.shift()); } return _add(v); };
-  return s;
-}
 // Penanda @lid yang sudah pernah ditanya nama (agar tanya nama HANYA sekali, tak loop)
 const askedNameOnce = boundedSet(5000);
 // @lid yang mapping nomornya SUDAH dikirim ke website (untuk memicu migrasi data lama
@@ -1124,153 +1056,47 @@ function addToContext(jid, role, text) {
     return history;
 }
 
-// ── Auth middleware ───────────────────────────────────────────────────────────
-// Perbandingan token dibuat waktu-konstan: `!==` biasa keluar lebih cepat pada byte
-// pertama yang beda, yang secara teori bisa dipakai menebak token per karakter.
-function tokenMatches(given) {
-    const a = Buffer.from(String(given || ''));
-    const b = Buffer.from(String(API_TOKEN));
-    if (a.length !== b.length) return false;
-    return crypto.timingSafeEqual(a, b);
-}
-// ── Sandi panel (manusia) di samping token (mesin) ───────────────────────────
-// Token 48 karakter itu dipakai DUA hal: manusia menempelkannya ke kolom token
-// di tiap halaman, dan mesin memakainya untuk saling memanggil (situs → bot, dan
-// bot → webhook situs di lima tempat). Menggantinya dengan sandi berarti ikut
-// menurunkan autentikasi antar-server jadi satu kata yang bisa ditebak, dan
-// nilainya harus diganti serentak di Vercel atau sambungannya putus.
+
+
+
+
+
+
+
+
+
+
+// ── Gerbang panel ────────────────────────────────────────────────────────────
+// Seluruh aturan "siapa boleh masuk" tinggal di src/lib/gerbang.js. Yang tersisa
+// di sini cuma dua hal yang memang milik berkas ini: rahasia yang dipakainya,
+// dan JENDELA ke keadaan sesi WhatsApp yang terus berubah.
 //
-// Jadi keduanya hidup berdampingan: sandi untuk manusia, token tetap untuk
-// mesin. Di mana pun token diterima, sandi juga diterima.
-//
-// Nilainya HANYA dari environment. Repo ini publik — sandi yang di-commit sama
-// saja dengan diumumkan. Kalau variabelnya kosong, jalur sandi mati total dan
-// yang tersisa cuma token: gagal-tertutup, bukan gagal-terbuka.
-const PANEL_PASSWORD = (process.env.PANEL_PASSWORD || '').trim();
+// `keadaan` sengaja berupa getter, bukan salinan nilai. Gerbang pemulihan
+// bertanya "apakah sesinya memang sudah mati?" pada saat tombolnya ditekan —
+// bukan pada saat modul ini dimuat, yang selalu menjawab keadaan bot beberapa
+// detik setelah menyala.
+const keadaan = {
+    get sesiTerkunci() { return sesiTerkunci; },
+    get sessionLostAt() { return sessionLostAt; },
+    get connectedPhone() { return connectedPhone; },
+};
 
-// Dibandingkan lewat digest, bukan string mentah: panjang sandi tidak boleh
-// bocor lewat lama waktu pembandingan, dan timingSafeEqual menuntut dua
-// penyangga berukuran sama.
-const cap = (v) => crypto.createHash('sha256').update(String(v ?? '')).digest();
-function passwordMatches(given) {
-    if (!PANEL_PASSWORD) return false;
-    return crypto.timingSafeEqual(cap(given), cap(PANEL_PASSWORD));
-}
+const {
+    PANEL_PASSWORD, KUKI_NAMA,
+    tokenMatches, passwordMatches, kukiSah, kukiDari, sesiSah, bolehMasuk,
+    authBlocked, noteAuthFail,
+    requireAuth, requireAuthPage, requireRelink, requirePemulihan,
+    sesiTersimpanAda, halamanMasuk,
+} = require('./src/lib/gerbang')({ API_TOKEN, AUTH_DIR, keadaan });
 
-// Kuki sesi supaya sandi cukup diketik SEKALI, bukan di tiap halaman. Nilainya
-// diturunkan dari API_TOKEN + sandi: tidak ada yang perlu disimpan di disk, dan
-// mengganti salah satunya otomatis mementahkan semua sesi lama.
-const KUKI_NAMA = 'panel_sesi';
-function kukiSah() {
-    return crypto.createHmac('sha256', String(API_TOKEN))
-        .update('panel-v1:' + PANEL_PASSWORD).digest('hex');
-}
-function kukiDari(req) {
-    const mentah = req.headers.cookie || '';
-    for (const bagian of mentah.split(';')) {
-        const [k, ...v] = bagian.trim().split('=');
-        if (k === KUKI_NAMA) return decodeURIComponent(v.join('='));
-    }
-    return '';
-}
-function sesiSah(req) {
-    if (!PANEL_PASSWORD) return false;
-    const punya = kukiDari(req);
-    if (!punya) return false;
-    try { return crypto.timingSafeEqual(cap(punya), cap(kukiSah())); } catch { return false; }
-}
-
-// Satu jawaban untuk pertanyaan "boleh masuk?", dipakai gerbang halaman maupun
-// gerbang API. Tiga jalan: kuki sesi (manusia yang sudah masuk), sandi/token di
-// header (mesin, dan curl), atau ?token= di alamat (tautan yang sudah tersebar).
-function bolehMasuk(req) {
-    if (sesiSah(req)) return true;
-    const h = req.headers.authorization;
-    const q = req.query ? req.query.token : undefined;
-    return tokenMatches(h) || tokenMatches(q) || passwordMatches(h) || passwordMatches(q);
-}
-
-// ── Rem percobaan token ──────────────────────────────────────────────────────
-// Satu token statis tanpa pembatasan laju artinya token boleh ditebak secepat
-// jaringan mengizinkan. Ini tidak mengubah kekuatan tokennya, tapi mengubah
-// tebakan dari "jutaan per jam" jadi segelintir — cukup untuk membuat penebakan
-// tidak praktis. Per-IP dan hanya di memori; restart membersihkannya, dan itu
-// tidak apa-apa karena serangan yang relevan berlangsung dalam hitungan menit.
-const AUTH_FAIL_MAX = Number(process.env.AUTH_FAIL_MAX || 10);
-const AUTH_FAIL_WINDOW_MS = Number(process.env.AUTH_FAIL_WINDOW_MINUTES || 5) * 60 * 1000;
-const authFails = new Map();   // ip → { count, first }
-setInterval(() => {
-    const now = Date.now();
-    for (const [ip, rec] of authFails) if (now - rec.first > AUTH_FAIL_WINDOW_MS) authFails.delete(ip);
-}, 60000).unref();
-
-function authBlocked(ip) {
-    const rec = authFails.get(ip);
-    if (!rec) return false;
-    if (Date.now() - rec.first > AUTH_FAIL_WINDOW_MS) { authFails.delete(ip); return false; }
-    return rec.count >= AUTH_FAIL_MAX;
-}
-function noteAuthFail(ip) {
-    const rec = authFails.get(ip);
-    if (!rec || Date.now() - rec.first > AUTH_FAIL_WINDOW_MS) {
-        authFails.set(ip, { count: 1, first: Date.now() });
-    } else {
-        rec.count++;
-        if (rec.count === AUTH_FAIL_MAX) console.warn(`[auth] ${ip} diblokir sementara setelah ${rec.count} token salah.`);
-    }
-}
-
-function requireAuth(req, res, next) {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-    if (authBlocked(ip)) return res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.' });
-    if (!bolehMasuk(req)) {
-        noteAuthFail(ip);
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    next();
-}
-
-// ── Gerbang endpoint berbahaya (re-link/reset) ───────────────────────────────
-// Endpoint yang bisa MENGHAPUS SESI atau MENAUTKAN perangkat (reset/restart/
-// pairing-code) dikunci default. Selama token bot masih bisa bocor (mis. default
-// publik), tanpa gerbang ini penyerang bisa /reset → bot logout → /pairing-code →
-// ambil alih WhatsApp bisnis. Website normal TIDAK memakai endpoint ini.
-// Untuk re-link sah: set env ALLOW_RELINK=true di server sementara, lalu matikan lagi.
-function requireRelink(req, res, next) {
-    if (process.env.ALLOW_RELINK === 'true') return next();
-    return res.status(403).json({ error: 'Endpoint terkunci demi keamanan. Set ALLOW_RELINK=true di server bila memang mau re-link/reset.' });
-}
-
-// Sesi yang benar-benar tersimpan, dibaca dari disk — BUKAN dari waSocket, yang
-// null di sela sambung-ulang. `registered` sengaja tidak dipakai sebagai tanda:
-// sesi yang ditautkan lewat QR tetap `registered:false` padahal `me` sudah terisi
-// (sesi bot pertama persis begitu). Yang menandakan ada sesi adalah `me.id`.
-function sesiTersimpanAda() {
-    try {
-        const creds = JSON.parse(fs.readFileSync(path.join(AUTH_DIR, 'creds.json'), 'utf8'));
-        return !!creds?.me?.id;
-    } catch (_) { return false; }
-}
-
-// Gerbang khusus PEMULIHAN: menautkan ulang perangkat dan membuka sesi terkunci.
-// Bedanya dengan requireRelink — yang tetap menjaga /reset dan /restart — adalah
-// apa yang sedang dijaga. Gerbang itu ada untuk melindungi sesi yang masih HIDUP:
-// /reset menghapusnya, dan itulah langkah pertama pengambilalihan. Kalau sesinya
-// memang sudah mati (belum pernah tertaut, hilang, atau ditolak WhatsApp sampai
-// terkunci), tidak ada lagi yang bisa direbut — sementara pemiliknya justru sedang
-// paling butuh jalan masuk.
-//
-// Ini menutup jebakan yang nyata terjadi: bot pertama terkunci, tombol "Buka kunci"
-// di dashboard dijawab 403, dan satu-satunya jalan keluar adalah menyunting env di
-// server lalu restart — padahal restart menghapus penanda kunci (ia cuma di memori)
-// sehingga proses baru mengulang ketukan login pada nomor yang sedang dibatasi.
-// Pemilik yang hanya memegang dashboard tidak punya jalan keluar sama sekali.
-function requirePemulihan(req, res, next) {
-    if (process.env.ALLOW_RELINK === 'true') return next();
-    if (sesiTerkunci || sessionLostAt || (!connectedPhone && !sesiTersimpanAda())) return next();
-    return res.status(403).json({ error: 'Terkunci demi keamanan: sesi bot masih hidup, '
-        + 'jadi tidak ada yang perlu ditaut ulang. Set ALLOW_RELINK=true di server bila memang mau.' });
-}
+// ── Rute halaman ─────────────────────────────────────────────────────────────
+// Semua yang menjawab dengan HTML tinggal di src/routes/web.routes.js.
+require('./src/routes/web.routes')(app, {
+    AKAR: __dirname, WEBHOOK_URL, API_TOKEN,
+    PANEL_PASSWORD, KUKI_NAMA,
+    requireAuthPage, bolehMasuk, halamanMasuk, amanTujuan,
+    authBlocked, noteAuthFail, passwordMatches, kukiSah,
+});
 
 // ── Health check (public, untuk Railway health check) ────────────────────────
 app.get('/health', (req, res) => {
@@ -1290,180 +1116,20 @@ app.get('/health', (req, res) => {
     });
 });
 
-// ── Pintu masuk panel ────────────────────────────────────────────────────────
-// Sebelum ini setiap halaman meminta token 48 karakter ditempel sendiri-sendiri.
-// Sekarang sandi diketik SEKALI di sini dan kukinya berlaku untuk semua halaman
-// maupun semua panggilan API dari halaman itu.
-//
-// Rutenya sendiri publik — pintu yang butuh kunci untuk dilihat bukan pintu.
-app.get('/masuk', (req, res) => {
-    if (bolehMasuk(req)) return res.redirect(302, amanTujuan(req.query.next));
-    res.type('html').send(halamanMasuk(req.query.next, null));
-});
 
-app.post('/masuk', (req, res) => {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-    if (authBlocked(ip)) return res.status(429).type('html').send(halamanMasuk(req.body?.next, 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.'));
 
-    if (!PANEL_PASSWORD) {
-        return res.status(503).type('html').send(halamanMasuk(req.body?.next, 'Sandi panel belum dipasang di server (PANEL_PASSWORD kosong). Sementara ini pakai token.'));
-    }
-    if (!passwordMatches(req.body?.sandi)) {
-        noteAuthFail(ip);
-        return res.status(401).type('html').send(halamanMasuk(req.body?.next, 'Sandi salah.'));
-    }
-    res.cookie(KUKI_NAMA, kukiSah(), {
-        httpOnly: true,          // JavaScript halaman tidak perlu membacanya
-        sameSite: 'strict',      // kuki tidak ikut permintaan dari situs lain (anti-CSRF)
-        secure: true,            // hanya lewat https; seluruh panel memang di balik nginx TLS
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        path: '/',
-    });
-    res.redirect(302, amanTujuan(req.body?.next));
-});
 
-app.get('/keluar', (req, res) => {
-    res.clearCookie(KUKI_NAMA, { path: '/' });
-    res.redirect(302, '/masuk');
-});
 
-// Tujuan setelah masuk datang dari alamat, artinya dari luar. Terima HANYA jalur
-// internal: tanpa ini, /masuk?next=https://situs-jahat berubah jadi pengalihan
-// terbuka yang meminjam kredibilitas domain ini.
-function amanTujuan(n) {
-    const t = String(n || '/');
-    if (!t.startsWith('/') || t.startsWith('//')) return '/';
-    return t;
-}
 
-function halamanMasuk(next, galat) {
-    const tujuan = amanTujuan(next);
-    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    return `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Masuk — Bot USU Polmed</title>
-<meta name="robots" content="noindex, nofollow">
-<link rel="stylesheet" href="/assets/ui.css">
-<script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
-</head><body>
-<div class="wrap doc" style="max-width:26rem;margin-top:14vh">
-  <header style="text-align:center">
-    <div class="kicker">Panel Bot</div>
-    <h1 style="font-size:1.4rem">Masuk</h1>
-    <p class="muted">Satu sandi untuk semua halaman panel.</p>
-  </header>
-  <div class="card">
-    <form method="POST" action="/masuk">
-      <input type="hidden" name="next" value="${esc(tujuan)}">
-      <label for="sandi" class="muted" style="display:block;margin-bottom:6px;font-size:.85rem">Sandi</label>
-      <input id="sandi" name="sandi" type="password" autocomplete="current-password" autofocus required
-             style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
-                    background:var(--sunk);color:var(--ink);font-size:1rem">
-      ${galat ? `<p style="color:var(--bad);font-size:.85rem;margin:10px 0 0">${esc(galat)}</p>` : ''}
-      <button class="btn primary wide" type="submit" style="margin-top:14px">Masuk</button>
-    </form>
-  </div>
-  <p class="muted tiny" style="text-align:center">
-    Satu-satunya halaman yang bisa dibuka tanpa sandi: <a href="/lomba">/lomba</a>.
-  </p>
-</div>
-</body></html>`;
-}
 
-// ── QR Page (public) ─────────────────────────────────────────────────────────
-app.get('/', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'halaman', 'dashboard.html'));
-});
 
-// ── Beranda (public) ─────────────────────────────────────────────────────────
-// Daftar tombol ke semua halaman & endpoint. Halamannya sendiri publik; data
-// yang butuh token tetap diambil lewat fetch ber-Authorization dari browser.
-app.get('/home', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'halaman', 'home.html'));
-});
 
-// ── Halaman catatan proyek (public) ──────────────────────────────────────────
-// Halaman baca panjang berisi detail proyek: masalah yang diangkat, arsitektur
-// dua-pintu (web + WhatsApp), keputusan desain gerbang titik, dan jejak perbaikan
-// keandalan. Sengaja disajikan dari bot, bukan dari situs utama — halaman yang
-// menceritakan bot ini pantas dilayani oleh bot itu sendiri.
-app.get('/projek', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'halaman', 'projek.html'));
-});
 
-app.get('/update', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'halaman', 'update.html'));
-});
 
-// ── Halaman audit (butuh sandi) ──────────────────────────────────────────────
-// Dua halaman, dua sudut pandang atas audit yang sama. Dua-duanya BERGERBANG,
-// dan itu bukan kehati-hatian berlebihan: isinya menyebut endpoint yang belum
-// dijaga dan kredensial yang belum dirotasi. Daftar seperti itu adalah peta
-// serangan yang sudah jadi.
-//
-// progres.html sempat tinggal di public/ pada 21 Agustus 2026 — dan express.static
-// melayani apa pun di sana tanpa gerbang, jadi selama beberapa menit halaman itu
-// menyajikan sandi admin ke siapa saja yang mengetik alamatnya. Berkasnya
-// dipindah ke halaman/, yang tidak disajikan static. Jangan pernah menaruh berkas
-// bergerbang di public/.
-app.get('/progres', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'halaman', 'progres.html'));
-});
 
-app.get('/progres-claude', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'halaman', 'progres-claude.html'));
-});
 
-// Temuan keamanannya TIDAK ditulis di dalam HTML-nya: berkas HTML ikut git, dan
-// repo ini publik. Ia tinggal di catatan/ yang sengaja di-.gitignore, dan diambil
-// halamannya saat dibuka. Konsekuensinya jujur: VPS yang baru di-deploy tidak
-// punya salinannya, dan halamannya memang mengatakan itu apa adanya.
-app.get('/progres-claude/temuan', requireAuthPage, (req, res) => {
-    const berkas = path.join(__dirname, 'catatan', 'temuan-keamanan.md');
-    if (!fs.existsSync(berkas)) return res.status(404).type('text/plain; charset=utf-8').send('');
-    res.type('text/plain; charset=utf-8').send(fs.readFileSync(berkas, 'utf8'));
-});
 
-app.get('/lomba', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'lomba.html'));
-});
 
-// ── Panel bot versi demo (public) ────────────────────────────────────────────
-// Berkas yang SAMA dengan /dashboard — bukan salinan.
-//
-// Panel ini bagian yang paling banyak menjelaskan cara kerja bot, dan ia justru
-// yang paling tidak bisa diperlihatkan: bergerbang sandi, dan isinya nomor serta
-// isi percakapan orang sungguhan. Jadi yang dibuka kembarannya: halaman yang
-// sama, data karangan.
-//
-// Yang membuatnya aman ada di halamannya, bukan di sini. Saat dibuka lewat
-// /demo, api() dan post() di dashboard.html tidak pernah memanggil jaringan —
-// jawabannya dirakit di dalam halaman. Jadi tidak ada satu pun endpoint bot yang
-// bisa disentuh dari sana, bahkan dari konsol peramban. Gerbang requireAuth di
-// endpoint-endpoint itu pun tetap berdiri seperti biasa, sebagai lapis kedua.
-app.get('/demo', (req, res) => {
-    res.sendFile(path.join(__dirname, 'halaman', 'dashboard.html'));
-});
-
-// ── Migrasi database, siap salin (butuh token) ───────────────────────────────
-// Berkas migrasi gabungan itu 1.469 baris; menyalinnya dari terminal atau dari
-// tampilan berkas di GitHub selalu meleset sebagian. Halaman ini menyajikannya
-// dengan satu tombol salin, dan mengambil isinya lewat fetch() saat dibuka
-// supaya tidak ada salinan kedua yang perlahan berbeda dari yang di repo.
-//
-// Berkasnya SENGAJA tidak tinggal di public/. express.static melayani apa pun
-// di sana tanpa melewati gerbang mana pun, jadi menaruh migrasi.sql di public/
-// sambil memasang requireAuthPage di rute ini akan menghasilkan gerbang yang
-// bisa dilewati hanya dengan mengetik /migrasi.sql. Berkasnya di migrasi/,
-// di luar jangkauan static, dan satu-satunya jalan masuk adalah rute ini.
-//
-// Halaman ini membawa nama tabel, nama kolom, dan bentuk seluruh basis data —
-// peta yang mempersingkat pekerjaan siapa pun yang mencari celah. Token, dan
-// tetap noindex.
-app.get('/jalankan', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'jalankan.html'));
-});
 
 // ── Antrean notifikasi yang belum sampai (butuh token) ───────────────────────
 // Pemilik antreannya adalah tabel `wa_outbox` di Supabase, dan VPS ini TIDAK
@@ -1477,9 +1143,6 @@ app.get('/jalankan', requireAuthPage, (req, res) => {
 const SITUS_BASE = WEBHOOK_URL.replace(/\/api\/wa\/baileys\/?$/, '').replace(/\/$/, '');
 const SITUS_OUTBOX = `${SITUS_BASE}/api/admin/outbox`;
 
-app.get('/antrean', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'antrean.html'));
-});
 
 // Proxy tipis. Dijaga requireAuth supaya token bot tidak pernah perlu ada di
 // JavaScript halaman — yang keluar dari peramban cuma ?token= milik halaman itu
@@ -1662,71 +1325,9 @@ for (const berkas of ['migrasi.sql', 'migrasi-keamanan.sql']) {
 // GitHub habis dalam hitungan menit.
 const REPO_BOT = 'jualbeliusupolmed-creator/wa-bot-usu';
 const REPO_SITUS = 'jualbeliusupolmed-creator/jualbeliusupolmed';
-const RIWAYAT_TTL_MS = Number(process.env.RIWAYAT_TTL_MENIT || 10) * 60 * 1000;
-let riwayatCache = { pada: 0, data: null };
 
-function riwayatBot(batas = 200) {
-    return new Promise((resolve) => {
-        // %x1f dan %x1e: pemisah unit & rekaman ASCII. Baris commit di repo ini
-        // memuat baris kosong, tanda hubung, dan tabel — pemisah yang "kelihatan"
-        // seperti --- pasti cepat atau lambat muncul di dalam pesan commit sendiri.
-        execFile('git', ['-C', __dirname, 'log', `-n${batas}`, '--no-color',
-            '--pretty=format:%H%x1f%aI%x1f%s%x1f%b%x1e'],
-        { maxBuffer: 8 * 1024 * 1024, timeout: 8000 }, (err, stdout) => {
-            if (err) return resolve([]);
-            resolve(String(stdout).split('\x1e').map((e) => e.trim()).filter(Boolean).map((entri) => {
-                const [sha, tanggal, judul, isi] = entri.split('\x1f');
-                return {
-                    sha: (sha || '').slice(0, 7), tanggal, judul,
-                    isi: (isi || '').trim(), repo: 'bot',
-                    url: `https://github.com/${REPO_BOT}/commit/${sha}`,
-                };
-            }));
-        });
-    });
-}
 
-async function riwayatSitus(batas = 100) {
-    // Tanpa token: 60 permintaan per jam per IP. Cukup, karena hasilnya di-cache.
-    const res = await fetch(`https://api.github.com/repos/${REPO_SITUS}/commits?per_page=${batas}`, {
-        headers: { 'User-Agent': 'wa-bot-usu', Accept: 'application/vnd.github+json' },
-        signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) throw new Error(`GitHub ${res.status}`);
-    const data = await res.json();
-    return (Array.isArray(data) ? data : []).map((c) => {
-        const pesan = String(c?.commit?.message || '');
-        const pisah = pesan.indexOf('\n');
-        return {
-            sha: String(c.sha || '').slice(0, 7),
-            tanggal: c?.commit?.author?.date || c?.commit?.committer?.date || null,
-            judul: pisah === -1 ? pesan : pesan.slice(0, pisah),
-            isi: pisah === -1 ? '' : pesan.slice(pisah + 1).trim(),
-            repo: 'situs',
-            url: c.html_url || `https://github.com/${REPO_SITUS}/commit/${c.sha}`,
-        };
-    });
-}
 
-app.get('/riwayat', requireAuthPage, async (req, res) => {
-    if (riwayatCache.data && Date.now() - riwayatCache.pada < RIWAYAT_TTL_MS) {
-        return res.json({ ...riwayatCache.data, dariCache: true });
-    }
-    const bot = await riwayatBot();
-    let situs = [];
-    let galatSitus = null;
-    try {
-        situs = await riwayatSitus();
-    } catch (e) {
-        galatSitus = e.message;
-        // GitHub mati bukan alasan menampilkan halaman kosong: riwayat situs yang
-        // terakhir berhasil diambil masih jauh lebih berguna daripada tidak ada.
-        if (riwayatCache.data?.situs?.length) situs = riwayatCache.data.situs;
-    }
-    const data = { bot, situs, galatSitus, diambil: new Date().toISOString() };
-    riwayatCache = { pada: Date.now(), data };
-    res.json({ ...data, dariCache: false });
-});
 
 // ── QR JSON endpoint (untuk admin panel web) ─────────────────────────────────
 app.get('/qr', requireAuth, async (req, res) => {
@@ -1798,66 +1399,6 @@ app.get('/logs', requireAuth, (req, res) => {
     res.json({ logs: systemLogs });
 });
 
-// ── Halaman laporan analisis ─────────────────────────────────────────────────
-// Ada DUA berkas, dan bedanya disengaja:
-//
-//   laporan-publik.html — /laporan, tanpa token. Temuan bisnis & performa utuh,
-//       tapi cara menembus keamanan bot dibuang. Sebuah halaman publik yang
-//       menuliskan "endpoint X cuma dijaga satu token dan tidak dibatasi laju"
-//       berhenti jadi laporan audit dan berubah jadi petunjuk serangan.
-//
-//   laporan.html — /laporan/penuh, wajib token. Versi lengkap untuk admin.
-//
-// Keduanya di root proyek, BUKAN di public/, supaya express.static tidak diam-diam
-// menyajikan versi lengkapnya ke siapa saja.
-//
-// Token boleh lewat query string KHUSUS di rute penuh: tautan yang diklik dari
-// browser tidak bisa membawa header Authorization. Konsekuensinya token ikut
-// tercatat di riwayat browser, jadi tautan /laporan/penuh jangan disebar.
-function requireAuthPage(req, res, next) {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-    if (authBlocked(ip)) return res.status(429).type('html').send('<!doctype html><meta charset="utf-8"><title>429</title><body style="font:16px/1.6 system-ui;max-width:34rem;margin:18vh auto"><h1 style="font-size:1.25rem">Terlalu banyak percobaan</h1><p>Coba lagi beberapa menit lagi.</p></body>');
-    if (bolehMasuk(req)) {
-        // Masuk lewat ?token= / sandi di alamat: tukar jadi kuki sekalian.
-        // Tanpa ini halaman lolos gerbang tapi fetch()-nya sendiri tidak —
-        // /update mengambil /riwayat lewat JavaScript, dan JavaScript tidak
-        // ikut membawa ?token= milik halamannya. Hasilnya halaman terbuka
-        // dengan linimasa kosong, yang jauh lebih membingungkan daripada
-        // ditolak terang-terangan.
-        if (PANEL_PASSWORD && !sesiSah(req)) {
-            res.cookie(KUKI_NAMA, kukiSah(), {
-                httpOnly: true, sameSite: 'strict', secure: true,
-                maxAge: 30 * 24 * 60 * 60 * 1000, path: '/',
-            });
-        }
-        return next();
-    }
-    // Belum masuk bukan kesalahan yang perlu diomeli — antar saja ke pintunya,
-    // sambil mengingat halaman yang tadi dituju supaya ia tidak hilang.
-    // noteAuthFail() TIDAK dipanggil di sini: yang barusan terjadi cuma
-    // "belum punya kuki", dan menghitungnya sebagai percobaan gagal akan
-    // memblokir orang yang bahkan belum sempat mengetik apa pun.
-    const tujuan = encodeURIComponent(req.originalUrl || '/');
-    res.redirect(302, '/masuk?next=' + tujuan);
-}
-// Versi lengkap — admin saja.
-app.get('/laporan/penuh', requireAuthPage, (req, res) => {
-    res.sendFile(path.join(__dirname, 'laporan.html'));
-});
-// Versi publik — tanpa token, boleh dibagikan.
-app.get('/laporan', requireAuthPage, (req, res) => {
-    // Dulu di sini ada percabangan tamu/admin, karena halamannya publik. Sejak
-    // seluruh panel butuh sandi, siapa pun yang sampai ke baris ini SUDAH admin —
-    // percabangan itu tinggal jebakan: sesi berkuki lolos gerbang lalu gagal di
-    // pemeriksaan token dan disuguhi versi publik seolah ia orang asing.
-    res.sendFile(path.join(__dirname, 'laporan.html'));
-});
-// Menebak '/laporan.html' itu refleks yang wajar — dan tanpa ini jawabannya cuma
-// "Cannot GET" dari Express, yang bikin orang mengira halamannya belum ada.
-app.get('/laporan.html', requireAuthPage, (req, res) => {
-    const q = req.query.token ? '?token=' + encodeURIComponent(req.query.token) : '';
-    res.redirect(301, '/laporan' + q);
-});
 
 // ── Resolve @lid → nomor (admin) ─────────────────────────────────────────────
 // Untuk migrasi data lama ber-key LID: tanya pemetaan LID↔nomor langsung ke
@@ -2934,12 +2475,6 @@ app.post('/community/link-group', requireAuth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Ekstrak isi pesan — skip metadata wrapper (messageContextInfo, dll) ───────
-const META_KEYS = new Set([
-    'messageContextInfo',
-    'senderKeyDistributionMessage',
-    'deviceSentMessage', // sudah di-unwrap Baileys saat dekripsi; jaring pengaman saja
-]);
 
 // Tipe yang BUKAN percakapan — hanya metadata/aksi UI. Dulu semuanya jatuh ke
 // cabang 'else' dan diteruskan ke webhook sebagai "non-text message", sehingga bot
@@ -2955,20 +2490,6 @@ const IGNORED_MESSAGE_TYPES = new Set([
     'keepInChatMessage',
 ]);
 
-function extractMessage(rawMessage) {
-    if (!rawMessage) return { type: '', content: null, rawForMedia: rawMessage };
-
-    // Buka SEMUA pembungkus: ephemeral, view-once V1/V2/V2Extension, edited,
-    // documentWithCaption, dst. Dulu ini dikerjakan manual dan salah — rantai
-    // `viewOnceMessageV2?.message?.viewOnceMessage?.message` menunjuk nesting yang
-    // tidak ada, dan documentWithCaptionMessage tidak ditangani sama sekali, jadi
-    // pesan view-once & dokumen berketerangan lolos sebagai "non-text message".
-    // normalizeMessageContent bawaan Baileys menangani kesembilan pembungkusnya.
-    const inner = normalizeMessageContent(rawMessage) || rawMessage;
-
-    const type = Object.keys(inner).find(k => !META_KEYS.has(k)) || '';
-    return { type, content: inner[type], rawForMedia: rawMessage };
-}
 
 // ── Bot core ──────────────────────────────────────────────────────────────────
 // ── Versi protokol WhatsApp ──────────────────────────────────────────────────
@@ -3035,16 +2556,6 @@ async function getWaVersion() {
 // menit terakhir.
 const sentMsgStore = new Map();   // `${jid}:${id}` → proto message
 const SENT_STORE_CAP = Number(process.env.SENT_STORE_CAP || 3000);
-// Teks dari struktur pesan Baileys, apa pun bungkusnya.
-function teksPesan(msg) {
-    if (!msg) return '';
-    return msg.conversation
-        || msg.extendedTextMessage?.text
-        || msg.imageMessage?.caption
-        || msg.videoMessage?.caption
-        || msg.documentMessage?.caption
-        || '';
-}
 
 // Satu tempat untuk mencatat kejadian forensik: masuk arsip pesan (jadi terlihat
 // di dashboard) dan, kalau tujuannya diisi, diteruskan ke nomor/grup pengawas.
