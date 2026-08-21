@@ -1538,3 +1538,52 @@ ALTER TABLE public.push_subscriptions ALTER COLUMN wa DROP NOT NULL;
 -- untuk mengambil pelanggan terbaru dulu saat jumlahnya sudah besar.
 CREATE INDEX IF NOT EXISTS push_subscriptions_created_idx
   ON public.push_subscriptions (created_at DESC);
+
+
+-- ---------------------------------------------------------------------
+-- BAGIAN 26 — Toko harus disetujui admin dulu
+--
+-- Sejak "punya toko = iklan gratis", membuat toko bukan lagi urusan
+-- tampilan: ia pintu masuk ke iklan tanpa biaya. Pintu yang siapa pun
+-- bisa buka sendiri dengan mengetik satu alamat bukan pintu.
+--
+-- Empat kolom, satu alur: penjual mengisi tokonya (draf) → menekan
+-- "Minta persetujuan" (menunggu) → admin membuka tautan yang dikirimkan
+-- lewat WhatsApp dan menekan Aktifkan (aktif). 'ditolak' menyimpan
+-- alasannya supaya penjual tahu apa yang harus diperbaiki.
+--
+-- Halaman /toko/<slug> hanya tayang untuk yang 'aktif'.
+-- ---------------------------------------------------------------------
+ALTER TABLE public.seller_profiles
+  ADD COLUMN IF NOT EXISTS store_status text NOT NULL DEFAULT 'draf',
+  ADD COLUMN IF NOT EXISTS store_requested_at timestamptz,
+  ADD COLUMN IF NOT EXISTS store_approved_at timestamptz,
+  ADD COLUMN IF NOT EXISTS store_reject_note text;
+
+-- CHECK ditambah terpisah supaya menjalankan ulang berkas ini tidak gagal
+-- di baris yang constraint-nya sudah ada.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'seller_profiles_store_status_check'
+  ) THEN
+    ALTER TABLE public.seller_profiles
+      ADD CONSTRAINT seller_profiles_store_status_check
+      CHECK (store_status IN ('draf', 'menunggu', 'aktif', 'ditolak'));
+  END IF;
+END $$;
+
+-- Toko yang SUDAH terlanjur ada sebelum aturan ini tidak boleh mendadak
+-- padam: alamatnya sudah disebar penjualnya ke pelanggan. Semuanya
+-- dianggap sudah disetujui. Hanya baris 'draf' yang disentuh, jadi
+-- menjalankan ulang berkas ini tidak menghidupkan kembali toko yang
+-- sengaja ditolak admin.
+UPDATE public.seller_profiles
+   SET store_status = 'aktif',
+       store_approved_at = COALESCE(store_approved_at, now())
+ WHERE slug IS NOT NULL
+   AND store_status = 'draf';
+
+-- Panel admin selalu membuka daftar "yang menunggu dulu".
+CREATE INDEX IF NOT EXISTS seller_profiles_store_status_idx
+  ON public.seller_profiles (store_status);
