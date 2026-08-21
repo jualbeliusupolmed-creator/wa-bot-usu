@@ -79,7 +79,14 @@ meneruskan ke `/api/admin/outbox` di situs.
 
 | Berkas | Baris | Tanggung jawab |
 |---|---:|---|
-| `index.js` | ~4.020 | **Seluruh bot.** Server Express + soket Baileys + gerbang + antrean + panel API. Satu berkas, sengaja. |
+| `index.js` | 2.693 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
+| `src/lib/utils.js` | 184 | 18 fungsi murni — masuk-keluar, tanpa state. |
+| `src/lib/gerbang.js` | 265 | Token mesin, sandi manusia, kuki sesi, rem tebak-token, dua gerbang pemulihan. Berbentuk pabrik. |
+| `src/routes/web.routes.js` | 251 | 18 rute yang menjawab HTML + pintu masuk/keluar. |
+| `src/routes/panel.routes.js` | ~300 | 18 rute data yang dibaca dashboard. |
+| `src/routes/wa.routes.js` | ~540 | 30 rute yang menyentuh WhatsApp. |
+| `src/routes/sesi.routes.js` | ~100 | 8 rute taut-ulang, reset, buka kunci, bot kedua. |
+| `src/routes/antrean.routes.js` | ~125 | 4 rute antrean kirim & proxy antrean situs. |
 | `waAuthState.js` | 302 | Penyimpan sesi Baileys di filesystem, dengan cadangan berputar & tulis atomik. |
 | `useSupabaseAuthState.js` | 190 | Adapter sesi ke Postgres. **Tidak dipakai** (tidak ada env Supabase). |
 | `halaman/dashboard.html` | 958 | Panel operasi: QR, inbox chat, statistik gerbang, blocklist, story, log. |
@@ -95,6 +102,24 @@ meneruskan ke `/api/admin/outbox` di situs.
 | `penjaga-bot.sh` | 115 | Cron tiap 2 menit: cek `/health`, restart kalau mati. |
 | `cadangkan-sesi.sh` | 194 | Cadangan sesi terenkripsi AES ke repo GitHub privat. |
 | `.github/workflows/pantau-bot.yml` | 122 | Pemantau dari luar VPS. |
+
+**Refactor 22 Agustus 2026 — apa yang sudah dan belum dipecah.** `index.js`
+turun dari 4.075 ke 2.693 baris; seluruh 78 rute Express pindah ke
+`src/routes/`. Yang MASIH di dalamnya: soket Baileys, handler
+`messages.upsert`, antrean kirim, dan 28 variabel state yang dipakai bersama.
+
+Modul rute menerima satu objek konteks `K`. Isinya dua macam: nilai tetap
+(diambil sekali lewat destrukturisasi) dan **state hidup lewat getter/setter**.
+Yang kedua bukan gaya penulisan — `waSocket` diganti tiap kali bot menyambung
+ulang, jadi modul yang menyalinnya ke variabel lokal akan memegang soket mati
+selamanya, dan gejalanya bukan galat melainkan pesan yang tidak pernah sampai.
+
+⚠ **Sebelum memindah apa pun lagi dari `index.js`, jalankan
+`/root/uji-boot-bot.sh`.** Ia menyalakan bot di port 3099 dengan DATA_DIR
+sementara dan memeriksa 32 hal. Fase 2 menemukan empat kesalahan penggantian
+nama lewat alat ini, dan satu di antaranya — nama yang terganti di dalam string
+literal, membuat `/stats` dan `/settings` hilang jadi 404 — lolos dari
+`node --check` dengan sintaksis sempurna.
 
 **Berkas state runtime** (semuanya di-`.gitignore`, dan **harus tetap begitu**):
 `auth_info_baileys/`, `contacts.json`, `chats.json`, `messages.json`,
