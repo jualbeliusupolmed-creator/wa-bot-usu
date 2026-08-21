@@ -428,6 +428,24 @@ const GAP_OTHER_RAND_MS = Number(process.env.GAP_OTHER_RAND_MS || 2500);
 // mati tapi event 'close' belum datang. Cek websocket-nya langsung.
 function socketAlive() { return !!(waSocket && waSocket.ws?.isOpen); }
 
+// socketAlive() menjawab "kabelnya nyambung", BUKAN "botnya siap dipakai".
+// Selama menunggu QR dipindai, WebSocket ke WhatsApp sudah terbuka — jadi
+// endpoint yang cuma memeriksa socket akan lolos, memanggil groupMetadata() atau
+// onWhatsApp(), lalu MENGGANTUNG sampai kliennya menyerah, karena jawabannya
+// tidak akan pernah datang untuk sesi yang belum login. Yang menandai siap
+// adalah adanya nomor yang tersambung.
+function botSiap() { return socketAlive() && !!connectedPhone; }
+
+// Permintaan ke WhatsApp yang tidak pernah dijawab. Sesekali terjadi meski sesi
+// sehat (server WA rewel, jaringan setengah mati), dan tanpa batas waktu ia
+// menahan satu koneksi HTTP selamanya. Lebih baik 504 yang jujur.
+function dgnBatas(janji, ms = 15000, apa = 'Permintaan ke WhatsApp') {
+    return Promise.race([
+        janji,
+        new Promise((_, tolak) => setTimeout(() => tolak(new Error(`${apa} tidak dijawab dalam ${Math.round(ms / 1000)} detik.`)), ms)),
+    ]);
+}
+
 // Laporan ke pemilik lewat WhatsApp. Tanpa OWNER_JID, dikirim ke nomor bot sendiri
 // (chat "pesan ke diri sendiri") — tetap sampai dan tidak mengganggu pelanggan.
 function notifyOwner(text) {
@@ -1252,7 +1270,7 @@ app.get('/laporan.html', (req, res) => {
 // Untuk migrasi data lama ber-key LID: tanya pemetaan LID↔nomor langsung ke
 // WhatsApp (getPNForLID). Hasil dipakai POST /api/admin/migrate-lid di website.
 app.get('/resolve-lid', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot belum tersambung' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot belum tersambung' });
     const digits = String(req.query.lid || '').split('@')[0].replace(/\D/g, '');
     if (!digits) return res.status(400).json({ error: 'param ?lid= wajib' });
     const lidJid = digits + '@lid';
@@ -1283,7 +1301,11 @@ app.get('/groups', requireAuth, async (req, res) => {
     if (!fresh && groupsCache.data && Date.now() - groupsCache.at < GROUPS_TTL_MS) {
         return res.json({ groups: groupsCache.data, cached: true, age: Date.now() - groupsCache.at });
     }
-    if (!waSocket) {
+    // botSiap(), bukan sekadar `waSocket`: selama menunggu QR dipindai socket-nya
+    // sudah terbuka tapi belum login, dan groupFetchAllParticipating() akan
+    // menggantung sampai klien menyerah — cache basi jauh lebih berguna daripada
+    // permintaan yang tidak pernah dijawab.
+    if (!botSiap()) {
         // Bot lagi putus? Sajikan cache lama daripada gagal total.
         if (groupsCache.data) return res.json({ groups: groupsCache.data, cached: true, stale: true, age: Date.now() - groupsCache.at });
         return res.status(503).json({ error: 'Bot not connected' });
@@ -1468,12 +1490,12 @@ function saveStatus(data) {
 }
 
 app.get('/newsletters', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     res.json({ newsletters: getSavedNewsletters() });
 });
 
 app.post('/newsletters/add', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const { invite } = req.body;
     if (!invite) return res.status(400).json({ error: 'Invite link required' });
     try {
@@ -1850,7 +1872,7 @@ app.get('/profile', requireAuth, (req, res) => {
 });
 
 app.post('/profile/name', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const { name } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'name required' });
     try {
@@ -1860,7 +1882,7 @@ app.post('/profile/name', requireAuth, async (req, res) => {
 });
 
 app.post('/profile/status', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const { status } = req.body;
     if (status === undefined) return res.status(400).json({ error: 'status required' });
     try {
@@ -1910,7 +1932,7 @@ app.delete('/context', requireAuth, (req, res) => {
 
 // ── Blocklist endpoint ────────────────────────────────────────────────────────
 app.get('/blocklist', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     try {
         const list = await waSocket.fetchBlocklist();
         res.json({ blocklist: list || [] });
@@ -1918,7 +1940,7 @@ app.get('/blocklist', requireAuth, async (req, res) => {
 });
 
 app.post('/blocklist/block', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const { jid } = req.body;
     if (!jid) return res.status(400).json({ error: 'jid required' });
     try {
@@ -1928,7 +1950,7 @@ app.post('/blocklist/block', requireAuth, async (req, res) => {
 });
 
 app.post('/blocklist/unblock', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const { jid } = req.body;
     if (!jid) return res.status(400).json({ error: 'jid required' });
     try {
@@ -1943,7 +1965,7 @@ app.get('/story', requireAuth, (req, res) => {
 });
 
 app.post('/story', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const { text, url } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: 'text required' });
     try {
@@ -1976,7 +1998,7 @@ app.post('/story', requireAuth, async (req, res) => {
 
 // ── Group management endpoints ────────────────────────────────────────────────
 app.get('/groups/:jid/invite', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const jid = decodeURIComponent(req.params.jid);
     try {
         const code = await waSocket.groupInviteCode(jid);
@@ -1985,7 +2007,7 @@ app.get('/groups/:jid/invite', requireAuth, async (req, res) => {
 });
 
 app.post('/groups/create', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const { name, participants } = req.body;
     if (!name?.trim() || !Array.isArray(participants) || !participants.length) {
         return res.status(400).json({ error: 'name and participants (array) required' });
@@ -1998,7 +2020,7 @@ app.post('/groups/create', requireAuth, async (req, res) => {
 });
 
 app.post('/groups/:jid/participants', requireAuth, async (req, res) => {
-    if (!waSocket) return res.status(503).json({ error: 'Bot not connected' });
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
     const jid = decodeURIComponent(req.params.jid);
     const { action, participants } = req.body;
     if (!['add', 'remove', 'promote', 'demote'].includes(action)) {
@@ -2032,6 +2054,232 @@ app.post('/send-poll', requireAuth, async (req, res) => {
     messageQueue.push({ jid, poll: { name: name.trim(), values: options, selectableCount: 1 }, ts: Date.now() });
     kickQueue();
     res.json({ ok: true, detail: 'Poll ditambahkan ke antrean' });
+});
+
+// ── Endpoint yang dipanggil panel admin situs ────────────────────────────────
+// Panel WhatsApp di situs (src/components/baileys/) sudah punya tombol untuk
+// semua ini, tapi bot-nya belum pernah menyediakan route-nya — jadi situs
+// menyimpan daftar `UNSUPPORTED` sendiri supaya tombolnya berkata "belum
+// tersedia" alih-alih memuntahkan 404. Daftar itu ada catatannya: "hapus dari
+// daftar ini begitu route-nya sudah ada di bot". Ini bagian bot dari janji itu.
+//
+// Semuanya bersandar pada kemampuan yang memang sudah ada di Baileys 7.0.0-rc14
+// yang terpasang — tidak ada satu pun yang dikarang di sisi bot.
+
+// Satu grup, lengkap dengan DAFTAR anggotanya. Beda dengan GET /groups yang
+// menyajikan `participants` sebagai ANGKA (jumlah) demi daftar yang ringan.
+// Bedanya bukan kosmetik: broadcast japri di situs mengambil daftar anggota dari
+// sini, dan ketika route ini tidak ada ia jatuh ke /groups lalu memeriksa
+// Array.isArray(participants) — yang selalu gagal karena isinya angka. Fitur itu
+// tidak pernah bisa jalan sama sekali sebelum route ini ada.
+app.get('/groups/:jid', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    const jid = decodeURIComponent(req.params.jid);
+    try {
+        const meta = await dgnBatas(waSocket.groupMetadata(jid), 15000, `Metadata grup ${jid}`);
+        res.json({
+            jid: meta.id,
+            name: meta.subject || 'Tanpa Nama',
+            desc: meta.desc || '',
+            owner: meta.owner || null,
+            size: meta.participants?.length || 0,
+            isCommunity: !!meta.isCommunity,
+            linkedParent: meta.linkedParent || null,
+            participants: (meta.participants || []).map((p) => ({
+                id: p.id,
+                admin: p.admin || null,
+            })),
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Nomor terdaftar di WhatsApp atau tidak. Jawabannya memakai kunci `exists`
+// karena itu yang dibaca panel situs.
+app.post('/check-number', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    const nomor = String(req.body?.phone || '').replace(/[^0-9]/g, '');
+    if (!nomor) return res.status(400).json({ error: 'phone wajib diisi' });
+    try {
+        const hasil = await dgnBatas(waSocket.onWhatsApp(nomor), 15000, "Pemeriksaan nomor");
+        const cocok = hasil?.[0];
+        res.json({ exists: !!cocok?.exists, jid: cocok?.jid || null, phone: nomor });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Kehadiran (online/mengetik) tidak bisa ditanyakan langsung — WhatsApp
+// MENGIRIMKANNYA setelah kita berlangganan. Jadi: berlangganan, tunggu sebentar,
+// lalu jawab apa yang datang. Tanpa batas waktu, permintaan ini menggantung
+// selamanya untuk nomor yang kebetulan sedang offline dan tidak mengirim apa pun.
+app.post('/get-presence', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    // Diperiksa SEBELUM toJid: toJid('') menjawab '@s.whatsapp.net' yang truthy,
+    // jadi memeriksa hasilnya sama saja dengan tidak memeriksa apa-apa.
+    const mentah = String(req.body?.jid || req.body?.phone || '').trim();
+    if (!mentah) return res.status(400).json({ error: 'jid wajib diisi' });
+    const jid = toJid(mentah);
+    const TUNGGU_MS = Math.min(Number(req.body?.timeoutMs) || 6000, 15000);
+    try {
+        let jawab = null;
+        const dengar = (ev) => {
+            if (ev?.id !== jid || jawab) return;
+            const isi = ev.presences?.[jid] || Object.values(ev.presences || {})[0];
+            if (isi) jawab = isi;
+        };
+        waSocket.ev.on('presence.update', dengar);
+        await waSocket.presenceSubscribe(jid).catch(() => {});
+        await new Promise((r) => setTimeout(r, TUNGGU_MS));
+        waSocket.ev.off('presence.update', dengar);
+
+        // Bio/"about" datang dari jalur lain dan tidak selalu ada — kegagalannya
+        // tidak boleh menghapus hasil kehadiran yang barusan ditunggu.
+        let about = null;
+        try {
+            const st = await waSocket.fetchStatus(jid);
+            about = st?.[0]?.status?.status || null;
+        } catch (_) {}
+
+        res.json({
+            jid,
+            // Tidak ada kabar BUKAN berarti offline: WhatsApp hanya mengirim
+            // kehadiran orang yang mengizinkannya. Katakan apa adanya.
+            presence: jawab?.lastKnownPresence || null,
+            lastSeen: jawab?.lastSeen || null,
+            about,
+            keterangan: jawab ? null : `Tidak ada kabar kehadiran dalam ${Math.round(TUNGGU_MS / 1000)} detik `
+                + '— nomor ini mungkin menyembunyikan status online-nya, atau memang sedang tidak aktif.',
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Setelan privasi akun bot. Nama medannya mengikuti panel situs
+// (lastSeen/profilePhoto/status/readReceipts), bukan nama Baileys.
+app.post('/set-privacy', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    const { lastSeen, profilePhoto, status, readReceipts } = req.body || {};
+    const SAH = new Set(['all', 'contacts', 'contact_blacklist', 'none']);
+    // Panel memakai "everyone"; WhatsApp menyebutnya "all".
+    const nilai = (v) => (v === 'everyone' ? 'all' : v);
+    try {
+        const dikerjakan = [];
+        if (lastSeen !== undefined) {
+            if (!SAH.has(nilai(lastSeen))) return res.status(400).json({ error: `lastSeen tidak sah: ${lastSeen}` });
+            await waSocket.updateLastSeenPrivacy(nilai(lastSeen)); dikerjakan.push('lastSeen');
+        }
+        if (profilePhoto !== undefined) {
+            if (!SAH.has(nilai(profilePhoto))) return res.status(400).json({ error: `profilePhoto tidak sah: ${profilePhoto}` });
+            await waSocket.updateProfilePicturePrivacy(nilai(profilePhoto)); dikerjakan.push('profilePhoto');
+        }
+        if (status !== undefined) {
+            if (!SAH.has(nilai(status))) return res.status(400).json({ error: `status tidak sah: ${status}` });
+            await waSocket.updateStatusPrivacy(nilai(status)); dikerjakan.push('status');
+        }
+        if (readReceipts !== undefined) {
+            await waSocket.updateReadReceiptsPrivacy(readReceipts ? 'all' : 'none'); dikerjakan.push('readReceipts');
+        }
+        if (!dikerjakan.length) return res.status(400).json({ error: 'Tidak ada setelan yang dikirim.' });
+        res.json({ ok: true, diubah: dikerjakan });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Perangkat/sesi yang sedang dipakai bot ini. WhatsApp tidak membuka daftar
+// perangkat tertaut lewat protokol yang dipakai Baileys, jadi yang dijawab di
+// sini adalah sesi INI apa adanya — bukan daftar semua perangkat di HP. Lebih
+// baik satu baris yang benar daripada daftar karangan yang terlihat meyakinkan.
+app.post('/session/devices', requireAuth, (req, res) => {
+    const creds = waSocket?.authState?.creds || {};
+    res.json({
+        keterangan: 'WhatsApp tidak membuka daftar perangkat tertaut lewat protokol ini. '
+            + 'Yang di bawah adalah sesi bot ini sendiri; daftar lengkap ada di HP '
+            + '(WhatsApp → Perangkat tertaut).',
+        devices: [{
+            jid: creds.me?.id || null,
+            nama: creds.me?.name || null,
+            platform: creds.platform || null,
+            registered: !!creds.registered,
+            tersambung: !!(waSocket && connectedPhone),
+            tersambungSejak: connectedAt || null,
+        }],
+    });
+});
+
+// Kirim pesan Baileys apa adanya. Ini pintu belakang yang sengaja dibiarkan
+// terbuka untuk admin: bentuk pesan WhatsApp jauh lebih banyak daripada yang
+// pantas dijadikan endpoint sendiri-sendiri. Tidak lewat antrean — pemakainya
+// satu orang yang sedang menatap layar, bukan lonjakan otomatis.
+app.post('/send-raw', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    const { jid, target, message, ...sisa } = req.body || {};
+    const tujuan = jid || target;
+    if (!tujuan) return res.status(400).json({ error: 'jid wajib diisi' });
+    // `message` boleh berupa objek pesan Baileys utuh; kalau tidak ada, sisa
+    // medan di badan dipakai apa adanya (mis. {text: "..."}).
+    const isi = message && typeof message === 'object' ? message : sisa;
+    if (!isi || !Object.keys(isi).length) return res.status(400).json({ error: 'message (objek pesan Baileys) wajib diisi' });
+    try {
+        const hasil = await waSocket.sendMessage(toJid(tujuan), isi);
+        res.json({ ok: true, id: hasil?.key?.id || null });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Posting ke Saluran (channel/newsletter). JID-nya berakhiran @newsletter dan
+// TIDAK boleh lewat toJid() — itu mengubah apa pun jadi nomor @s.whatsapp.net.
+app.post('/channel/send', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    const { jid, message, url } = req.body || {};
+    if (!jid || !String(jid).endsWith('@newsletter')) {
+        return res.status(400).json({ error: 'jid saluran wajib diisi (berakhiran @newsletter)' });
+    }
+    if (!String(message || '').trim()) return res.status(400).json({ error: 'message wajib diisi' });
+    const teks = url ? `${String(message).trim()}\n\n${url}` : String(message).trim();
+    try {
+        const hasil = await waSocket.sendMessage(jid, { text: teks });
+        res.json({ ok: true, id: hasil?.key?.id || null });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Komunitas ────────────────────────────────────────────────────────────────
+// Komunitas adalah grup induk: di daftar grup ia muncul dengan isCommunity,
+// dan grup yang bernaung di bawahnya menyebut induknya lewat linkedParent.
+app.post('/community/list', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    try {
+        const semua = await dgnBatas(waSocket.groupFetchAllParticipating(), 20000, "Daftar grup");
+        const komunitas = Object.entries(semua)
+            .filter(([, m]) => m.isCommunity)
+            .map(([jid, m]) => ({
+                jid,
+                name: m.subject || 'Tanpa Nama',
+                desc: m.desc || '',
+                // Sub-grup dihitung dari daftar yang sama — tidak perlu satu
+                // panggilan jaringan lagi per komunitas.
+                subGrup: Object.entries(semua)
+                    .filter(([, g]) => g.linkedParent === jid)
+                    .map(([gj, g]) => ({ jid: gj, name: g.subject || 'Tanpa Nama' })),
+            }));
+        res.json({ communities: komunitas });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/community/create', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    const nama = String(req.body?.name || '').trim();
+    if (!nama) return res.status(400).json({ error: 'name wajib diisi' });
+    try {
+        const hasil = await waSocket.communityCreate(nama, String(req.body?.desc || '').trim());
+        res.json({ ok: true, jid: hasil?.id || null, name: hasil?.subject || nama });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/community/link-group', requireAuth, async (req, res) => {
+    if (!botSiap()) return res.status(503).json({ error: 'Bot not connected' });
+    const { communityJid, groupJid } = req.body || {};
+    if (!communityJid || !groupJid) return res.status(400).json({ error: 'communityJid dan groupJid wajib diisi' });
+    try {
+        // Urutan argumen Baileys: (grup, induk). Tertukar = grup induk yang
+        // dicoba ditautkan ke dalam sub-grupnya, dan pesan galatnya menyesatkan.
+        await waSocket.communityLinkGroup(groupJid, communityJid);
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Ekstrak isi pesan — skip metadata wrapper (messageContextInfo, dll) ───────
