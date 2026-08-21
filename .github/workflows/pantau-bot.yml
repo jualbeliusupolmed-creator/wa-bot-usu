@@ -83,22 +83,26 @@ jobs:
 
           if [ -z "$NOMOR" ]; then
             gh label create padam --color B60205 --description "Bot WhatsApp tidak menjawab /health" 2>/dev/null || true
-            gh issue create --title "$JUDUL" --label padam --body "$(cat <<PESAN
-Pemeriksaan dari luar VPS gagal dua kali berturut-turut (jeda 60 detik).
-
-- **Alasan:** $ALASAN
-- **Waktu (UTC):** $(date -u '+%Y-%m-%d %H:%M:%S')
-- **Alamat:** https://bot.jualbeliusupolmed.web.id/health
-
-Langkah pertama yang biasanya menjawab:
-
-1. \`pm2 list\` — prosesnya masih hidup?
-2. \`tail -30 /root/wa-bot-usu/penjaga-bot.log\` — penjaga menolak restart karena sesi terkunci?
-3. \`curl -s localhost:3000/health\` — kalau dari dalam sehat tapi dari luar mati, masalahnya nginx/DNS/jaringan, bukan botnya.
-
-Issue ini ditutup otomatis begitu satu pemeriksaan berhasil lagi.
-PESAN
-)"
+            # Isi issue dirakit dengan echo, bukan heredoc. Penutup heredoc harus
+            # duduk di kolom 1, dan kolom 1 mengakhiri blok `run: |` di atasnya —
+            # itulah yang membuat berkas ini ditolak GitHub pada percobaan pertama
+            # (run gagal tanpa satu job pun berjalan).
+            {
+              echo "Pemeriksaan dari luar VPS gagal dua kali berturut-turut (jeda 60 detik)."
+              echo
+              echo "- **Alasan:** $ALASAN"
+              echo "- **Waktu (UTC):** $(date -u '+%Y-%m-%d %H:%M:%S')"
+              echo "- **Alamat:** https://bot.jualbeliusupolmed.web.id/health"
+              echo
+              echo "Langkah pertama yang biasanya menjawab:"
+              echo
+              echo '1. `pm2 list` — prosesnya masih hidup?'
+              echo '2. `tail -30 /root/wa-bot-usu/penjaga-bot.log` — penjaga menolak restart karena sesi terkunci?'
+              echo '3. `curl -s localhost:3000/health` — kalau dari dalam sehat tapi dari luar mati, masalahnya nginx/DNS/jaringan, bukan botnya.'
+              echo
+              echo "Issue ini ditutup otomatis begitu satu pemeriksaan berhasil lagi."
+            } > "$RUNNER_TEMP/pesan-padam.md"
+            gh issue create --title "$JUDUL" --label padam --body-file "$RUNNER_TEMP/pesan-padam.md"
           else
             gh issue comment "$NOMOR" --body "Masih padam pada $(date -u '+%Y-%m-%d %H:%M:%S') UTC — $ALASAN"
           fi
