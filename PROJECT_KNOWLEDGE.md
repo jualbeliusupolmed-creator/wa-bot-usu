@@ -79,7 +79,7 @@ meneruskan ke `/api/admin/outbox` di situs.
 
 | Berkas | Baris | Tanggung jawab |
 |---|---:|---|
-| `index.js` | 2.863 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
+| `index.js` | 2.875 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
 | `src/lib/utils.js` | 184 | 18 fungsi murni — masuk-keluar, tanpa state. |
 | `src/lib/gerbang.js` | 265 | Token mesin, sandi manusia, kuki sesi, rem tebak-token, dua gerbang pemulihan. Berbentuk pabrik. |
 | `src/routes/web.routes.js` | 252 | 18 rute yang menjawab HTML + pintu masuk/keluar. |
@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.090** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.114** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -846,6 +846,39 @@ Bentuk akhirnya:
 - `WEBHOOK_URL` sengaja tidak diset di skrip mana pun: bawaannya di `index.js:61` sudah alamat
   produksi. Sebelumnya ia di-`export` dengan nilai **kosong** — tidak merusak karena kodenya
   memakai `||`, tapi tepat jenis nilai yang meledak diam-diam kalau suatu hari diganti `??`.
+
+### 🐛 `creds.registered` bukan penanda "sesi sudah tertaut" — 22 Agustus 2026 (sore)
+
+Ketahuan dari satu baris log sesudah restart yang membantah kenyataan:
+
+```
+[auth] Belum ada sesi tertaut di /root/wa-bot-usu/auth_info_baileys — bot akan meminta scan QR.
+[bot] Berhasil terhubung ke WhatsApp! Nomor: …2594
+```
+
+Dua baris itu berurutan, dan yang kedua benar. `creds.json` sesi yang **jelas
+tertaut** ternyata berisi `registered: false`, sementara `me` dan `account`-nya
+lengkap. Baileys menyalakan `registered` di jalur pairing tertentu saja — ia bukan
+tanda "sesi ini sudah jadi". Yang selalu ada begitu pairing selesai adalah
+`creds.me.id`.
+
+Salahnya bukan cuma di baris log. Penanda yang sama dipakai di tiga tempat yang
+memutuskan **kapan bot berhenti menyambung**:
+
+| Tempat | Akibat kalau sesi tertaut dibaca sebagai "belum tertaut" |
+|---|---|
+| `sesiTerdaftar` (handler `close`) | Socket yang mati sebelum sempat ber-QR ikut dihitung sebagai siklus sia-sia. Lima kali gangguan jaringan pada sesi yang sehat cukup untuk membuat bot DIAM 30 menit. |
+| `credsTerdaftarDiDisk()` (saat boot) | Kalau `pindai_state.json` tertinggal, bot menunda start 30 menit padahal sesinya siap pakai. |
+| `laporAuth()` | Baris log yang menyesatkan orang yang sedang mencari sebab — persis yang mau dihilangkan fungsi itu. |
+
+Sekarang satu fungsi `credsTertaut()` dipakai keempat tempat: `creds.me.id` sebagai
+syarat, `registered` sebagai penguat. Diuji terhadap `creds.json` yang asli di mesin
+ini, plus lima bentuk lain (sesi baru, hasil pairing-code, kosong, null, `me` tanpa
+`id`).
+
+Pelajarannya lebih umum dari satu field: **penanda yang namanya paling meyakinkan
+belum tentu yang isinya benar.** Yang membuktikannya bukan dokumentasi, tapi satu
+sesi hidup yang membantahnya.
 
 ### 📵 Nomornya kembali, tapi ke grup yang salah — 22 Agustus 2026 (sore)
 

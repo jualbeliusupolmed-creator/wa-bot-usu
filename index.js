@@ -270,12 +270,25 @@ const PINDAI_MAKS_SIKLUS = Number(process.env.PINDAI_MAKS_SIKLUS || 5);
 const PINDAI_RETRY_MS = Number(process.env.PINDAI_RETRY_MINUTES || 30) * 60 * 1000;
 let menungguPindai = false;
 let siklusQrSiaSia = 0;
-// Sesi ini sudah tertaut ke sebuah nomor atau belum. Diisi startBotInner() dari
-// `creds.registered` milik Baileys, dan dipakai untuk membedakan dua kegagalan
-// yang kelihatan sama dari luar: "punya sesi tapi jaringannya putus" (restart
-// masuk akal) dan "tidak punya sesi sama sekali" (restart tidak akan pernah
-// menolong — yang ditunggu manusia dengan HP di tangan).
+// Sesi ini sudah tertaut ke sebuah nomor atau belum. Dipakai untuk membedakan dua
+// kegagalan yang kelihatan sama dari luar: "punya sesi tapi jaringannya putus"
+// (restart masuk akal) dan "tidak punya sesi sama sekali" (restart tidak akan
+// pernah menolong — yang ditunggu manusia dengan HP di tangan).
 let sesiTerdaftar = false;
+
+// JANGAN memakai `creds.registered` untuk ini. Kelihatannya memang penanda yang
+// tepat, dan dulu memang dipakai — sampai sesi yang JELAS tertaut ketahuan
+// membawa `registered: false`. Buktinya di mesin ini pada 22 Agustus 2026: bot
+// menyambung, melaporkan nomornya, dan menerima pesan, sementara creds.json-nya
+// tetap `registered:false`. Baileys menyalakan tanda itu di jalur kode pairing
+// tertentu saja, bukan sebagai "sesi ini sudah jadi".
+//
+// Yang selalu ada begitu pairing selesai: `creds.me.id` — identitas akun yang
+// baru saja tertaut. Itu yang dipakai; `registered` disimpan sebagai penguat,
+// bukan sebagai syarat.
+function credsTertaut(creds) {
+    return !!(creds && (creds.me?.id || creds.registered));
+}
 
 // ── Kenapa "menunggu dipindai" harus selamat dari restart ────────────────────
 // Penandanya dulu cuma hidup di memori, dan itu melahirkan lingkaran yang tidak
@@ -318,7 +331,7 @@ function credsTerdaftarDiDisk() {
     try {
         const berkas = path.join(AUTH_DIR, 'creds.json');
         if (!fs.existsSync(berkas)) return false;
-        return !!JSON.parse(fs.readFileSync(berkas, 'utf8'))?.registered;
+        return credsTertaut(JSON.parse(fs.readFileSync(berkas, 'utf8')));
     } catch (_) { return false; }
 }
 
@@ -1722,7 +1735,7 @@ async function startBot() {
 // menyimpulkan sesinya ada, lalu mencari sebab putusnya di tempat yang salah.
 // Satu baris, dan isinya keadaan yang sebenarnya.
 function laporAuth(sumber, state) {
-    if (state?.creds?.registered) {
+    if (credsTertaut(state?.creds)) {
         console.log(`[auth] Sesi WhatsApp tertaut dimuat dari ${sumber}.`);
     } else {
         console.log(`[auth] Belum ada sesi tertaut di ${sumber} — bot akan meminta scan QR.`);
@@ -1749,9 +1762,8 @@ async function startBotInner(myGen) {
         laporAuth(`filesystem (${AUTH_DIR})`, state);
     }
     // Dipakai handler 'close' untuk membedakan "jaringan putus" dari "belum
-    // pernah ditautkan". Baileys menandai sesi yang sudah selesai pairing dengan
-    // creds.registered; sesi baru hasil initAuthCreds() bernilai false.
-    sesiTerdaftar = !!state?.creds?.registered;
+    // pernah ditautkan". Lihat credsTertaut() soal kenapa bukan creds.registered.
+    sesiTerdaftar = credsTertaut(state?.creds);
 
     // Muat nama user & resolusi @lid SEKALI saja (jangan clobber map in-memory saat
     // reconnect). Dari Supabase kalau ada, else file lokal.

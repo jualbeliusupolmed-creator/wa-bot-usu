@@ -161,7 +161,7 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.090</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.114</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
 
 <p class="muted"><b>22 Agustus 2026, dini hari</b> — <code>/health</code> dapat tampilan untuk
@@ -216,6 +216,18 @@ nilainya dibuktikan sama persis dengan berkas aslinya. <code>WEBHOOK_URL</code> 
 di-<em>export</em> dengan nilai kosong juga dicabut — tidak merusak karena kodenya memakai
 <code>||</code>, tapi persis jenis nilai yang meledak diam-diam kalau suatu hari diganti
 <code>??</code>.</p>
+
+<p class="muted"><b>Dan restart itu memperlihatkan satu baris log yang membantah kenyataan
+— lagi.</b> Sesudah bot menyala, stdout menulis <em>"Belum ada sesi tertaut — bot akan meminta
+scan QR"</em>, lalu baris berikutnya <em>"Berhasil terhubung ke WhatsApp"</em> lengkap dengan
+nomornya. Yang kedua yang benar. Penyebabnya penanda <code>creds.registered</code> milik
+Baileys: sesi yang jelas tertaut ternyata membawa nilai <code>false</code>. Penanda itu menyala
+di jalur pairing tertentu saja, bukan sebagai "sesi ini sudah jadi". Yang buruk bukan baris
+lognya — penanda yang sama juga memutuskan <b>kapan bot berhenti menyambung</b>: lima kali
+gangguan jaringan pada sesi yang sehat sudah cukup untuk membuatnya diam setengah jam, dan saat
+boot ia bisa menunda start 30 menit padahal sesinya siap pakai. Sekarang yang dipakai
+<code>creds.me.id</code> — identitas akun yang selalu ada begitu pairing selesai. Diuji terhadap
+berkas sesi yang asli di mesin ini, bukan terhadap dugaan.</p>
 
 <p class="muted"><b>Sore harinya nomornya kembali — dan justru itu yang memunculkan
 kegagalan berikutnya.</b> Bot pertama tertaut lagi sejak pukul 06:56 dan sehat. Tapi tiga iklan
