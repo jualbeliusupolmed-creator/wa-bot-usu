@@ -105,6 +105,37 @@ diperiksa dari klon segar, bukan dari <code>git status</code>.</p>
 ditandatangani dengan <code>ADMIN_PASSWORD</code>, jadi mengganti sandi admin membatalkan
 seluruh sesi penjual sekaligus. Kalau ada yang mengeluh tiba-tiba diminta masuk lagi, itu
 sebabnya — dan sekarang sudah diputus lewat <code>SESSION_SECRET</code>.</p>
+<p class="muted"><b>22 Agustus 2026</b> — <code>/lomba</code> dibaca ulang dari awal, bersama
+16 tangkapan layarnya dan arsip WhatsApp bot yang hidup di server ini. Yang ditemukan bukan salah
+ketik, melainkan <b>halaman yang bertengkar dengan dirinya sendiri</b>: kartu angka menulis 40
+halaman, 56 komponen, 30 tabel — panel "rinciannya" satu klik di bawahnya menulis 38, 63, dan 32,
+dan teks deskripsinya menulis angka ketiga lagi (74 API situs, 70 bot). Itu ada di slide yang
+justru menantang juri untuk mengecek sendiri. Semuanya dihitung ulang hari itu dari klon segar
+kedua repo dan dari database langsung, lalu disamakan di sembilan tempat: <b>40.288</b> baris
+situs · <b>11.454</b> baris bot · <b>375</b> commit · <b>78</b> API situs · <b>71</b> rute bot ·
+<b>50</b> halaman · <b>66</b> komponen · <b>32</b> tabel. Dua tabel rinciannya ikut dijumlahkan
+ulang sampai benar-benar berjumlah 78 dan 71.</p>
+
+<p class="muted">Tiga hal yang ikut ketahuan sambil menghitung. <b>Cara mengeceknya sendiri
+sudah tidak berlaku:</b> halaman itu menyuruh menjalankan <code>grep ... index.js</code> untuk
+menghitung rute bot, padahal refactor 22 Agustus memindahkan rutenya ke tujuh modul
+<code>src/</code> — perintahnya diperbaiki. <b>12 halaman <code>/admin-demo/*</code></b> ikut
+terhitung di angka 50; itu panel admin berisi data contoh, dan sekarang disebut terpisah supaya
+juri yang mau menghitung ketat tahu angkanya 38. Dan <b>hitungan baris bot yang lama melewatkan
+berkasnya sendiri</b> — 8.508 itu tidak memuat <code>ui.css</code>, <code>lomba.html</code>,
+maupun <code>waAuthState.js</code>, padahal ketiganya dilacak git.</p>
+
+<p class="muted">Sisa analisisnya <b>belum dikerjakan, dan sengaja</b> — karena butuh dua hal yang
+tidak ada di server ini. Ringkasnya: halaman itu masih memakai contoh barang karangan (keyboard
+mekanik, Kalkulus Jilid 1) sementara katalog aslinya berisi Pokemon TCG, Cimory, jasa Turnitin,
+dan papan "Dicari" yang isinya anak kos mengisi kamar — kasur, kipas, setrika, galon. Tarif
+sebenarnya (iklan berjenjang Rp2.000–1%, komisi setelah deal 5–10%) tidak disinggung sama sekali.
+Peran admin sebagai penjembatan transaksi disembunyikan, padahal statistik botnya sendiri
+mengatakan bot didiamkan 30×, dijawab manusia 42×, dan cuma 8× masuk sesi bot. Alur bayarnya
+sudah pindah ke QRIS otomatis tapi halamannya masih menulis "foto struknya". Dan yang paling
+besar: sejarahnya dimulai dari commit pertama 11 Juni 2026, padahal usahanya berdiri
+<b>8 Desember</b> — berbulan-bulan sebelum ada satu baris kode pun.</p>
+
 <p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
 halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
 delapan kartu utang teknis yang enam di antaranya sudah dikerjakan sore itu juga, dan satu
@@ -151,6 +182,25 @@ admin yang sudah dirotasi — di enam tempat.</p>
       kembali ke sana — jadi rotasi sandi admin berikutnya akan sekali lagi mengeluarkan
       seluruh penjual dari akunnya. Tidak ada yang rusak kalau dibiarkan; yang terjadi cuma
       kejutan yang sama terulang di lain hari.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Ceritakan sejarah sebelum kodenya ada.</strong> <code>/lomba</code> menulis "hidup
+      sejak Juni 2026", dan itu tanggal baris kode pertama — bukan tanggal berdirinya. Usahanya
+      mulai <b>8 Desember</b>, dan tidak ada satu jejak pun soal itu di repo mana pun, jadi tidak
+      bisa ditebak dari sini. Yang dibutuhkan: tahunnya, apa yang terjadi hari itu (grup dibuat?
+      Instagram? penjualan pertama?), dan tiga sampai empat titik sesudahnya sampai Juni 2026 —
+      terutama kapan admin kewalahan sampai memutuskan "ini harus dibikin sistem". Titik itu yang
+      menyambungkan komunitas ke kode, dan itu cerita yang paling kuat di depan juri.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Kirim folder <code>Pelajari wa</code> ke server.</strong> Ada di
+      <code>D:\5.RIDHO\1.BISNIS\JUAL BELI USU\</code> di komputer pemilik; server ini Linux dan
+      tidak bisa membukanya. Kalau isinya ekspor chat WhatsApp, zip lalu
+      <code>scp arsip.zip root@&lt;ip-vps&gt;:/root/</code>. Isinya dipakai untuk mengganti dialog
+      karangan di <code>/lomba</code> dengan percakapan sungguhan — dengan catatan nomor dan nama
+      orang harus disamarkan dulu, karena <code>/lomba</code> satu-satunya halaman tanpa sandi.
     </span></li>
   </ul>
 </div>

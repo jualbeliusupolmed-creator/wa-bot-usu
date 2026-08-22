@@ -572,6 +572,100 @@ Yang dikerjakan semuanya hal yang **menggantung**, bukan fitur:
   Galeri `/lomba` tidak terpengaruh: ia memakai 16 `.webp` di
   `public/assets/lomba-img/`, semuanya terlacak git dan semuanya dirujuk.
 
+### ✅ Angka `/lomba` dihitung ulang — 22 Agustus 2026
+
+**Halaman itu bertengkar dengan dirinya sendiri**, dan justru di slide yang menantang
+juri untuk mengecek. Kartu angka menulis 40 halaman / 56 komponen / 30 tabel; panel
+"rinciannya" satu klik di bawahnya menulis 38 / 63 / 32; teks deskripsi untuk formulir
+menulis angka ketiga lagi (74 API situs, 70 rute bot). Perbaikan 21 Agustus menyamakan
+`/projek` dengan `/lomba`, tapi tidak pernah mendamaikan `/lomba` dengan isinya sendiri.
+
+Dihitung ulang dari klon segar kedua repo dan dari database langsung:
+
+| | Angka | Cara menghitung |
+|---|---:|---|
+| Baris situs | 40.288 | `find src -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.css' \) -exec cat {} + \| wc -l` |
+| Baris bot | 11.454 | `git ls-files \| grep -E '\.(js\|html\|css)$' \| grep -v package-lock \| xargs cat \| wc -l` |
+| Commit situs | 375 | `git rev-list --count HEAD` (pertama 11 Juni 2026) |
+| API situs | 78 | `find src/app/api -name route.js \| wc -l` |
+| Rute bot | 71 | jalur unik di `index.js` + `src/routes/*.js` |
+| Halaman situs | 50 | 24 pengguna + 14 admin + **12 `/admin-demo/*`** |
+| Komponen | 66 | 35 akar + 21 `baileys/` + 9 admin + 1 `ui/` |
+| Tabel | 32 | `list_tables` lewat konektor Supabase |
+
+Tiga hal yang ikut ketahuan:
+- **Cara verifikasi di halaman itu sudah tidak berlaku.** Ia menyuruh `grep ... index.js`
+  untuk menghitung rute bot — padahal refactor memindahkannya ke `src/routes/`.
+  Perintahnya diperbaiki jadi `grep -rhoE ... index.js src/routes/*.js`.
+- **12 halaman `/admin-demo/*`** ikut terhitung di angka 50. Sekarang disebut terpisah,
+  dengan angka ketat 38 ditulis di sebelahnya.
+- **Hitungan 8.508 baris bot yang lama melewatkan berkasnya sendiri** — `ui.css`,
+  `lomba.html`, `waAuthState.js` semuanya dilacak git tapi tidak ikut dihitung.
+
+⚠ **Kalau angka ini diubah lagi, `/projek` harus ikut** — dua halaman menyebut angka
+yang sama, dan itu tepat kesalahan U-6 yang dulu.
+
+### Analisis `/lomba` 22 Agustus — temuan yang BELUM dikerjakan
+
+Dibaca ulang bersama 16 tangkapan layar galerinya dan arsip WhatsApp di VPS. Ditulis di
+sini supaya sesi berikutnya tidak menelusurinya dari nol. **Belum satu pun dikerjakan** —
+menunggu dua hal yang tidak ada di server ini (lihat `/update`).
+
+Yang membuat halaman itu masih terbaca seperti tulisan AI:
+- **Semua contohnya karangan.** "Keyboard mekanik second Rp250.000", "Kalkulus Jilid 1",
+  grup "912 anggota" — tidak satu pun ada di sistem. Katalog aslinya: Pokemon TCG
+  Archaludon Rp200.000, Cimory Rp8.000, BARANG KOS Rp899.000, jasa Turnitin & AI Rp8.000,
+  APK Premium Rp3.000 (154 tayangan, tertinggi).
+- **Tidak ada satu suara pengguna pun.** Arsipnya penuh: 30 dari 71 pesan masuk cuma
+  **satu kata**; 57 dari 71 tidak lebih dari lima kata. Sementara mockup di halaman itu
+  menampilkan kalimat tujuh kata berkoma rapi.
+- **Papan "Dicari" menceritakan pasar yang lain.** 13 permintaan aktif hampir semuanya
+  anak kos mengisi kamar: kasur 1 orang, meja second, kipas angin tinggi, setrika, galon
+  bekas, rice cooker, "kursi kantor atau yang beroda dan enak disenderi".
+
+Yang dilakukan sistem ini tapi tidak diakui halamannya:
+- **Model bisnisnya lengkap dan tidak disebut.** Iklan berjenjang Rp2.000 → Rp3.000 →
+  Rp5.000 → Rp7.000 → 1% menurut harga; Wanted gratis 3× lalu Rp1.000; unlock WA Rp2.000
+  atau bagi hasil; poster Rp10.000; bump Rp1.000. **Plus komisi setelah deal**: <Rp50rb
+  bebas, <Rp100rb 10%, ≥Rp100rb 5%. Dashboard admin: *Biaya Terjual* Rp125.000 melampaui
+  *Pasang Iklan* Rp91.784 — nyawanya di komisi, bukan iklan.
+- **Admin manusia itu penjembatan, dan itu pembedanya.** Halaman INFO situs sendiri
+  menulis "Admin yang memposting & membantu transaksi". `stats.json` mengonfirmasi:
+  bot **didiamkan 30×**, **dibalas manusia 42×**, **sesi bot cuma 8×**. Ini bukan
+  marketplace swalayan; ini pasar berjembatan manusia dengan bot sebagai alat kerjanya.
+- **Alur bayar sudah pindah.** Halaman masih menulis "foto struknya, kirim ke chat";
+  form jual sudah memakai **QRIS Dinamis Otomatis, "konfirmasi instan tanpa kirim bukti"**.
+- **Bot punya ±25 perintah, halaman menyebut satu.** `.JUAL .CARI .PERPANJANG .UPGRADE
+  .SAYA .MENU`, ditambah `BUMP TAWAR TANYA LANGGANAN EDIT [kode] HARGA HAPUS LAKU`, dst.
+  Dan yang paling dipakai orang justru `.CARI`, bukan `.JUAL`.
+- **Skalanya lebih besar dari yang diakui.** Komunitas WA **1.525 anggota, 4 grup**; bot
+  ikut **145 grup**, **2.812 kontak**; `wa_conversations` **820 baris**; Instagram
+  `usupolmedupdate` **2.556 pengikut, 358 rb tayangan/30 hari**. Halaman malah memakai
+  grup karangan 912 orang.
+- **Ceritanya lebih buruk dari yang diakui, dan itu bagus.** Slide 8 menulis "bot mati
+  6 jam". Arsipnya memuat tiga pemberitahuan otomatis: **501 menit, 907 menit (15 jam),
+  360 menit**. Yang diceritakan yang paling ringan — padahal fakta bahwa botnya mengirim
+  sendiri kabar "aku sempat mati sekian menit" jauh lebih meyakinkan.
+- **Titik itu masalah nyata, dan admin yang menambalnya.** 4 kali orang mengetik perintah
+  tanpa titik. Balasan admin: "Pake titik we", "Ex .cari kipas". Lebih sering lagi **admin
+  yang mengetikkan perintahnya sendiri** untuk si pengguna.
+- **Website dan grup itu satu lingkaran, bukan pengganti.** Bot membalas "sudah tayang di
+  /dicari **dan sudah dibroadcast ke grup**", dan pengguna bertanya "tapi nanti tetap di
+  share di grup min?".
+
+Dua cacat kecil yang perlu dibetulkan di situs: OTP terkirim dengan merek **"Jual Beli
+Medan"**, bukan "Jual Beli USU Polmed"; dan sapaan bot menaut ke `instagram.com/usulovepolmed`
+sementara akun yang aktif `usupolmedupdate`.
+
+⚠ **Lubang sejarah.** Halaman menulis "hidup sejak Juni 2026" — itu tanggal commit pertama.
+Usahanya berdiri **8 Desember**, berbulan-bulan sebelum ada kode, dan **tidak ada satu jejak
+pun soal itu di repo mana pun**. Inilah akar kesan "ditulis AI": presentasinya bercerita
+seolah proyeknya lahir dari kode, padahal kemungkinan besar kebalikannya — komunitas dulu,
+admin menjembatani dengan tangan, lalu kode dibangun untuk mengurangi beban itu.
+
+⚠ **Sebelum apa pun dari arsip WA naik ke `/lomba`:** isinya nomor telepon dan nama orang
+sungguhan, dan `/lomba` satu-satunya halaman tanpa sandi. Samarkan dulu.
+
 ### Perlu diputuskan pemilik
 
 - **Membersihkan baris `payments` lama.** 415 baris pending yang tidak lagi
