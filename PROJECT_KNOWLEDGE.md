@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.801** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.807** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -702,6 +702,11 @@ disebut** kalau klien tidak punya preferensi — jadi `'json'` wajib di depan. K
 `penjaga-bot.sh` (yang membaca badan mentah dengan `grep -q '"terkunci":true'`) akan menerima
 HTML, gagal mengenali keadaan, lalu **me-restart bot yang justru sedang menunggu tangan
 manusia**. Diuji: `Accept: */*` → JSON tanpa satu tanda `<` pun; `Accept: text/html` → halaman.
+
+⚠ **`Vary: Accept` wajib ikut.** Jawaban yang bentuknya bergantung pada header `Accept`
+tanpa `Vary` boleh disimpan cache mana pun (peramban, proxy, `fetch` Next.js di situs) lalu
+disodorkan ke peminta yang meminta bentuk lain. Sempat terkirim tanpa header itu pada percobaan
+pertama; ketahuan waktu memeriksa header jawaban lewat domain publik.
 
 Halamannya sengaja tanpa berkas luar (tidak ada `<link>`/`<script src>`) — halaman yang
 tugasnya menjawab "botnya hidup atau tidak" tidak boleh ikut mati karena satu berkas rupa.

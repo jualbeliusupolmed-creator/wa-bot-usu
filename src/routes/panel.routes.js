@@ -60,6 +60,12 @@ module.exports = function pasangRutePanel(app, K) {
         // yang salah membaca itu me-restart bot yang justru sedang menunggu tangan
         // manusia. Karena itu HTML-nya hanya keluar pada permintaan yang secara
         // eksplisit lebih memilih text/html.
+        //
+        // `Vary: Accept` wajib menyertai jawaban yang bentuknya bergantung pada
+        // header itu. Tanpa ini, cache mana pun di depan (peramban, proxy, fetch
+        // Next.js di situs) boleh menyimpan satu bentuk lalu menyodorkannya ke
+        // peminta yang meminta bentuk lain — HTML ke mesin, atau JSON ke orang.
+        res.vary('Accept');
         if (req.accepts(['json', 'html']) !== 'html') {
             return res.status(kode).json(badan);
         }
