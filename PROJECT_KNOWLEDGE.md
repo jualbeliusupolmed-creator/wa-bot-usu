@@ -605,6 +605,19 @@ Tiga hal yang ikut ketahuan:
 ⚠ **Kalau angka ini diubah lagi, `/projek` harus ikut** — dua halaman menyebut angka
 yang sama, dan itu tepat kesalahan U-6 yang dulu.
 
+**Dan itu terjadi lagi.** Penghitungan ulang 22 Agustus hanya dipasang di `/lomba`;
+`/projek` ketinggalan dengan angka 21 Agustus (38.068 · 8.508 · 358 commit · 74 API · 70 rute ·
+63 komponen) sambil tetap menulis "halaman /lomba menyebut angka yang sama persis". Disamakan
+malam itu juga, dan sekarang `/projek` menyebut sendiri bahwa keduanya sudah dua kali berselisih.
+
+🪤 **Jebakan yang baru ketahuan: hitungan baris bot menghitung dirinya sendiri.** Rumusnya
+memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman/projek.html`, dan
+`halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
+dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
+sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.691** — naik dari 11.454 murni
+karena suntingan halaman hari itu, bukan karena kode bot bertambah.
+
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
 
 Temuan yang dicatat sesi sebelumnya sudah **dipasang ke halamannya**, dan dua di antaranya

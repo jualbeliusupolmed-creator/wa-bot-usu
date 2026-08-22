@@ -150,6 +150,20 @@ di <code>/lomba</code> itu benar, dan yang berbohong adalah form <code>/jual</co
 di panel admin <b>tidak dibaca kode mana pun</b> — ditulis ke database, lalu diam di sana.
 Keduanya masuk daftar di bawah.</p>
 
+<p class="muted">Lalu ketahuan satu lagi sambil memeriksa: <b><code>/projek</code> tidak ikut
+disamakan</b>. Penghitungan ulang 22 Agustus cuma dipasang di <code>/lomba</code>, sementara
+<code>/projek</code> masih menulis 38.068 baris situs, 8.508 baris bot, 358 commit, 74 API, 70
+rute, dan 63 komponen — sambil menjanjikan di paragraf bawahnya bahwa "<code>/lomba</code>
+menyebut angka yang sama persis". Persis kesalahan yang dulu diperbaiki, terulang dari sisi
+sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
+
+<p class="muted">Sekalian ketemu jebakannya: <b>hitungan baris bot itu menghitung dirinya
+sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
+Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
+angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>11.691</b> — naik dari 11.454
+murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
+
 <p class="muted">Yang tersisa cuma satu, dan itu memang tidak ada di server ini:
 <b>sejarah sebelum kodenya ada</b>. Halaman itu masih mulai dari commit pertama 11 Juni 2026,
 padahal usahanya berdiri <b>8 Desember</b> — berbulan-bulan sebelum ada satu baris kode pun.</p>
