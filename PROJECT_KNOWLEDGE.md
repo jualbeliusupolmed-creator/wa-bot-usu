@@ -605,66 +605,74 @@ Tiga hal yang ikut ketahuan:
 ⚠ **Kalau angka ini diubah lagi, `/projek` harus ikut** — dua halaman menyebut angka
 yang sama, dan itu tepat kesalahan U-6 yang dulu.
 
-### Analisis `/lomba` 22 Agustus — temuan yang BELUM dikerjakan
+### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
 
-Dibaca ulang bersama 16 tangkapan layar galerinya dan arsip WhatsApp di VPS. Ditulis di
-sini supaya sesi berikutnya tidak menelusurinya dari nol. **Belum satu pun dikerjakan** —
-menunggu dua hal yang tidak ada di server ini (lihat `/update`).
+Temuan yang dicatat sesi sebelumnya sudah **dipasang ke halamannya**, dan dua di antaranya
+ternyata salah begitu diperiksa ke sumbernya. Semua angka di bawah diverifikasi hari itu
+dari database langsung, dari `stats.json`/`messages.json` di VPS, dan dari klon segar repo situs.
 
-Yang membuat halaman itu masih terbaca seperti tulisan AI:
-- **Semua contohnya karangan.** "Keyboard mekanik second Rp250.000", "Kalkulus Jilid 1",
-  grup "912 anggota" — tidak satu pun ada di sistem. Katalog aslinya: Pokemon TCG
-  Archaludon Rp200.000, Cimory Rp8.000, BARANG KOS Rp899.000, jasa Turnitin & AI Rp8.000,
-  APK Premium Rp3.000 (154 tayangan, tertinggi).
-- **Tidak ada satu suara pengguna pun.** Arsipnya penuh: 30 dari 71 pesan masuk cuma
-  **satu kata**; 57 dari 71 tidak lebih dari lima kata. Sementara mockup di halaman itu
-  menampilkan kalimat tujuh kata berkoma rapi.
-- **Papan "Dicari" menceritakan pasar yang lain.** 13 permintaan aktif hampir semuanya
-  anak kos mengisi kamar: kasur 1 orang, meja second, kipas angin tinggi, setrika, galon
-  bekas, rice cooker, "kursi kantor atau yang beroda dan enak disenderi".
+**Yang berubah di `public/lomba.html`:**
 
-Yang dilakukan sistem ini tapi tidak diakui halamannya:
-- **Model bisnisnya lengkap dan tidak disebut.** Iklan berjenjang Rp2.000 → Rp3.000 →
-  Rp5.000 → Rp7.000 → 1% menurut harga; Wanted gratis 3× lalu Rp1.000; unlock WA Rp2.000
-  atau bagi hasil; poster Rp10.000; bump Rp1.000. **Plus komisi setelah deal**: <Rp50rb
-  bebas, <Rp100rb 10%, ≥Rp100rb 5%. Dashboard admin: *Biaya Terjual* Rp125.000 melampaui
-  *Pasang Iklan* Rp91.784 — nyawanya di komisi, bukan iklan.
-- **Admin manusia itu penjembatan, dan itu pembedanya.** Halaman INFO situs sendiri
-  menulis "Admin yang memposting & membantu transaksi". `stats.json` mengonfirmasi:
-  bot **didiamkan 30×**, **dibalas manusia 42×**, **sesi bot cuma 8×**. Ini bukan
-  marketplace swalayan; ini pasar berjembatan manusia dengan bot sebagai alat kerjanya.
-- **Alur bayar sudah pindah.** Halaman masih menulis "foto struknya, kirim ke chat";
-  form jual sudah memakai **QRIS Dinamis Otomatis, "konfirmasi instan tanpa kirim bukti"**.
-- **Bot punya ±25 perintah, halaman menyebut satu.** `.JUAL .CARI .PERPANJANG .UPGRADE
-  .SAYA .MENU`, ditambah `BUMP TAWAR TANYA LANGGANAN EDIT [kode] HARGA HAPUS LAKU`, dst.
-  Dan yang paling dipakai orang justru `.CARI`, bukan `.JUAL`.
-- **Skalanya lebih besar dari yang diakui.** Komunitas WA **1.525 anggota, 4 grup**; bot
-  ikut **145 grup**, **2.812 kontak**; `wa_conversations` **820 baris**; Instagram
-  `usupolmedupdate` **2.556 pengikut, 358 rb tayangan/30 hari**. Halaman malah memakai
-  grup karangan 912 orang.
-- **Ceritanya lebih buruk dari yang diakui, dan itu bagus.** Slide 8 menulis "bot mati
-  6 jam". Arsipnya memuat tiga pemberitahuan otomatis: **501 menit, 907 menit (15 jam),
-  360 menit**. Yang diceritakan yang paling ringan — padahal fakta bahwa botnya mengirim
-  sendiri kabar "aku sempat mati sekian menit" jauh lebih meyakinkan.
-- **Titik itu masalah nyata, dan admin yang menambalnya.** 4 kali orang mengetik perintah
-  tanpa titik. Balasan admin: "Pake titik we", "Ex .cari kipas". Lebih sering lagi **admin
-  yang mengetikkan perintahnya sendiri** untuk si pengguna.
-- **Website dan grup itu satu lingkaran, bukan pengganti.** Bot membalas "sudah tayang di
-  /dicari **dan sudah dibroadcast ke grup**", dan pengguna bertanya "tapi nanti tetap di
-  share di grup min?".
+- ⚠ **"Cimory Rp8.000" itu iklan uji coba**, penjualnya `Test Agent` — catatan sesi lalu
+  memasukkannya ke daftar "katalog asli". Sudah dicabut dari halaman; penggantinya
+  **Jasa Turnitin & AI Rp8.000** (penjual sungguhan). Sebelum mengutip baris katalog,
+  periksa `seller_name`-nya.
+- **Contoh karangan dicabut.** "Keyboard mekanik second Rp250.000" → **Sepatu Crocs Classic
+  Biru Muda Rp750.000** (iklan asli), sekalian menunjukkan biaya tayangnya Rp7.000. Grup
+  karangan **"912 anggota"** dihapus; percakapan mockup-nya diganti bunyi permintaan asli dari
+  papan Dicari (kasur 1 orang, galon bekas), dengan catatan tegas bahwa itu bukan karangan.
+- **Slide baru `06 · Uangnya dari mana`** (deck jadi **13 slide**, slide 06–10 lama digeser ke
+  07–11): tarif berjenjang Rp2.000 → 1%, komisi setelah deal 10%/5%, iklan gratis untuk pemilik
+  toko, plus angka 42 dijawab manusia / 30 bot diam / 8 sesi bot.
+- **Bagian 06 dibuka dengan katalog asli**: iPhone XR (156 tayangan), APK Premium (154), Akun
+  Free Fire (126), BARANG KOS (104), Pokemon TCG Archaludon (96) — plus papan Dicari 37 baris
+  yang isinya anak kos mengisi kamar, dan blog yang ditulis mahasiswanya sendiri.
+- **Suara pengguna masuk**: 30 dari 71 pesan cuma satu kata, 57 tidak lebih dari lima kata;
+  4 orang lupa titik dan admin menjawab "Pake titik we"; bot punya **28 perintah pelanggan**
+  dan yang paling dipakai `.CARI`, bukan `.JUAL`; balasan bot yang menyebut "sudah tayang di
+  /dicari **dan sudah dibroadcast ke grup**" dipakai untuk menjelaskan grup + situs itu satu
+  lingkaran.
+- **Tiga kali mati, bukan satu.** Slide "bot mati 6 jam" jadi **501 + 907 + 360 menit** pada
+  18–19 Agustus (≈30 jam) dengan jam putus/pulih persis, dan poin bahwa **botnya sendiri yang
+  mengumumkan** tiap kalinya. Lini masa di bagian 06 ikut dibetulkan tanggalnya.
 
-Dua cacat kecil yang perlu dibetulkan di situs: OTP terkirim dengan merek **"Jual Beli
-Medan"**, bukan "Jual Beli USU Polmed"; dan sapaan bot menaut ke `instagram.com/usulovepolmed`
-sementara akun yang aktif `usupolmedupdate`.
+**Dua koreksi atas analisis sesi sebelumnya — dan keduanya penting:**
 
-⚠ **Lubang sejarah.** Halaman menulis "hidup sejak Juni 2026" — itu tanggal commit pertama.
-Usahanya berdiri **8 Desember**, berbulan-bulan sebelum ada kode, dan **tidak ada satu jejak
-pun soal itu di repo mana pun**. Inilah akar kesan "ditulis AI": presentasinya bercerita
-seolah proyeknya lahir dari kode, padahal kemungkinan besar kebalikannya — komunitas dulu,
-admin menjembatani dengan tangan, lalu kode dibangun untuk mengurangi beban itu.
+1. ⚠ **Alur bayar TIDAK pindah ke QRIS otomatis.** Catatan lama bilang halaman `/lomba` basi
+   karena masih menulis "foto struknya". Yang basi justru catatannya: `POST /api/listings`
+   membuat baris `payments` berstatus `pending` lalu mengembalikan `paymentUrl = "/qris.png"`
+   — QRIS **statis**, diverifikasi manusia lewat `/api/payments/verify-receipt`. Halaman
+   `/lomba` benar; **yang berbohong adalah form `/jual` di situs**, yang menulis
+   "⚡ QRIS Dinamis Otomatis — konfirmasi instan tanpa kirim bukti" secara hardcoded.
+   Sumber salahnya: sesi lalu membaca teks UI, bukan alurnya.
+2. ⚠ **`settings.payment.mode` itu sakelar mati.** Ditulis panel admin
+   (`AdminPanel.jsx:1633/1657`), **tidak dibaca siapa pun** di seluruh `src/`. Nilai di DB
+   sekarang `"manual"`, dan itu tidak mengubah apa-apa: kedua mode berakhir di alur QRIS
+   statis yang sama. Jangan pakai sakelar ini sebagai bukti apa pun.
 
-⚠ **Sebelum apa pun dari arsip WA naik ke `/lomba`:** isinya nomor telepon dan nama orang
-sungguhan, dan `/lomba` satu-satunya halaman tanpa sandi. Samarkan dulu.
+**Yang perlu diingat soal tarif** (merge settings itu *shallow per-key*, jadi baris DB menimpa
+seluruh key): `adTiers` di DB sama dengan bawaan kode, tapi `adPoster` **0**, `renewalFee` **0**,
+dan `soldTiers` **`[]`** — artinya `soldFeeFrom()` mengembalikan 0 dan komisi otomatis mati,
+sementara `pricing.tokoGratis` (bawaan `true`, tidak ada di DB) membuat iklan pemilik toko gratis.
+Tarif yang ditulis di `/lomba` mengutip yang **dipublikasikan** di `/daftar-harga` dan
+`/cara-bergabung`, bukan yang aktif di DB. Kalau ada yang menagih dengan angka itu, cocokkan
+dulu DB-nya.
+
+⚠ **Sisa yang tetap menunggu pemilik: sejarah sebelum kodenya ada.** Halaman menulis "hidup
+sejak Juni 2026" — itu tanggal commit pertama. Usahanya berdiri **8 Desember**, dan tidak ada
+satu jejak pun soal itu di repo mana pun. Inilah akar kesan "ditulis AI": presentasinya bercerita
+seolah proyeknya lahir dari kode, padahal kebalikannya. Barisnya sudah menunggu di `/update`.
+
+**Dua cacat situs yang ditemukan sambil memeriksa, belum diperbaiki** (repo situs, bukan bot):
+- Form `/jual` mengklaim QRIS otomatis (lihat koreksi 1 di atas) — teksnya harus disamakan
+  dengan alur yang sebenarnya, atau alurnya yang dibuat otomatis.
+- Merek di situs terbelah: header "USU POLMED Marketplace", footer & OTP "**Jual Beli Medan**"
+  (`api/auth/otp/send/route.js:79`, halaman legal, FAQ, `admin@jualbelimedan.web.id`). **Jangan
+  ganti massal** — ada repo terpisah `jualbelimedan`, jadi ini kemungkinan merek induk yang
+  disengaja. Keputusan pemilik.
+- Sapaan bot menaut `instagram.com/usulovepolmed` (`index.js:181`) sementara akun yang disebut
+  aktif `usupolmedupdate`. Tidak bisa diverifikasi dari server (Instagram menolak tanpa login),
+  jadi **tidak diubah** — tanya pemilik.
 
 ### Perlu diputuskan pemilik
 

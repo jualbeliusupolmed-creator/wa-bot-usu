@@ -125,16 +125,34 @@ juri yang mau menghitung ketat tahu angkanya 38. Dan <b>hitungan baris bot yang 
 berkasnya sendiri</b> — 8.508 itu tidak memuat <code>ui.css</code>, <code>lomba.html</code>,
 maupun <code>waAuthState.js</code>, padahal ketiganya dilacak git.</p>
 
-<p class="muted">Sisa analisisnya <b>belum dikerjakan, dan sengaja</b> — karena butuh dua hal yang
-tidak ada di server ini. Ringkasnya: halaman itu masih memakai contoh barang karangan (keyboard
-mekanik, Kalkulus Jilid 1) sementara katalog aslinya berisi Pokemon TCG, Cimory, jasa Turnitin,
-dan papan "Dicari" yang isinya anak kos mengisi kamar — kasur, kipas, setrika, galon. Tarif
-sebenarnya (iklan berjenjang Rp2.000–1%, komisi setelah deal 5–10%) tidak disinggung sama sekali.
-Peran admin sebagai penjembatan transaksi disembunyikan, padahal statistik botnya sendiri
-mengatakan bot didiamkan 30×, dijawab manusia 42×, dan cuma 8× masuk sesi bot. Alur bayarnya
-sudah pindah ke QRIS otomatis tapi halamannya masih menulis "foto struknya". Dan yang paling
-besar: sejarahnya dimulai dari commit pertama 11 Juni 2026, padahal usahanya berdiri
-<b>8 Desember</b> — berbulan-bulan sebelum ada satu baris kode pun.</p>
+<p class="muted"><b>22 Agustus 2026 (lanjutan)</b> — sisa analisis itu <b>dikerjakan</b>.
+Contoh karangan dicabut: "keyboard mekanik Rp250.000" jadi <b>Sepatu Crocs Classic Biru Muda
+Rp750.000</b> (iklan asli), dan grup karangan "912 anggota" hilang, diganti bunyi permintaan
+sungguhan dari papan Dicari. Ada slide baru <b>"Uangnya dari mana"</b> — deck jadi 13 slide —
+yang akhirnya menyebut tarifnya terang-terangan (Rp2.000 → 1% menurut harga, komisi 10%/5%
+setelah deal, iklan gratis untuk pemilik toko) dan mengakui apa yang selama ini disembunyikan:
+<b>admin manusia yang menjembatani transaksinya</b>, dengan catatan botnya sendiri sebagai bukti
+— 42 dijawab manusia, 30 kali bot diam, 8 kali masuk sesi bot. Katalog asli masuk (iPhone XR
+156 tayangan, APK Premium 154, BARANG KOS 104, Pokemon TCG 96), begitu juga suara penggunanya:
+30 dari 71 pesan cuma satu kata, dan empat orang lupa tanda titik sampai admin menjawab
+"Pake titik we".</p>
+
+<p class="muted">Dan cerita matinya diperbaiki jadi lebih buruk dari sebelumnya, karena memang
+begitu faktanya: bukan "6 jam", melainkan <b>501, 907, dan 360 menit</b> pada 18–19 Agustus —
+hampir 30 jam — dan ketiganya <b>diumumkan botnya sendiri</b> begitu hidup lagi.</p>
+
+<p class="muted"><b>Dua catatan sesi sebelumnya ternyata salah, dan itu ketahuan justru karena
+diperiksa ke alurnya, bukan ke teksnya.</b> Pertama: alur bayar <em>tidak</em> pindah ke QRIS
+otomatis. <code>/api/listings</code> membuat tagihan berstatus <code>pending</code> lalu
+mengembalikan QRIS <b>statis</b> yang struknya diperiksa manusia — jadi tulisan "foto struknya"
+di <code>/lomba</code> itu benar, dan yang berbohong adalah form <code>/jual</code> di situs
+("QRIS Dinamis Otomatis, konfirmasi instan tanpa kirim bukti"). Kedua: sakelar mode pembayaran
+di panel admin <b>tidak dibaca kode mana pun</b> — ditulis ke database, lalu diam di sana.
+Keduanya masuk daftar di bawah.</p>
+
+<p class="muted">Yang tersisa cuma satu, dan itu memang tidak ada di server ini:
+<b>sejarah sebelum kodenya ada</b>. Halaman itu masih mulai dari commit pertama 11 Juni 2026,
+padahal usahanya berdiri <b>8 Desember</b> — berbulan-bulan sebelum ada satu baris kode pun.</p>
 
 <p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
 halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
@@ -201,6 +219,32 @@ admin yang sudah dirotasi — di enam tempat.</p>
       <code>scp arsip.zip root@&lt;ip-vps&gt;:/root/</code>. Isinya dipakai untuk mengganti dialog
       karangan di <code>/lomba</code> dengan percakapan sungguhan — dengan catatan nomor dan nama
       orang harus disamarkan dulu, karena <code>/lomba</code> satu-satunya halaman tanpa sandi.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Form <code>/jual</code> menjanjikan yang tidak dikerjakannya.</strong> Tertulis
+      "⚡ QRIS Dinamis Otomatis — konfirmasi instan tanpa kirim bukti", padahal yang benar-benar
+      terjadi: tagihan dibuat berstatus <code>pending</code>, QRIS-nya gambar statis, dan struknya
+      diperiksa manusia lewat <code>/api/payments/verify-receipt</code>. Dua jalan keluarnya beda
+      biaya: samakan teksnya dengan kenyataan (lima menit), atau pasang QRIS dinamis beneran
+      (butuh penyedia pembayaran). Sekalian: sakelar "Mode Otomatis / Manual" di panel admin
+      <b>tidak dibaca kode mana pun</b> — nilainya tersimpan di database dan berhenti di situ.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Mereknya terbelah dua.</strong> Header situs menulis "USU POLMED Marketplace",
+      tapi footer, halaman legal, FAQ, dan <b>pesan OTP</b> menulis "<b>Jual Beli Medan</b>"
+      dengan alamat <code>admin@jualbelimedan.web.id</code>. Ini tidak diubah sendiri karena ada
+      repo terpisah bernama <code>jualbelimedan</code> — jadi kemungkinan besar itu merek induk
+      yang memang disengaja, bukan salah ketik. Yang perlu diputuskan: pengguna situs ini
+      seharusnya menerima OTP atas nama siapa?
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Instagram mana yang benar?</strong> Sapaan bot menaut
+      <code>instagram.com/usulovepolmed</code>, sementara catatan menyebut akun yang aktif
+      <code>usupolmedupdate</code>. Instagram menolak diperiksa tanpa login, jadi tautannya
+      sengaja <b>tidak diubah</b> — sebutkan yang benar dan perbaikannya satu baris.
     </span></li>
   </ul>
 </div>
