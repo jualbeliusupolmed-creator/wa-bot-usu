@@ -733,30 +733,29 @@ async function processQueue() {
                 // hanya karena kebetulan antre saat bot sedang tersambung ulang.
                 const sesiBelumSiap = !botSiap() || /undefined \(reading 'id'\)|Connection Closed|not open/i.test(err.message || '');
                 if (!sesiBelumSiap) task.attempts = (task.attempts || 0) + 1;
-                // Sebagian penolakan WhatsApp bersifat TETAP: mencoba lagi satu detik
-                // kemudian tidak mengubah apa pun kecuali menambah ketukan. `forbidden`
-                // pada JID grup artinya nomor ini bukan anggota grup itu (atau grupnya
-                // hanya-admin); `item-not-found` artinya JID-nya memang tidak ada.
-                // Dulu keduanya menghabiskan tiga percobaan lalu dibuang dengan alasan
-                // "gagal 3x berturut-turut: forbidden" — kalimat yang menyembunyikan
-                // satu-satunya hal yang perlu diketahui pembacanya: siapa yang harus
-                // ditambahkan ke grup mana.
-                const tetap = !sesiBelumSiap && /forbidden|item-not-found|not-authorized/i.test(err.message || '');
-                if (tetap) {
-                    bump('kirim_gagal');
-                    const jelas = task.jid.endsWith('@g.us')
-                        ? `ditolak WhatsApp (${err.message}) — nomor bot bukan anggota grup ini, atau grupnya hanya mengizinkan admin mengirim`
-                        : `ditolak WhatsApp (${err.message}) — tujuannya menolak pesan dari nomor ini`;
-                    console.error(`[Queue] Ditolak PERMANEN oleh ${task.jid}, tidak diulang:`, jelas);
-                    catatDibuang(task, jelas);
-                } else if (sesiBelumSiap || task.attempts < MAX_SEND_ATTEMPTS) {
+                // JANGAN menganggap `forbidden` sebagai penolakan tetap. Godaannya
+                // besar — kedengarannya seperti "bot bukan anggota grup ini" — dan
+                // sempat ditulis begitu di sini pada 22 Agustus 2026. Buktinya
+                // membantah: tiga iklan hari itu ditolak `forbidden` dari dua grup,
+                // lalu pesan uji ke grup yang SAMA berhasil beberapa jam kemudian,
+                // tanpa ada yang menambahkan nomornya ke mana pun. Yang terjadi:
+                // sesi baru saja ditautkan ulang dan daftar peserta grup belum
+                // selesai disinkronkan. `forbidden` di sini keadaan sementara yang
+                // umurnya jam, bukan detik. Kalau ia dibuang pada percobaan pertama,
+                // yang hilang justru pesan yang beberapa jam lagi bisa berangkat.
+                if (sesiBelumSiap || task.attempts < MAX_SEND_ATTEMPTS) {
                     messageQueue.unshift(task);
                     gap = 1000;   // beri napas sebelum coba lagi, jangan loop ketat
                     console.error(`[Queue] Gagal kirim ke ${task.jid} (${sesiBelumSiap ? 'sesi belum siap, tidak dihitung' : `percobaan ${task.attempts}/${MAX_SEND_ATTEMPTS}`}), diulang:`, err.message);
                 } else {
                     bump('kirim_gagal');
                     console.error(`[Queue] Gagal kirim ke ${task.jid} setelah ${MAX_SEND_ATTEMPTS} percobaan, pesan DIBUANG:`, err.message);
-                    catatDibuang(task, `gagal ${MAX_SEND_ATTEMPTS}× berturut-turut: ${err.message}`);
+                    const sebab = /forbidden|not-authorized/i.test(err.message || '') && task.jid.endsWith('@g.us')
+                        ? `gagal ${MAX_SEND_ATTEMPTS}× berturut-turut: ${err.message} — WhatsApp menolak kirim ke grup ini. `
+                          + 'Sesudah nomor ditautkan ulang, daftar peserta grup bisa perlu berjam-jam untuk sinkron; '
+                          + 'coba kirim ulang dari dashboard sebelum menyimpulkan botnya bukan anggota.'
+                        : `gagal ${MAX_SEND_ATTEMPTS}× berturut-turut: ${err.message}`;
+                    catatDibuang(task, sebab);
                 }
             }
         }

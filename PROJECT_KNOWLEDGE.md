@@ -79,7 +79,7 @@ meneruskan ke `/api/admin/outbox` di situs.
 
 | Berkas | Baris | Tanggung jawab |
 |---|---:|---|
-| `index.js` | 2.875 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
+| `index.js` | 2.874 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
 | `src/lib/utils.js` | 184 | 18 fungsi murni — masuk-keluar, tanpa state. |
 | `src/lib/gerbang.js` | 265 | Token mesin, sandi manusia, kuki sesi, rem tebak-token, dua gerbang pemulihan. Berbentuk pabrik. |
 | `src/routes/web.routes.js` | 252 | 18 rute yang menjawab HTML + pintu masuk/keluar. |
@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.114** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.112** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -880,38 +880,40 @@ Pelajarannya lebih umum dari satu field: **penanda yang namanya paling meyakinka
 belum tentu yang isinya benar.** Yang membuktikannya bukan dokumentasi, tapi satu
 sesi hidup yang membantahnya.
 
-### 📵 Nomornya kembali, tapi ke grup yang salah — 22 Agustus 2026 (sore)
+### 🐛 `forbidden` sesudah taut-ulang itu SEMENTARA, dan saya sempat salah membacanya — 22 Agustus 2026 (sore)
 
-Bot pertama **tertaut lagi sejak 06:56** dan sehat (`/health` → `ok:true`). Yang menyusul
-sesudahnya: tiga iklan hari ini (07:13, 09:45, 10:52) **tidak sampai ke dua dari tiga grup
-tujuan**, dan dibuang diam-diam setelah tiga percobaan.
+Bot pertama tertaut lagi sejak 06:56. Sesudah itu tiga iklan (07:13, 09:45, 10:52)
+gagal berangkat ke dua grup dengan galat `forbidden`, dan dibuang setelah tiga
+percobaan. Ambil metadata grupnya pun ditolak, dan `/groups` cuma memuat 26 grup —
+kedua JID itu tidak ada di dalamnya.
 
-Sebabnya bukan bug, tapi kenyataan: nomor yang tertaut sekarang **bukan anggota** dua grup itu.
-Ambil metadatanya pun `forbidden`. Yang jelas dari data:
+Kesimpulan yang saya ambil dari situ: **nomornya bukan anggota dua grup itu.** Saya
+menuliskannya di catatan, memasangnya sebagai butir "perlu pemilik", dan mengubah
+antrean supaya `forbidden` dihitung sebagai penolakan TETAP — dibuang pada percobaan
+pertama, bukan ketiga.
 
-| | |
-|---|---|
-| Nomor yang tertaut di bot 1 | `…2594` — nomor yang sama dengan `backupAdmin` di `settings.json` |
-| Nomor yang dipajang situs | `…26232` (`contact.marketplaceWa` dan `supportPhone`) |
-| Grup tujuan siaran | 3 buah, dari env Vercel `GROUP_JID` + `BAILEYS_BROADCAST_GROUPS` |
-| Yang bisa dikirimi | 1 (`…79724`, "Jual Beli Usu Polmed", 1.530 anggota) |
-| Yang menolak | 2 (`…82956`, `…71292`) — bot bukan anggotanya |
+Lalu satu pesan uji ke grup yang **sama** berhasil terkirim, tanpa ada yang
+menambahkan nomor itu ke mana pun. `/groups` sekarang memuat **28** grup; keduanya
+ada, dengan 956 dan 161 anggota.
 
-Tiga akibat yang perlu dibaca terpisah, dan **ketiganya keputusan pemilik**, bukan kode:
+Yang sebenarnya terjadi: **sesi yang baru ditautkan ulang belum selesai menyinkronkan
+daftar peserta grup.** Selama jendela itu WhatsApp menjawab `forbidden` untuk grup
+yang keanggotaannya sah. Umur keadaan itu jam, bukan detik — dan tiga percobaan yang
+berjarak satu detik semuanya jatuh di dalam jendela yang sama.
 
-1. Dua grup tidak lagi menerima iklan sampai nomornya dimasukkan ke sana, **atau** JID-nya
-   dicabut dari env Vercel.
-2. Nomor yang disuruh dichat oleh situs bukan nomor yang menjawab. Siapa pun yang mengikuti
-   `supportPhone` di situs mengetuk nomor yang tidak ada botnya.
-3. `/kontak-admin` menjawab `cadangan: …2594` — **nomor yang sama dengan yang dipakai bot 1**.
-   Jadi jalan pulang saat bot padam menunjuk ke nomor yang ikut padam. Gunanya hilang.
+Dua akibatnya:
 
-Yang **bisa** diperbaiki di kode, dan sudah: `forbidden`, `item-not-found`, dan `not-authorized`
-sekarang dihitung sebagai penolakan **tetap** — dibuang pada percobaan pertama, bukan ketiga.
-Mengulang satu detik kemudian tidak pernah mengubah keanggotaan grup; yang bertambah cuma
-ketukan. Alasan yang tercatat juga diganti dari *"gagal 3× berturut-turut: forbidden"* menjadi
-kalimat yang menyebut hal yang sebenarnya perlu diketahui pembacanya: *"nomor bot bukan anggota
-grup ini, atau grupnya hanya mengizinkan admin mengirim"*. ⏳ Berlaku pada restart berikutnya.
+1. **Perubahan antrean itu dicabut.** Kalau `forbidden` dibuang pada percobaan
+   pertama, yang hilang justru pesan yang beberapa jam lagi bisa berangkat — kebalikan
+   dari yang dimaksud. Yang ditinggal cuma alasan yang tercatat, dan sekarang isinya
+   menyebut kemungkinan sinkron itu, bukan tuduhan bahwa botnya bukan anggota.
+2. **Tiga iklan yang dibuang hari itu sebenarnya bisa dikirim ulang** — keduanya
+   sudah bisa dikirimi sekarang. Daftar "dibuang" di dashboard menyimpannya 14 hari.
+
+Catatan cara kerja, bukan catatan kode: `forbidden` + `/groups` yang tidak memuat
+grupnya + metadata yang ditolak — **tiga tanda yang semuanya konsisten dengan
+kesimpulan yang salah.** Yang membedakan cuma satu percobaan kirim betulan. Dan
+percobaan itu punya harga: pesan ujinya sampai ke grup berisi 956 orang.
 
 ### 🐛 Harga punya empat sumber, dan yang menagih cuma satu — 22 Agustus 2026 (repo situs)
 

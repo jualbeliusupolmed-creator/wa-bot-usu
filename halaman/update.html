@@ -161,7 +161,7 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.114</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.112</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
 
 <p class="muted"><b>22 Agustus 2026, dini hari</b> — <code>/health</code> dapat tampilan untuk
@@ -229,19 +229,19 @@ boot ia bisa menunda start 30 menit padahal sesinya siap pakai. Sekarang yang di
 <code>creds.me.id</code> — identitas akun yang selalu ada begitu pairing selesai. Diuji terhadap
 berkas sesi yang asli di mesin ini, bukan terhadap dugaan.</p>
 
-<p class="muted"><b>Sore harinya nomornya kembali — dan justru itu yang memunculkan
-kegagalan berikutnya.</b> Bot pertama tertaut lagi sejak pukul 06:56 dan sehat. Tapi tiga iklan
-hari ini berhenti di tengah jalan: nomor yang tertaut sekarang <b>bukan anggota dua dari tiga
-grup tujuan</b>, jadi WhatsApp menolaknya dengan <code>forbidden</code>, dan setelah tiga
-percobaan pesannya dibuang. Grup ketiga — yang 1.530 anggota — tetap menerima. Keanggotaan grup
-bukan sesuatu yang bisa diperbaiki dari kode, jadi yang diperbaiki penanganannya: penolakan
-<em>tetap</em> (<code>forbidden</code>, <code>item-not-found</code>, <code>not-authorized</code>)
-tidak lagi diulang tiga kali — mengulang satu detik kemudian tidak pernah mengubah keanggotaan
-grup, yang bertambah cuma ketukan. Alasannya pun diganti dari "gagal 3× berturut-turut:
-forbidden" menjadi kalimat yang menyebut satu-satunya hal yang berguna bagi pembacanya: nomor
-botnya bukan anggota grup itu. Sisanya — grup mana yang benar, nomor mana yang dipajang situs,
-dan nomor cadangan yang sekarang menunjuk ke dirinya sendiri — ada di daftar
-<b>yang belum selesai</b> di atas, karena itu keputusan pemilik.</p>
+<p class="muted"><b>Sore harinya nomornya kembali — dan saya sempat salah membaca apa yang
+terjadi sesudahnya.</b> Tiga iklan hari ini gagal berangkat ke dua grup dengan galat
+<code>forbidden</code>; ambil keterangan grupnya pun ditolak, dan daftar grup bot tidak memuat
+keduanya. Tiga tanda yang semuanya cocok dengan satu kesimpulan: nomornya bukan anggota grup itu.
+Saya menuliskannya begitu, dan mengubah antrean supaya penolakan semacam itu tidak diulang tiga
+kali. Lalu satu pesan uji ke grup yang <b>sama</b> berhasil terkirim, tanpa ada yang menambahkan
+nomor itu ke mana pun. Yang sebenarnya terjadi: sesi yang baru ditautkan ulang <b>belum selesai
+menyinkronkan daftar peserta grup</b>, dan selama jendela itu WhatsApp menjawab
+<code>forbidden</code> untuk grup yang keanggotaannya sah. Umur keadaan itu jam, bukan detik —
+tiga percobaan yang berjarak satu detik semuanya jatuh di jendela yang sama. Perubahan antrean
+itu <b>dicabut</b>: kalau <code>forbidden</code> dibuang pada percobaan pertama, yang hilang
+justru pesan yang beberapa jam lagi bisa berangkat. Yang ditinggal cuma catatan alasannya, dan
+sekarang isinya menyebut kemungkinan sinkron itu — bukan tuduhan bahwa botnya bukan anggota.</p>
 
 <p class="muted"><b>Dan pemeriksaan itu menemukan yang lebih mahal di repo situs: harga punya
 empat sumber, dan yang menagih cuma satu.</b> Rumus biaya iklan hidup di tiga tempat sekaligus —
@@ -287,13 +287,12 @@ admin yang sudah dirotasi — di enam tempat.</p>
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Dua grup tidak lagi menerima iklan.</strong> Nomor yang tertaut sekarang bukan
-      anggota dua dari tiga grup tujuan siaran, jadi tiga iklan hari ini (07:13, 09:45, 10:52)
-      berhenti di situ. Grup ketiga — "Jual Beli Usu Polmed", 1.530 anggota — tetap menerima.
-      Pilihannya dua: masukkan nomor botnya ke dua grup itu, atau cabut JID-nya dari env Vercel
-      (<code>GROUP_JID</code> dan <code>BAILEYS_BROADCAST_GROUPS</code>). Selama belum, tiap
-      iklan baru tetap gagal ke sana — sekarang gagalnya sekali, bukan tiga kali, dan alasannya
-      ditulis apa adanya di daftar "dibuang" pada dashboard.
+      <strong>Tiga iklan hari ini belum sampai ke dua grup — bisa dikirim ulang.</strong>
+      Iklan pukul 07:13, 09:45, dan 10:52 ditolak WhatsApp waktu itu karena sesi bot baru saja
+      ditautkan ulang dan daftar peserta grupnya belum sinkron. Sekarang kedua grup sudah bisa
+      dikirimi (956 dan 161 anggota). Ketiganya tersimpan di daftar <b>"dibuang"</b> pada
+      dashboard selama 14 hari — tinggal kirim ulang dari sana. Tidak saya kirim sendiri karena
+      itu pesan yang mendarat di grup berisi seribuan orang, jadi keputusannya milik Anda.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
