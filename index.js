@@ -720,7 +720,23 @@ async function processQueue() {
                 // hanya karena kebetulan antre saat bot sedang tersambung ulang.
                 const sesiBelumSiap = !botSiap() || /undefined \(reading 'id'\)|Connection Closed|not open/i.test(err.message || '');
                 if (!sesiBelumSiap) task.attempts = (task.attempts || 0) + 1;
-                if (sesiBelumSiap || task.attempts < MAX_SEND_ATTEMPTS) {
+                // Sebagian penolakan WhatsApp bersifat TETAP: mencoba lagi satu detik
+                // kemudian tidak mengubah apa pun kecuali menambah ketukan. `forbidden`
+                // pada JID grup artinya nomor ini bukan anggota grup itu (atau grupnya
+                // hanya-admin); `item-not-found` artinya JID-nya memang tidak ada.
+                // Dulu keduanya menghabiskan tiga percobaan lalu dibuang dengan alasan
+                // "gagal 3x berturut-turut: forbidden" — kalimat yang menyembunyikan
+                // satu-satunya hal yang perlu diketahui pembacanya: siapa yang harus
+                // ditambahkan ke grup mana.
+                const tetap = !sesiBelumSiap && /forbidden|item-not-found|not-authorized/i.test(err.message || '');
+                if (tetap) {
+                    bump('kirim_gagal');
+                    const jelas = task.jid.endsWith('@g.us')
+                        ? `ditolak WhatsApp (${err.message}) — nomor bot bukan anggota grup ini, atau grupnya hanya mengizinkan admin mengirim`
+                        : `ditolak WhatsApp (${err.message}) — tujuannya menolak pesan dari nomor ini`;
+                    console.error(`[Queue] Ditolak PERMANEN oleh ${task.jid}, tidak diulang:`, jelas);
+                    catatDibuang(task, jelas);
+                } else if (sesiBelumSiap || task.attempts < MAX_SEND_ATTEMPTS) {
                     messageQueue.unshift(task);
                     gap = 1000;   // beri napas sebelum coba lagi, jangan loop ketat
                     console.error(`[Queue] Gagal kirim ke ${task.jid} (${sesiBelumSiap ? 'sesi belum siap, tidak dihitung' : `percobaan ${task.attempts}/${MAX_SEND_ATTEMPTS}`}), diulang:`, err.message);
@@ -1700,6 +1716,19 @@ async function startBot() {
     }
 }
 
+// Dua baris log yang saling membantah itu mahal saat mencari sebab. stdout dulu
+// selalu menulis "Sesi WhatsApp dimuat" — juga ketika folder sesinya kosong dan
+// stderr baru saja menulis "Tidak ada creds tersimpan". Yang membaca stdout
+// menyimpulkan sesinya ada, lalu mencari sebab putusnya di tempat yang salah.
+// Satu baris, dan isinya keadaan yang sebenarnya.
+function laporAuth(sumber, state) {
+    if (state?.creds?.registered) {
+        console.log(`[auth] Sesi WhatsApp tertaut dimuat dari ${sumber}.`);
+    } else {
+        console.log(`[auth] Belum ada sesi tertaut di ${sumber} — bot akan meminta scan QR.`);
+    }
+}
+
 async function startBotInner(myGen) {
     let state, saveCreds;
     if (supabase) {
@@ -1708,7 +1737,7 @@ async function startBotInner(myGen) {
         saveCreds = authState.saveCreds;
         clearAuthState = authState.clear;
         flushAuthState = authState.flush;
-        console.log(`[auth] Sesi WhatsApp dimuat dari Supabase (session_id=${WA_SESSION_ID}).`);
+        laporAuth(`Supabase (session_id=${WA_SESSION_ID})`, state);
     } else {
         // useFileAuthState (bukan useMultiFileAuthState bawaan): tulis atomik +
         // creds cadangan + cache baca. Format foldernya sama, sesi lama tetap jalan.
@@ -1717,7 +1746,7 @@ async function startBotInner(myGen) {
         saveCreds = authState.saveCreds;
         clearAuthState = authState.clear;
         flushAuthState = authState.flush;
-        console.log(`[auth] Sesi WhatsApp dimuat dari filesystem (${AUTH_DIR}).`);
+        laporAuth(`filesystem (${AUTH_DIR})`, state);
     }
     // Dipakai handler 'close' untuk membedakan "jaringan putus" dari "belum
     // pernah ditautkan". Baileys menandai sesi yang sudah selesai pairing dengan
@@ -1984,14 +2013,29 @@ async function startBotInner(myGen) {
             // memang QR-nya.
             qrSiklusIni = true;
             if (!pernahTersambung) siklusQrSiaSia++;
-            if (!pernahTersambung && siklusQrSiaSia >= PINDAI_MAKS_SIKLUS && !menungguPindai) {
-                menungguPindai = true;
-                simpanPindaiState();
+            // `!menungguPindai` dulu ikut menjaga SELURUH blok ini, dan itu membuat
+            // keadaan diam hanya berlaku SEKALI seumur proses. Pada denyut 30 menit
+            // berikutnya penandanya masih true, syaratnya gagal, QR tetap dipancarkan
+            // sampai socketnya mati sendiri, lalu handler 'close' melewati blok
+            // penghitungnya juga (`qrSiklusIni` sudah true) dan bot jatuh ke rantai
+            // sambung-ulang 408 biasa: mengetuk tiap ≤60 detik tanpa henti, justru
+            // pada nomor yang belum tertaut. Yang dijaga sekarang cuma PENGUMUMANnya;
+            // berhentinya selalu jadi.
+            if (!pernahTersambung && siklusQrSiaSia >= PINDAI_MAKS_SIKLUS) {
+                if (!menungguPindai) {
+                    menungguPindai = true;
+                    simpanPindaiState();
+                    console.warn(`[pindai] ${siklusQrSiaSia} QR berturut-turut kedaluwarsa tanpa dipindai — `
+                        + 'bot BERHENTI mengetuk WhatsApp. Buka kartu QR di dashboard (atau minta kode '
+                        + `pairing) untuk memunculkan QR baru; kalau tidak, dicoba lagi tiap `
+                        + `${Math.round(PINDAI_RETRY_MS / 60000)} menit.`);
+                }
                 currentQR = '';
-                console.warn(`[pindai] ${siklusQrSiaSia} QR berturut-turut kedaluwarsa tanpa dipindai — `
-                    + 'bot BERHENTI mengetuk WhatsApp. Buka kartu QR di dashboard (atau minta kode '
-                    + `pairing) untuk memunculkan QR baru; kalau tidak, dicoba lagi tiap `
-                    + `${Math.round(PINDAI_RETRY_MS / 60000)} menit.`);
+                // Jatah siklus berikutnya mulai dari nol. Tanpa ini penghitungnya
+                // menempel di angka maksimum selamanya, dan denyut 30 menit yang
+                // berikut berhenti pada QR pertamanya — QR yang tidak pernah sempat
+                // terlihat siapa pun.
+                siklusQrSiaSia = 0;
                 if (connectWatchdog) { clearTimeout(connectWatchdog); connectWatchdog = null; }
                 reconnectAttempts = 0;
                 scheduleRestart(PINDAI_RETRY_MS);
@@ -2062,6 +2106,7 @@ async function startBotInner(myGen) {
                     // QR-nya mati bersama socket ini. Memajangnya lebih lama cuma
                     // membuat orang memindai gambar yang sudah tidak berlaku.
                     currentQR = '';
+                    siklusQrSiaSia = 0;   // jatah denyut berikutnya, lihat catatan di handler `qr`
                     reconnectAttempts = 0;
                     scheduleRestart(PINDAI_RETRY_MS);
                     return;

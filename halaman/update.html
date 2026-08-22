@@ -161,7 +161,7 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>11.962</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.090</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
 
 <p class="muted"><b>22 Agustus 2026, dini hari</b> — <code>/health</code> dapat tampilan untuk
@@ -183,6 +183,53 @@ padahal maksudnya QR yang kedaluwarsa</b>. Komentar di kodenya sendiri menulis "
 menit", padahal satu socket menahan beberapa QR selama ±6 menit, jadi lima siklus itu ±30 menit
 — lewat jauh dari ambang penjaga yang 16 menit. Sesudah diperbaiki: <b>kedua bot mendiam dalam
 110 detik</b>, dan penjaganya berhenti me-restart.</p>
+
+<p class="muted"><b>Empat jam kemudian ketukan itu kembali, dan tidak ada satu pun log yang
+mengaku.</b> Perbaikan tadi bekerja untuk siklus pertama saja: syarat berhentinya ikut dijaga
+oleh penanda "sudah diumumkan", jadi begitu penandanya menyala, keputusan berhenti tidak bisa
+diambil lagi seumur proses. Denyut 30 menit membangunkan bot, QR dipancarkan, tidak ada yang
+menutup socketnya, dan bot jatuh ke sambung-ulang biasa: <b>tiap 60 detik, tanpa henti</b>.
+Yang menutupinya justru dua tanda yang benar — <code>/health</code> tetap menjawab "menunggu
+dipindai" dan penjaga tetap menulis "tidak me-restart". Keduanya menggambarkan
+<em>keputusan</em> bot, bukan ketukannya. Yang membuktikan ketukan cuma satu: waktu ubah berkas
+lognya. Sesudah ditambal, tiap denyut punya jatah lima ketukan lalu diam lagi — dan di antaranya
+<b>nol ketukan</b>.</p>
+
+<p class="muted">Ikut dibereskan: baris log yang membantah dirinya sendiri (stdout menulis "Sesi
+WhatsApp dimuat dari filesystem" sementara stderr menulis "Tidak ada creds tersimpan" —
+sekarang satu baris yang menyebut keadaan sebenarnya), dan bot pertama akhirnya punya
+<code>jalankan.sh</code> sendiri seperti bot kedua. Sebelumnya <code>API_TOKEN</code> dan
+kawan-kawannya cuma hidup di daftar proses pm2: satu restart dari terminal polos menghapus
+semuanya, dan bot menolak jalan.</p>
+
+<p class="muted"><b>Tambalan itu sendiri melahirkan dua duplikat, dan duplikat itu jenis
+kesalahan yang tidak pernah terasa hari ini.</b> Bot pertama jadi punya <em>dua</em> skrip jalan
+(<code>/root/jalankan-bot-1.sh</code> dan yang baru di repo), padahal yang dipanggil penjaga
+tiap dua menit cuma satu — perbaiki yang salah, dan restart otomatis berikutnya tetap membawa
+env lama. Rahasianya pun jadi punya dua salinan: <code>rahasia.env</code> yang baru, di samping
+<code>/root/.api_token_bot1</code> dan <code>/root/.sandi-panel</code> yang sudah ada. Rotasi
+satu berkas, lupa yang lain, dan hasilnya <code>401</code> yang tidak ada penjelasannya.
+Sekarang <b>satu bot satu skrip, satu rahasia satu berkas</b>: skrip kanoniknya ada di sebelah
+datanya masing-masing, penjaga menunjuk ke yang di dalam repo (supaya perubahannya kelihatan di
+<code>git diff</code>, bukan cuma di ingatan), dan <code>rahasia.env</code> dihapus setelah tiap
+nilainya dibuktikan sama persis dengan berkas aslinya. <code>WEBHOOK_URL</code> yang selama ini
+di-<em>export</em> dengan nilai kosong juga dicabut — tidak merusak karena kodenya memakai
+<code>||</code>, tapi persis jenis nilai yang meledak diam-diam kalau suatu hari diganti
+<code>??</code>.</p>
+
+<p class="muted"><b>Sore harinya nomornya kembali — dan justru itu yang memunculkan
+kegagalan berikutnya.</b> Bot pertama tertaut lagi sejak pukul 06:56 dan sehat. Tapi tiga iklan
+hari ini berhenti di tengah jalan: nomor yang tertaut sekarang <b>bukan anggota dua dari tiga
+grup tujuan</b>, jadi WhatsApp menolaknya dengan <code>forbidden</code>, dan setelah tiga
+percobaan pesannya dibuang. Grup ketiga — yang 1.530 anggota — tetap menerima. Keanggotaan grup
+bukan sesuatu yang bisa diperbaiki dari kode, jadi yang diperbaiki penanganannya: penolakan
+<em>tetap</em> (<code>forbidden</code>, <code>item-not-found</code>, <code>not-authorized</code>)
+tidak lagi diulang tiga kali — mengulang satu detik kemudian tidak pernah mengubah keanggotaan
+grup, yang bertambah cuma ketukan. Alasannya pun diganti dari "gagal 3× berturut-turut:
+forbidden" menjadi kalimat yang menyebut satu-satunya hal yang berguna bagi pembacanya: nomor
+botnya bukan anggota grup itu. Sisanya — grup mana yang benar, nomor mana yang dipajang situs,
+dan nomor cadangan yang sekarang menunjuk ke dirinya sendiri — ada di daftar
+<b>yang belum selesai</b> di atas, karena itu keputusan pemilik.</p>
 
 <p class="muted"><b>Dan pemeriksaan itu menemukan yang lebih mahal di repo situs: harga punya
 empat sumber, dan yang menagih cuma satu.</b> Rumus biaya iklan hidup di tiga tempat sekaligus —
@@ -228,14 +275,29 @@ admin yang sudah dirotasi — di enam tempat.</p>
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Tautkan ulang nomor bot pertama.</strong> Kunci sesi dibuka lagi dari dashboard pada
-      21 Agustus 2026 pukul 06:34 dan sesi lama dipindah ke
-      <code>auth_info_baileys.bak-20260821T063431</code> (bukan dihapus); folder sesi yang aktif
-      sekarang kosong, jadi bot menunggu ditautkan dan tidak ada pesan yang bisa dikirim maupun
-      diterima. Sebelum itu log-nya <code>401</code> tiga kali berturut-turut — tanda nomornya
-      sedang dibatasi WhatsApp, dan menautkan ulang saat sedang dibatasi justru memperpanjangnya.
-      Yang paling aman: kembalikan folder <code>.bak-</code> itu kalau nomornya masih tertaut di HP.
-      Pindai QR / kode pairing hanya kalau perangkatnya memang sudah dilepas.
+      <strong>Dua grup tidak lagi menerima iklan.</strong> Nomor yang tertaut sekarang bukan
+      anggota dua dari tiga grup tujuan siaran, jadi tiga iklan hari ini (07:13, 09:45, 10:52)
+      berhenti di situ. Grup ketiga — "Jual Beli Usu Polmed", 1.530 anggota — tetap menerima.
+      Pilihannya dua: masukkan nomor botnya ke dua grup itu, atau cabut JID-nya dari env Vercel
+      (<code>GROUP_JID</code> dan <code>BAILEYS_BROADCAST_GROUPS</code>). Selama belum, tiap
+      iklan baru tetap gagal ke sana — sekarang gagalnya sekali, bukan tiga kali, dan alasannya
+      ditulis apa adanya di daftar "dibuang" pada dashboard.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Nomor yang disuruh dichat situs bukan nomor yang menjawab.</strong> Situs memajang
+      <code>supportPhone</code> yang berakhiran <b>…26232</b>, sementara bot pertama tertaut ke
+      nomor yang berakhiran <b>…2594</b>. Siapa pun yang mengikuti nomor di situs mengetuk nomor
+      yang tidak ada botnya. Yang perlu diputuskan: situsnya yang menyesuaikan, atau botnya yang
+      pindah ke nomor itu lagi.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong><code>/kontak-admin</code> menunjuk ke nomor botnya sendiri.</strong> Endpoint itu
+      ada supaya situs punya jalan pulang saat bot padam — ia menjawab nomor cadangan. Tapi
+      <code>backupAdmin</code> di <code>settings.json</code> sekarang berisi nomor yang sama
+      dengan yang dipakai bot pertama, jadi jalan pulangnya menunjuk ke nomor yang ikut padam.
+      Isi <code>backupAdmin</code> dengan nomor manusia yang benar-benar berbeda.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
@@ -300,6 +362,19 @@ admin yang sudah dirotasi — di enam tempat.</p>
       <code>instagram.com/usulovepolmed</code>, sementara catatan menyebut akun yang aktif
       <code>usupolmedupdate</code>. Instagram menolak diperiksa tanpa login, jadi tautannya
       sengaja <b>tidak diubah</b> — sebutkan yang benar dan perbaikannya satu baris.
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Dua baris SSH: jadikan skrip lama sekadar penerus.</strong> Skrip jalan yang
+      kanonik sekarang ada di sebelah data tiap bot, dan penjaga sudah menunjuk ke sana. Yang
+      belum: <code>/root/jalankan-bot-1.sh</code> dan <code>/root/jalankan-bot-2.sh</code> masih
+      menyimpan salinan penuh isinya. <b>Hari ini keduanya masih benar</b> — yang ditunggu cuma
+      kapan salah satunya disunting dan yang lain tidak. Menulis ke <code>/root/*.sh</code>
+      ditolak penyaring izin, jadi perintahnya diserahkan apa adanya:
+      <pre><code>printf '#!/bin/bash\n# Penerus; isi sebenarnya di skrip sebelah DATA_DIR.\nexec /root/wa-bot-usu/jalankan.sh "$@"\n' &gt; /root/jalankan-bot-1.sh
+printf '#!/bin/bash\n# Penerus; isi sebenarnya di skrip sebelah DATA_DIR.\nexec /root/wa-bot-2/jalankan.sh "$@"\n' &gt; /root/jalankan-bot-2.sh
+chmod 700 /root/jalankan-bot-1.sh /root/jalankan-bot-2.sh</code></pre>
+      Tidak perlu me-restart bot untuk ini; skripnya baru terpakai pada restart berikutnya.
     </span></li>
   </ul>
 </div>

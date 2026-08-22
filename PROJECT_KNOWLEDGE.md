@@ -79,20 +79,20 @@ meneruskan ke `/api/admin/outbox` di situs.
 
 | Berkas | Baris | Tanggung jawab |
 |---|---:|---|
-| `index.js` | 2.693 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
+| `index.js` | 2.863 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
 | `src/lib/utils.js` | 184 | 18 fungsi murni — masuk-keluar, tanpa state. |
 | `src/lib/gerbang.js` | 265 | Token mesin, sandi manusia, kuki sesi, rem tebak-token, dua gerbang pemulihan. Berbentuk pabrik. |
-| `src/routes/web.routes.js` | 251 | 18 rute yang menjawab HTML + pintu masuk/keluar. |
-| `src/routes/panel.routes.js` | ~300 | 18 rute data yang dibaca dashboard. |
-| `src/routes/wa.routes.js` | ~540 | 30 rute yang menyentuh WhatsApp. |
-| `src/routes/sesi.routes.js` | ~100 | 8 rute taut-ulang, reset, buka kunci, bot kedua. |
-| `src/routes/antrean.routes.js` | ~125 | 4 rute antrean kirim & proxy antrean situs. |
+| `src/routes/web.routes.js` | 252 | 18 rute yang menjawab HTML + pintu masuk/keluar. |
+| `src/routes/panel.routes.js` | 426 | 18 rute data yang dibaca dashboard. |
+| `src/routes/wa.routes.js` | 572 | 30 rute yang menyentuh WhatsApp. |
+| `src/routes/sesi.routes.js` | 123 | 8 rute taut-ulang, reset, buka kunci, bot kedua. |
+| `src/routes/antrean.routes.js` | 139 | 4 rute antrean kirim & proxy antrean situs. |
 | `waAuthState.js` | 302 | Penyimpan sesi Baileys di filesystem, dengan cadangan berputar & tulis atomik. |
 | `useSupabaseAuthState.js` | 190 | Adapter sesi ke Postgres. **Tidak dipakai** (tidak ada env Supabase). |
-| `halaman/dashboard.html` | 958 | Panel operasi: QR, inbox chat, statistik gerbang, blocklist, story, log. |
+| `halaman/dashboard.html` | 1.102 | Panel operasi: QR, inbox chat, statistik gerbang, blocklist, story, log. |
 | `halaman/home.html` | 449 | Daftar tombol ke semua halaman & endpoint. |
-| `halaman/update.html` | 289 | Linimasa perubahan (dari git) + daftar "Yang belum selesai" yang ditulis tangan. Tiga baris, semuanya `Perlu pemilik`. |
-| `halaman/projek.html` | 208 | Catatan proyek naratif. Angkanya dihitung ulang 21 Agu 2026, sama dengan `/lomba`, dan cara menghitungnya ikut ditulis. |
+| `halaman/update.html` | 513 | Linimasa perubahan (dari git) + daftar "Yang belum selesai" yang ditulis tangan. 11 baris, semuanya `Perlu pemilik`. |
+| `halaman/projek.html` | 216 | Catatan proyek naratif. Angkanya dihitung ulang 22 Agu 2026, sama dengan `/lomba`, dan cara menghitungnya ikut ditulis. |
 | `halaman/progres-claude.html` | 660 | **Halaman audit ini.** Bergerbang sandi. Isinya beku di pagi 21 Agu; penandanya disetel ulang 22 Agu (14 dari 18 temuan ditutup). Memuat penyaji markdown sendiri untuk `catatan/temuan-keamanan.md`. |
 | `public/lomba.html` | 931 | Presentasi lomba 12 slide. **Satu-satunya halaman tanpa sandi.** |
 | `public/assets/ui.css` / `ui.js` | 1.054 / 169 | Rupa bersama + navbar yang disuntik ke semua halaman + ikon SVG sebaris (menggantikan Font Awesome CDN) + tombol terang/gelap. |
@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.962** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.090** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -712,14 +712,12 @@ Halamannya sengaja tanpa berkas luar (tidak ada `<link>`/`<script src>`) — hal
 tugasnya menjawab "botnya hidup atau tidak" tidak boleh ikut mati karena satu berkas rupa.
 Dan isinya dibatasi field yang sama dengan JSON-nya: endpoint ini publik tanpa sandi.
 
-⚠ **Belum aktif di produksi.** Kode masuk repo, tapi kedua proses bot masih menjalankan versi
-lama. Restart dihindari dengan sengaja: `menungguPindai` cuma hidup di memori (`index.js:271`),
-jadi proses baru me-*reset*-nya dan langsung mengetuk WhatsApp lagi sampai
-`PINDAI_MAKS_SIKLUS` (5) siklus QR — ketukan ke nomor yang sedang dibatasi, persis yang
-dihindari sejak 19 Agustus. Diuji tanpa restart, lewat aplikasi Express terpisah yang memasang
-`panel.routes.js` dengan `K` palsu. Akan hidup sendiri pada restart berikutnya, apa pun
-sebabnya. **Restart HARUS lewat `/root/jalankan-bot-1.sh`**, bukan `pm2 restart` telanjang —
-skrip itu yang membawa ulang `API_TOKEN` dan `PANEL_PASSWORD`.
+✅ **Aktif di produksi sejak 22 Agustus 2026.** Sempat ditahan karena menyalakannya berarti
+restart, dan `menungguPindai` waktu itu cuma hidup di memori: proses baru me-*reset*-nya lalu
+mengetuk WhatsApp lagi — ketukan ke nomor yang sedang dibatasi. Ketakutan itu terbukti benar
+(lihat bagian lingkaran restart di bawah), penyebabnya diperbaiki, baru halamannya dinyalakan.
+**Restart HARUS lewat `/root/wa-bot-usu/jalankan.sh`**, bukan `pm2 restart` telanjang — skrip
+itu yang membawa ulang `API_TOKEN` dan `PANEL_PASSWORD`.
 
 ### 🐛 Lingkaran restart yang mengetuk WhatsApp — diperbaiki 22 Agustus 2026
 
@@ -765,6 +763,122 @@ mencatat tiga kali berturut-turut *"Penjaga tidak me-restart"* dengan hitungan r
 
 ⚠ **Selama perbaikan, penjaga dimatikan sementara lewat crontab dan kedua bot dihentikan** supaya
 tidak ada ketukan. Crontab dikembalikan dan dibandingkan baris-per-baris dengan salinan aslinya.
+
+### 🐛 Sebab keempat: keadaan diam yang cuma berlaku sekali — 22 Agustus 2026 (pagi)
+
+Tiga sebab di atas benar dan perbaikannya bekerja — **untuk siklus pertama saja.** Empat jam
+sesudahnya kedua bot mengetuk WhatsApp lagi tanpa henti, tiap ≤60 detik, dan tidak ada satu pun
+baris log yang mengaku. Yang menutupinya: `/health` tetap menjawab `menungguPindai:true` dan
+`penjaga-bot.log` tetap menulis *"Penjaga tidak me-restart"* — dua tanda yang benar, di atas
+mesin yang sedang melakukan persis yang dilarang.
+
+**Yang salah satu kata.** Di handler `qr`, syarat berhentinya berbunyi:
+
+```js
+if (!pernahTersambung && siklusQrSiaSia >= PINDAI_MAKS_SIKLUS && !menungguPindai) {
+```
+
+`!menungguPindai` di situ dimaksudkan menjaga **pengumumannya** supaya tidak diulang tiap QR.
+Yang dijaganya ternyata seluruh blok — termasuk `sock.end()` dan `scheduleRestart()`. Jadi
+begitu penandanya menyala, keputusan berhenti tidak bisa diambil lagi seumur proses:
+
+1. Denyut 30 menit membangunkan `startBot()`, `menungguPindai` **masih** true.
+2. QR dipancarkan → syaratnya gagal → tidak ada yang menutup socket. Socket itu terus
+   menyegarkan QR ±6 menit.
+3. Socket mati 408 → handler `close` melewati penghitungnya juga, karena `qrSiklusIni` sudah
+   true (QR-nya memang lahir, dan yang menghitung QR adalah handler `qr` — yang barusan
+   dilumpuhkan).
+4. Jatuh ke rantai sambung-ulang 408 biasa: backoff 3s → 60s → **60s selamanya**.
+
+Rekaman terakhir sebelum tambalan: `Reconnect ke-7 dalam 60s`.
+
+**Dua tambalannya:**
+
+- `!menungguPindai` sekarang cuma mengurung `console.warn` + `simpanPindaiState()`. Berhentinya
+  selalu jadi.
+- `siklusQrSiaSia` dinolkan **pada saat keputusan diam diambil**, di kedua jalur (`qr` dan
+  `close`). Tanpa ini penghitungnya menempel di angka maksimum, dan denyut berikutnya berhenti
+  pada QR pertamanya — QR yang tidak pernah sempat terlihat siapa pun. Sekarang tiap denyut
+  punya jatah `PINDAI_MAKS_SIKLUS` ketukan lalu diam lagi.
+
+**Pelajarannya, dan ini yang mahal:** penanda yang benar bukan bukti perilaku yang benar.
+`menungguPindai:true` menggambarkan *keputusan* bot, bukan *ketukannya*. Yang membuktikan
+adanya ketukan cuma satu hal — waktu ubah berkas log:
+`ls -la --time-style=+%H:%M:%S ~/.pm2/logs/`. Kalau log berubah 40 detik yang lalu sementara
+bot mengaku diam sejak 50 menit lalu, yang berbohong bukan lognya.
+
+**Dan satu baris log yang ikut memperlambat pencarian.** stdout selalu menulis
+`[auth] Sesi WhatsApp dimuat dari filesystem` — juga ketika foldernya kosong dan stderr baru
+saja menulis `[auth] Tidak ada creds tersimpan`. Dua baris yang saling membantah, di dua berkas
+berbeda. Sekarang satu baris lewat `laporAuth()`, isinya keadaan yang sebenarnya:
+*"Sesi WhatsApp tertaut dimuat dari …"* atau *"Belum ada sesi tertaut di … — bot akan meminta
+scan QR."*
+
+### 🔑 Satu bot, satu skrip jalan; satu rahasia, satu berkas — 22 Agustus 2026
+
+Bot kedua sudah punya `jalankan.sh` sejak 22 Agu dini hari; bot pertama belum. Akibatnya
+`API_TOKEN`, `PANEL_PASSWORD`, dan `BOT2_TOKEN` **hanya hidup di `~/.pm2/dump.pm2`** — satu
+`pm2 restart wa-bot-usu --update-env` dari shell polos sudah cukup untuk menghapus semuanya,
+dan bot menolak jalan (fail-closed, `index.js:85`).
+
+Tambalan pertama membuat `rahasia.env` + `jalankan.sh` di repo bot. Itu menutup lubangnya, tapi
+membuka dua yang lain, dan keduanya jenis yang sama: **duplikat yang menunggu untuk basi.**
+
+| Duplikat | Kenapa berbahaya |
+|---|---|
+| Dua skrip untuk bot pertama (`/root/jalankan-bot-1.sh` + `jalankan.sh` repo) | Yang dipanggil penjaga tiap 2 menit cuma satu. Perbaiki yang salah, dan restart otomatis berikutnya tetap membawa env lama. |
+| Dua salinan tiap rahasia (`rahasia.env` vs `/root/.api_token_bot1`, `/root/.sandi-panel`) | Rotasi satu berkas, lupa yang lain, dan hasilnya 401 yang tidak ada penjelasannya. |
+
+Bentuk akhirnya:
+
+- **Kanonik:** `/root/wa-bot-usu/jalankan.sh` (bot 1) dan `/root/wa-bot-2/jalankan.sh` (bot 2) —
+  masing-masing di sebelah `DATA_DIR`-nya sendiri, mode 700.
+- `/root/jalankan-bot-1.sh` dan `/root/jalankan-bot-2.sh` **seharusnya** tinggal penerus satu
+  baris (`exec …`), supaya jalan lama yang telanjur tertulis di mana-mana tetap benar. ⏳ Belum:
+  menulis ke `/root/*.sh` ditolak penyaring izin, perintahnya diserahkan ke pemilik lewat
+  `/update`. Sampai itu dikerjakan, keduanya masih salinan penuh yang **hari ini masih benar** —
+  yang ditunggu cuma kapan salah satunya disunting dan yang lain tidak.
+- `penjaga-bot.sh` menunjuk langsung ke skrip di dalam repo: yang dipanggil tiap 2 menit
+  sebaiknya berkas yang ikut terlacak git, supaya perubahannya kelihatan di `git diff`.
+- Tiap rahasia dibaca dari **satu** berkas simpanannya: `API_TOKEN` ← `/root/.api_token_bot1`,
+  `PANEL_PASSWORD` ← `/root/.sandi-panel`, `BOT2_TOKEN` ← `/root/wa-bot-2/api_token`.
+  `rahasia.env` dihapus; barisnya sengaja ditinggal di `.gitignore` sebagai jaring.
+- `WEBHOOK_URL` sengaja tidak diset di skrip mana pun: bawaannya di `index.js:61` sudah alamat
+  produksi. Sebelumnya ia di-`export` dengan nilai **kosong** — tidak merusak karena kodenya
+  memakai `||`, tapi tepat jenis nilai yang meledak diam-diam kalau suatu hari diganti `??`.
+
+### 📵 Nomornya kembali, tapi ke grup yang salah — 22 Agustus 2026 (sore)
+
+Bot pertama **tertaut lagi sejak 06:56** dan sehat (`/health` → `ok:true`). Yang menyusul
+sesudahnya: tiga iklan hari ini (07:13, 09:45, 10:52) **tidak sampai ke dua dari tiga grup
+tujuan**, dan dibuang diam-diam setelah tiga percobaan.
+
+Sebabnya bukan bug, tapi kenyataan: nomor yang tertaut sekarang **bukan anggota** dua grup itu.
+Ambil metadatanya pun `forbidden`. Yang jelas dari data:
+
+| | |
+|---|---|
+| Nomor yang tertaut di bot 1 | `…2594` — nomor yang sama dengan `backupAdmin` di `settings.json` |
+| Nomor yang dipajang situs | `…26232` (`contact.marketplaceWa` dan `supportPhone`) |
+| Grup tujuan siaran | 3 buah, dari env Vercel `GROUP_JID` + `BAILEYS_BROADCAST_GROUPS` |
+| Yang bisa dikirimi | 1 (`…79724`, "Jual Beli Usu Polmed", 1.530 anggota) |
+| Yang menolak | 2 (`…82956`, `…71292`) — bot bukan anggotanya |
+
+Tiga akibat yang perlu dibaca terpisah, dan **ketiganya keputusan pemilik**, bukan kode:
+
+1. Dua grup tidak lagi menerima iklan sampai nomornya dimasukkan ke sana, **atau** JID-nya
+   dicabut dari env Vercel.
+2. Nomor yang disuruh dichat oleh situs bukan nomor yang menjawab. Siapa pun yang mengikuti
+   `supportPhone` di situs mengetuk nomor yang tidak ada botnya.
+3. `/kontak-admin` menjawab `cadangan: …2594` — **nomor yang sama dengan yang dipakai bot 1**.
+   Jadi jalan pulang saat bot padam menunjuk ke nomor yang ikut padam. Gunanya hilang.
+
+Yang **bisa** diperbaiki di kode, dan sudah: `forbidden`, `item-not-found`, dan `not-authorized`
+sekarang dihitung sebagai penolakan **tetap** — dibuang pada percobaan pertama, bukan ketiga.
+Mengulang satu detik kemudian tidak pernah mengubah keanggotaan grup; yang bertambah cuma
+ketukan. Alasan yang tercatat juga diganti dari *"gagal 3× berturut-turut: forbidden"* menjadi
+kalimat yang menyebut hal yang sebenarnya perlu diketahui pembacanya: *"nomor bot bukan anggota
+grup ini, atau grupnya hanya mengizinkan admin mengirim"*. ⏳ Berlaku pada restart berikutnya.
 
 ### 🐛 Harga punya empat sumber, dan yang menagih cuma satu — 22 Agustus 2026 (repo situs)
 
