@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.807** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.941** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -720,6 +720,51 @@ dihindari sejak 19 Agustus. Diuji tanpa restart, lewat aplikasi Express terpisah
 `panel.routes.js` dengan `K` palsu. Akan hidup sendiri pada restart berikutnya, apa pun
 sebabnya. **Restart HARUS lewat `/root/jalankan-bot-1.sh`**, bukan `pm2 restart` telanjang —
 skrip itu yang membawa ulang `API_TOKEN` dan `PANEL_PASSWORD`.
+
+### 🐛 Lingkaran restart yang mengetuk WhatsApp — diperbaiki 22 Agustus 2026
+
+Ditemukan karena menyalakan `/health` mengharuskan restart, dan restart itu membuka bug yang
+sudah ada sebelumnya. **Bot tidak pernah sampai ke keadaan diam, dan penjaganya me-restart
+terus.** Lingkarannya:
+
+```
+bot diam (tidak ada yang memindai) → /health 503
+  → penjaga hitung 8×503 (16 menit) → penjaga me-restart
+  → proses baru LUPA ia sedang sengaja diam → mengetuk WhatsApp lagi → ulangi
+```
+
+Tiap putaran menambah percobaan login ke nomor yang justru sedang dibatasi. Terekam di
+`penjaga-bot.log` 03:08–03:20: `GAGAL ke-2 (503)` … `ke-8`, lalu `AMBANG TERCAPAI`.
+
+**Tiga sebab, dan yang ketiga yang paling penting:**
+
+1. **`menungguPindai` cuma hidup di memori** (`index.js:271`). Penjaganya memang mundur kalau
+   melihat penanda itu — tapi penandanya terhapus oleh restart yang ia lakukan sendiri.
+   → Sekarang ditulis ke `pindai_state.json` di `DATA_DIR` (gitignored, jadi bot kedua punya
+   sendiri), dipulihkan saat boot **hanya kalau sesinya masih belum tertaut** — kalau pemilik
+   mengembalikan folder `.bak`, penandanya diabaikan dan bot menyambung seperti biasa.
+2. **Socket yang mati sebelum sempat memancarkan QR tidak dihitung sama sekali.** Sesi yang
+   belum tertaut tidak punya jalan hidup selain dipindai manusia, jadi percobaan seperti itu
+   pun ketukan sia-sia. → Ikut menghabiskan jatah, lewat `sesiTerdaftar`
+   (`creds.registered` milik Baileys).
+3. ⚠ **Yang dihitung selama ini socket yang tertutup, padahal maksudnya QR yang kedaluwarsa.**
+   Komentar di `PINDAI_MAKS_SIKLUS` menulis *"5 siklus ≈ 5 menit"* — tapi satu socket
+   memancarkan BEBERAPA QR (Baileys menyegarkan tiap ~60 detik sampai daftar referensinya
+   habis, ±6 menit per socket). Jadi lima "siklus" sebenarnya ±30 menit, sementara penjaga
+   me-restart pada menit ke-16. **Maksud dan pelaksanaannya berselisih, dan selisih itu yang
+   membuat keadaan diam tidak pernah tercapai.** → Yang dihitung sekarang QR-nya, dan
+   socketnya ditutup begitu keputusan diam diambil (kalau tidak, ia terus mengetuk selama
+   sisa referensinya justru sesudah memutuskan berhenti).
+
+**Diverifikasi, bukan diasumsikan** — tiga uji di `DATA_DIR` sekali-pakai, tanpa menyentuh sesi
+asli: penanda ada + sesi kosong → **0 percobaan sambung**, `/health` langsung
+`menungguPindai:true`; penanda ada + `creds.registered` → penanda diabaikan, bot menyambung;
+tanpa penanda → mendiam dalam 65 detik (`PINDAI_MAKS_SIKLUS=2`) dan menulis penandanya.
+Lalu di produksi: **kedua bot mendiam dalam 110 detik** (sebelumnya tidak pernah), dan penjaga
+mencatat tiga kali berturut-turut *"Penjaga tidak me-restart"* dengan hitungan restart pm2 tetap.
+
+⚠ **Selama perbaikan, penjaga dimatikan sementara lewat crontab dan kedua bot dihentikan** supaya
+tidak ada ketukan. Crontab dikembalikan dan dibandingkan baris-per-baris dengan salinan aslinya.
 
 ### Perlu diputuskan pemilik
 

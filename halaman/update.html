@@ -161,8 +161,28 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>11.807</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>11.941</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
+
+<p class="muted"><b>22 Agustus 2026, dini hari</b> — <code>/health</code> dapat tampilan untuk
+mata manusia: dibuka dari peramban ia menyajikan halaman status berwarna, dipanggil mesin ia tetap
+memulangkan JSON yang sama persis. Urutan pemilihannya yang menentukan: <code>curl</code> mengirim
+<code>Accept: */*</code> yang cocok dengan dua-duanya, jadi JSON harus disebut lebih dulu — kalau
+terbalik, penjaga bot menerima HTML, gagal mengenali keadaan, lalu me-restart bot yang justru
+sedang menunggu tangan manusia. Ditambah <code>Vary: Accept</code>, karena tanpa itu cache mana
+pun boleh menyimpan satu bentuk lalu menyodorkannya ke peminta yang meminta bentuk lain.</p>
+
+<p class="muted"><b>Dan menyalakannya membuka bug yang lebih besar.</b> Restart ternyata membuat
+bot <em>tidak pernah</em> sampai ke keadaan diam: penjaganya menghitung delapan kali 503,
+me-restart, dan proses baru lupa bahwa ia sedang sengaja diam — lalu mengetuk WhatsApp lagi.
+Tiap putaran menambah percobaan login ke nomor yang justru sedang dibatasi. Tiga sebabnya
+diperbaiki: penanda "menunggu dipindai" sekarang <b>ditulis ke disk</b> (dan diabaikan kalau
+sesinya sudah tertaut lagi); percobaan yang mati sebelum QR-nya sempat muncul <b>ikut
+dihitung</b>; dan yang paling menentukan — yang dihitung selama ini <b>socket yang tertutup,
+padahal maksudnya QR yang kedaluwarsa</b>. Komentar di kodenya sendiri menulis "5 siklus ≈ 5
+menit", padahal satu socket menahan beberapa QR selama ±6 menit, jadi lima siklus itu ±30 menit
+— lewat jauh dari ambang penjaga yang 16 menit. Sesudah diperbaiki: <b>kedua bot mendiam dalam
+110 detik</b>, dan penjaganya berhenti me-restart.</p>
 
 <p class="muted">Yang tersisa cuma satu, dan itu memang tidak ada di server ini:
 <b>sejarah sebelum kodenya ada</b>. Halaman itu masih mulai dari commit pertama 11 Juni 2026,
@@ -252,17 +272,6 @@ admin yang sudah dirotasi — di enam tempat.</p>
       repo terpisah bernama <code>jualbelimedan</code> — jadi kemungkinan besar itu merek induk
       yang memang disengaja, bukan salah ketik. Yang perlu diputuskan: pengguna situs ini
       seharusnya menerima OTP atas nama siapa?
-    </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Menunggu restart</span><br>
-      <strong><code>/health</code> sekarang punya tampilan, tapi belum tayang.</strong> Dibuka
-      dari peramban ia menyajikan halaman status; dipanggil mesin ia tetap memulangkan JSON yang
-      sama persis. Kodenya sudah masuk repo dan sudah diuji, <b>tapi kedua proses bot masih
-      menjalankan versi lama</b> — dan restart sengaja tidak dilakukan, karena penanda "menunggu
-      dipindai" cuma hidup di memori: proses baru me-reset-nya dan langsung mengetuk WhatsApp
-      lima kali lagi ke nomor yang sedang dibatasi. Akan hidup sendiri pada restart berikutnya.
-      Kalau mau dipercepat, restartnya lewat <code>/root/jalankan-bot-1.sh</code> — bukan
-      <code>pm2 restart</code> telanjang, karena skrip itu yang membawa ulang token dan sandinya.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>

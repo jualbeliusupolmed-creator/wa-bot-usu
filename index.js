@@ -270,6 +270,65 @@ const PINDAI_MAKS_SIKLUS = Number(process.env.PINDAI_MAKS_SIKLUS || 5);
 const PINDAI_RETRY_MS = Number(process.env.PINDAI_RETRY_MINUTES || 30) * 60 * 1000;
 let menungguPindai = false;
 let siklusQrSiaSia = 0;
+// Sesi ini sudah tertaut ke sebuah nomor atau belum. Diisi startBotInner() dari
+// `creds.registered` milik Baileys, dan dipakai untuk membedakan dua kegagalan
+// yang kelihatan sama dari luar: "punya sesi tapi jaringannya putus" (restart
+// masuk akal) dan "tidak punya sesi sama sekali" (restart tidak akan pernah
+// menolong — yang ditunggu manusia dengan HP di tangan).
+let sesiTerdaftar = false;
+
+// ── Kenapa "menunggu dipindai" harus selamat dari restart ────────────────────
+// Penandanya dulu cuma hidup di memori, dan itu melahirkan lingkaran yang tidak
+// kelihatan sampai ia terjadi: bot diam karena tidak ada yang memindai →
+// /health menjawab 503 → penjaga menghitung delapan kali 503 → penjaga
+// me-restart → proses baru LUPA bahwa ia sedang sengaja diam → mengetuk
+// WhatsApp lagi → diam lagi → dihitung lagi. Setiap putaran menambah ketukan
+// login ke nomor yang justru sedang menunggu ditautkan, persis pola yang bikin
+// nomor dicurigai. Penjaganya tidak salah: ia memang mundur kalau melihat
+// `menungguPindai`, tapi yang dilihatnya sudah terhapus oleh restart yang ia
+// lakukan sendiri.
+//
+// Jadi penandanya ditulis ke disk. Dipulihkan HANYA kalau sesinya masih belum
+// tertaut: begitu ada creds baru (mis. folder .bak dikembalikan pemilik), bot
+// harus mencoba menyambung seperti biasa, bukan meneruskan diam yang sudah
+// tidak relevan.
+const PINDAI_FILE = path.join(DATA_DIR, 'pindai_state.json');
+
+function simpanPindaiState() {
+    try {
+        if (menungguPindai) {
+            fs.writeFileSync(PINDAI_FILE, JSON.stringify({ menungguPindai: true, sejak: Date.now() }), { mode: 0o600 });
+        } else if (fs.existsSync(PINDAI_FILE)) {
+            fs.unlinkSync(PINDAI_FILE);
+        }
+    } catch (e) {
+        // Gagal menulis penanda bukan alasan bot berhenti: yang hilang cuma
+        // ketahanan terhadap restart, bukan kemampuan menyambung.
+        console.warn('[pindai] gagal menyimpan penanda:', e?.message || e);
+    }
+}
+
+// Dibaca SEBELUM socket pertama lahir, jadi tidak bisa memakai `sesiTerdaftar`
+// yang baru diisi startBotInner(). Membaca creds.json langsung adalah satu-satunya
+// cara tahu "sudah tertaut atau belum" pada saat boot.
+function credsTerdaftarDiDisk() {
+    // Sesi dari Supabase tidak tinggal di disk — jangan menebak, biarkan
+    // startBot() yang memutuskan seperti biasa.
+    if (supabase) return true;
+    try {
+        const berkas = path.join(AUTH_DIR, 'creds.json');
+        if (!fs.existsSync(berkas)) return false;
+        return !!JSON.parse(fs.readFileSync(berkas, 'utf8'))?.registered;
+    } catch (_) { return false; }
+}
+
+function muatPindaiState() {
+    try {
+        if (!fs.existsSync(PINDAI_FILE)) return false;
+        const isi = JSON.parse(fs.readFileSync(PINDAI_FILE, 'utf8'));
+        return !!isi?.menungguPindai;
+    } catch (_) { return false; }
+}
 
 
 const app = express();
@@ -1290,6 +1349,7 @@ function bangunkanPindai() {
     if (!menungguPindai) return false;
     menungguPindai = false;
     siklusQrSiaSia = 0;
+    simpanPindaiState();
     console.log('[pindai] Ada yang membuka kartu QR — menyiapkan QR baru sekarang.');
     // startBot() menolak jalan ganda (startingBot) dan menaikkan botGeneration,
     // jadi timer denyut lambat yang masih menggantung otomatis jadi tidak berlaku.
@@ -1659,6 +1719,10 @@ async function startBotInner(myGen) {
         flushAuthState = authState.flush;
         console.log(`[auth] Sesi WhatsApp dimuat dari filesystem (${AUTH_DIR}).`);
     }
+    // Dipakai handler 'close' untuk membedakan "jaringan putus" dari "belum
+    // pernah ditautkan". Baileys menandai sesi yang sudah selesai pairing dengan
+    // creds.registered; sesi baru hasil initAuthCreds() bernilai false.
+    sesiTerdaftar = !!state?.creds?.registered;
 
     // Muat nama user & resolusi @lid SEKALI saja (jangan clobber map in-memory saat
     // reconnect). Dari Supabase kalau ada, else file lokal.
@@ -1909,7 +1973,34 @@ async function startBotInner(myGen) {
         if (myGen !== botGeneration) return;
         if (qr) {
             currentQR = qr;
+            // Satu socket memancarkan BEBERAPA QR: Baileys menyegarkan kodenya tiap
+            // ~60 detik sampai daftar referensinya habis, baru menutup koneksi. Itu
+            // ±6 menit per socket — dan dulu yang dihitung sebagai "siklus sia-sia"
+            // adalah penutupan socketnya, bukan QR-nya. Akibatnya lima siklus butuh
+            // ±30 menit, sementara penjaga sudah me-restart bot pada menit ke-16:
+            // bot TIDAK PERNAH sampai ke keadaan diam, dan tiap restart mengulang
+            // ketukannya dari nol. Komentar di PINDAI_MAKS_SIKLUS sendiri menulis
+            // "5 siklus ≈ 5 menit" — itu maksud aslinya, dan yang dihitung sekarang
+            // memang QR-nya.
             qrSiklusIni = true;
+            if (!pernahTersambung) siklusQrSiaSia++;
+            if (!pernahTersambung && siklusQrSiaSia >= PINDAI_MAKS_SIKLUS && !menungguPindai) {
+                menungguPindai = true;
+                simpanPindaiState();
+                currentQR = '';
+                console.warn(`[pindai] ${siklusQrSiaSia} QR berturut-turut kedaluwarsa tanpa dipindai — `
+                    + 'bot BERHENTI mengetuk WhatsApp. Buka kartu QR di dashboard (atau minta kode '
+                    + `pairing) untuk memunculkan QR baru; kalau tidak, dicoba lagi tiap `
+                    + `${Math.round(PINDAI_RETRY_MS / 60000)} menit.`);
+                if (connectWatchdog) { clearTimeout(connectWatchdog); connectWatchdog = null; }
+                reconnectAttempts = 0;
+                scheduleRestart(PINDAI_RETRY_MS);
+                // Socketnya ditutup di sini, bukan dibiarkan menghabiskan sisa
+                // referensi QR-nya: membiarkannya berarti terus mengetuk selama
+                // menit-menit berikutnya justru sesudah memutuskan berhenti.
+                try { sock.end(new Error('berhenti mengetuk: tidak ada yang memindai')); } catch (_) {}
+                return;
+            }
             // Nunggu QR discan itu WAJAR, bukan nyangkut — jangan diputus watchdog
             // 90 detik. Baileys punya qrTimeout sendiri yang menutup koneksi kalau
             // QR kedaluwarsa; watchdog di sini cuma jaring pengaman terakhir.
@@ -1943,12 +2034,27 @@ async function startBotInner(myGen) {
             // menjawab dengan benar, yang tidak datang manusianya — jadi menyambung
             // ulang tiap menit tidak mempercepat apa pun. (515 dikecualikan: itu
             // restart normal tepat SETELAH pairing berhasil.)
-            if (qrSiklusIni && !pernahTersambung && statusCode !== 515) {
+            //
+            // `!sesiTerdaftar` ikut dihitung, dan itu menutup lubang yang nyata:
+            // socket yang mati SEBELUM sempat memancarkan event QR (408 di tengah
+            // handshake) dulu tidak menaikkan hitungan sama sekali. Padahal sesi
+            // yang belum tertaut tidak punya jalan lain untuk hidup selain
+            // dipindai manusia — jadi tiap percobaan yang gagal, ber-QR atau
+            // tidak, sama-sama ketukan sia-sia. Tanpa ini bot bisa berputar di
+            // rantai sambung-ulang biasa berjam-jam tanpa pernah mencapai keadaan
+            // diam, dan penjaga akan me-restart-nya terus.
+            // QR yang kedaluwarsa sudah dihitung di handler `qr` di atas. Yang
+            // dihitung DI SINI cuma socket yang mati tanpa sempat memancarkan QR
+            // sama sekali (mis. 408 di tengah handshake) — sesi yang belum tertaut
+            // tidak punya jalan hidup selain dipindai manusia, jadi percobaan
+            // seperti itu pun ketukan sia-sia dan harus ikut menghabiskan jatah.
+            if (!qrSiklusIni && !sesiTerdaftar && !pernahTersambung && statusCode !== 515) {
                 siklusQrSiaSia++;
                 if (siklusQrSiaSia >= PINDAI_MAKS_SIKLUS) {
                     if (!menungguPindai) {
                         menungguPindai = true;
-                        console.warn(`[pindai] ${siklusQrSiaSia} QR berturut-turut kedaluwarsa tanpa dipindai — `
+                        simpanPindaiState();
+                        console.warn(`[pindai] ${siklusQrSiaSia} percobaan berturut-turut gagal tanpa dipindai — `
                             + 'bot BERHENTI mengetuk WhatsApp. Buka kartu QR di dashboard (atau minta kode '
                             + `pairing) untuk memunculkan QR baru; kalau tidak, dicoba lagi tiap `
                             + `${Math.round(PINDAI_RETRY_MS / 60000)} menit.`);
@@ -2034,6 +2140,10 @@ async function startBotInner(myGen) {
             pernahTersambung = true;
             menungguPindai = false;
             siklusQrSiaSia = 0;
+            sesiTerdaftar = true;
+            // Sudah tersambung: penanda diam di disk tidak boleh tertinggal, atau
+            // proses berikutnya akan diam padahal sesinya sehat.
+            simpanPindaiState();
             connectedPhone = sock.user?.id?.split(':')[0] || '';
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
@@ -2588,10 +2698,25 @@ app.listen(PORT, process.env.BIND_HOST || '127.0.0.1', () => {
     console.log(`Bot Server listening on ${process.env.BIND_HOST || '127.0.0.1'}:${PORT}`);
     // unref: pemantau tidak boleh jadi alasan proses menolak keluar saat shutdown.
     setInterval(watchProlongedOutage, 60000).unref();
-    startBot().catch((e) => {
-        console.error('[startBot] gagal init:', e?.message || e);
-        setTimeout(() => startBot().catch(() => {}), 10000); // coba lagi 10 dtk
-    });
+    // Proses sebelumnya sudah memutuskan untuk diam karena tidak ada yang
+    // memindai. Keputusan itu dihormati — dulu hilang bersama prosesnya, dan
+    // yang lahir dari situ adalah lingkaran restart yang mengetuk WhatsApp
+    // berulang kali (lihat catatan di PINDAI_FILE). Kalau ternyata sesinya sudah
+    // tertaut lagi — mis. pemilik mengembalikan folder .bak — penandanya tidak
+    // relevan lagi dan bot menyambung seperti biasa.
+    if (muatPindaiState() && !credsTerdaftarDiDisk()) {
+        menungguPindai = true;
+        console.warn('[pindai] Melanjutkan keadaan DIAM dari proses sebelumnya — perangkat belum '
+            + 'tertaut dan tidak ada yang memindai. Tidak ada ketukan ke WhatsApp sampai ada yang '
+            + `membuka kartu QR di dashboard; denyut lambat tiap ${Math.round(PINDAI_RETRY_MS / 60000)} menit.`);
+        setTimeout(() => startBot().catch((e) => console.error('[pindai] startBot gagal:', e?.message || e)),
+            PINDAI_RETRY_MS).unref();
+    } else {
+        startBot().catch((e) => {
+            console.error('[startBot] gagal init:', e?.message || e);
+            setTimeout(() => startBot().catch(() => {}), 10000); // coba lagi 10 dtk
+        });
+    }
 });
 
 // ── Konteks bersama untuk modul rute ─────────────────────────────────────────
