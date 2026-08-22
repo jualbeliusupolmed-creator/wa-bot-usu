@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.941** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.962** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -765,6 +765,60 @@ mencatat tiga kali berturut-turut *"Penjaga tidak me-restart"* dengan hitungan r
 
 ⚠ **Selama perbaikan, penjaga dimatikan sementara lewat crontab dan kedua bot dihentikan** supaya
 tidak ada ketukan. Crontab dikembalikan dan dibandingkan baris-per-baris dengan salinan aslinya.
+
+### 🐛 Harga punya empat sumber, dan yang menagih cuma satu — 22 Agustus 2026 (repo situs)
+
+Ditemukan saat menelusuri klaim `/jual` yang salah, dan ternyata jauh lebih dalam dari itu.
+Rumus biaya iklan hidup di **tiga** tempat sekaligus, plus satu harga yang bersembunyi di
+dalam route pembayarannya sendiri:
+
+| Tempat | Sumber angka | Perannya |
+|---|---|---|
+| `lib/fees.js` | angka keras | dipakai **seluruh layar** |
+| `lib/settings.js` | database | satu-satunya yang **menagih** |
+| `app/daftar-harga/page.jsx` | diketik ulang | halaman harga publik |
+| `api/payments/subscribe/route.js` | `const amount = 49000` | Paket Pro |
+
+Akibatnya: begitu pemilik mengubah tarif dari panel admin, yang ikut berubah cuma tagihannya.
+Sekarang `lib/fees.js` jadi modul **murni tanpa impor** (boleh dipakai komponen klien maupun
+rute server) dan `lib/settings.js` mengimpor darinya. Pembungkus `adFee()`/`soldFee()` yang
+tidak bersetelan **dihapus**, supaya kekeliruan yang sama tidak bisa terulang diam-diam: tiap
+pemanggil wajib menyodorkan `pricing`.
+
+⚠ **Bug uang: `x || bawaan` membuang angka 0, dan 0 di sini artinya GRATIS.**
+
+- `adPoster`: database berisi **0**, server tetap menagih **Rp10.000** (`settings.js:153`).
+- `renewalFee`: database berisi **0**, bot tetap menagih **Rp2.000** (`baileys/route.js:808`).
+- Panel admin bahkan punya preset yang menyetel keduanya ke 0 — preset yang selama ini
+  **tidak pernah berpengaruh**.
+
+Setelan yang diam-diam diabaikan, dan diabaikannya ke arah menagih lebih. Diganti
+`angkaSetelan()` di `lib/fees.js`, yang memisahkan "diisi 0" dari "belum diisi".
+
+⚠ **Akibat langsung yang perlu diputuskan pemilik:** sesudah perbaikan ini kodenya **menurut**
+pada database, jadi **iklan poster dan perpanjangan sekarang benar-benar gratis** — karena
+itulah yang tertulis di setelan. Kalau memang mau ditagih, isi angkanya lewat panel admin;
+jangan kembalikan `||`.
+
+**Tiga kebohongan di layar ikut dibetulkan:**
+1. Form `/jual` menulis *"QRIS Dinamis Otomatis — konfirmasi instan tanpa kirim bukti"*.
+   Yang sebenarnya: QRIS **statis** (`/qris.png`), lalu struk diunggah dan diperiksa AI.
+2. Sakelar *"Mode Otomatis / Manual"* di panel admin **tidak dibaca kode mana pun**. Diganti
+   keterangan alur yang benar; sakelarnya boleh kembali kalau QRIS dinamis benar-benar dipasang.
+3. Jasa ditampilkan bertarif poster Rp10.000, padahal server menagihnya lewat jenjang harga —
+   jasa Rp8.000 ditulis Rp10.000 tapi ditagih Rp2.000.
+
+`/daftar-harga` sekarang dirakit dari setelan yang sama: jenjangnya ditampilkan apa adanya
+(tidak bisa diringkas jadi satu angka tanpa berbohong), iklan gratis untuk pemilik toko
+akhirnya disebut, dan bagian biaya transaksi mengaku kalau memang sedang tidak ada
+(`soldTiers` di database kosong). Klaim *"Meningkatkan Penjualan 3x Lipat"* dicabut — tidak
+ada datanya, dan tabel `offers`/`price_offers` malah masih kosong.
+
+🔧 **Cara memeriksa sintaks repo situs tanpa build.** `npm run build` selalu kehabisan memori
+di VPS ini. Yang dipakai: `esbuild` (dipasang di scratchpad, bukan di repo) dengan
+`--loader:.js=jsx --outfile=/dev/null` untuk **parse-only** atas seluruh `src/`. Bukan
+pengganti build — tidak menangkap kesalahan impor atau tipe — tapi menangkap semua kesalahan
+sintaks sebelum deploy. Skripnya dibuang bersama scratchpad; tulis ulang kalau perlu.
 
 ### Perlu diputuskan pemilik
 

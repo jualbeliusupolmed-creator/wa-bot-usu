@@ -161,7 +161,7 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>11.941</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>11.962</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
 
 <p class="muted"><b>22 Agustus 2026, dini hari</b> — <code>/health</code> dapat tampilan untuk
@@ -183,6 +183,27 @@ padahal maksudnya QR yang kedaluwarsa</b>. Komentar di kodenya sendiri menulis "
 menit", padahal satu socket menahan beberapa QR selama ±6 menit, jadi lima siklus itu ±30 menit
 — lewat jauh dari ambang penjaga yang 16 menit. Sesudah diperbaiki: <b>kedua bot mendiam dalam
 110 detik</b>, dan penjaganya berhenti me-restart.</p>
+
+<p class="muted"><b>Dan pemeriksaan itu menemukan yang lebih mahal di repo situs: harga punya
+empat sumber, dan yang menagih cuma satu.</b> Rumus biaya iklan hidup di tiga tempat sekaligus —
+<code>lib/fees.js</code> (angka keras, dipakai seluruh layar), <code>lib/settings.js</code> (dari
+database, satu-satunya yang menagih), dan diketik ulang di halaman <code>/daftar-harga</code> —
+ditambah harga Paket Pro yang cuma ada di dalam route pembayarannya sendiri. Begitu tarif diubah
+dari panel admin, yang ikut berubah cuma tagihannya. Sekarang satu definisi, dan pembungkus yang
+tidak bersetelan dihapus supaya kekeliruan yang sama tidak bisa terulang diam-diam.</p>
+
+<p class="muted">Di dalamnya ada <b>bug uang</b>: <code>x || bawaan</code> membuang angka 0,
+padahal 0 di sini artinya gratis. Pemilik menyetel iklan poster jadi 0, panel menyimpannya dengan
+benar, lalu server tetap menagih Rp10.000 — dan hal yang sama untuk biaya perpanjangan yang
+disetel 0 tapi ditagih Rp2.000. Panel admin bahkan punya preset yang menyetel keduanya ke nol;
+preset yang selama ini tidak pernah berpengaruh.</p>
+
+<p class="muted">Tiga kebohongan di layar ikut dicabut: form <code>/jual</code> yang menjanjikan
+"QRIS Dinamis Otomatis, konfirmasi instan tanpa kirim bukti" padahal QRIS-nya statis dan struknya
+tetap harus diunggah; sakelar "Mode Otomatis / Manual" di panel admin yang <b>tidak dibaca kode
+mana pun</b>; dan tarif jasa yang ditampilkan Rp10.000 padahal ditagih menurut jenjang harga —
+jasa Rp8.000 ditulis Rp10.000, ditagih Rp2.000. Klaim "Meningkatkan Penjualan 3x Lipat" di daftar
+harga juga dicabut: tidak ada datanya.</p>
 
 <p class="muted">Yang tersisa cuma satu, dan itu memang tidak ada di server ini:
 <b>sejarah sebelum kodenya ada</b>. Halaman itu masih mulai dari commit pertama 11 Juni 2026,
@@ -256,13 +277,13 @@ admin yang sudah dirotasi — di enam tempat.</p>
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Form <code>/jual</code> menjanjikan yang tidak dikerjakannya.</strong> Tertulis
-      "⚡ QRIS Dinamis Otomatis — konfirmasi instan tanpa kirim bukti", padahal yang benar-benar
-      terjadi: tagihan dibuat berstatus <code>pending</code>, QRIS-nya gambar statis, dan struknya
-      diperiksa manusia lewat <code>/api/payments/verify-receipt</code>. Dua jalan keluarnya beda
-      biaya: samakan teksnya dengan kenyataan (lima menit), atau pasang QRIS dinamis beneran
-      (butuh penyedia pembayaran). Sekalian: sakelar "Mode Otomatis / Manual" di panel admin
-      <b>tidak dibaca kode mana pun</b> — nilainya tersimpan di database dan berhenti di situ.
+      <strong>Poster dan perpanjangan sekarang benar-benar gratis. Sengaja?</strong> Di database
+      <code>adPoster</code> dan <code>renewalFee</code> dua-duanya berisi <b>0</b>, tapi kodenya
+      selama ini mengabaikan angka itu dan tetap menagih Rp10.000 dan Rp2.000 — karena
+      <code>0 || 10000</code> bernilai 10000. Bug itu sudah diperbaiki, jadi kodenya sekarang
+      <em>menurut</em> pada setelan. Kalau memang mau ditagih, isi angkanya lewat panel admin.
+      Hal yang sama berlaku untuk komisi setelah deal: daftar jenjangnya kosong di database, jadi
+      <code>/daftar-harga</code> sekarang jujur menulis "sedang tidak ada biaya transaksi".
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
