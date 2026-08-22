@@ -18,7 +18,12 @@ APP="${APP:-wa-bot-usu}"
 # Cara sah menghidupkan ulang: skrip yang membawa env (API_TOKEN dkk). Lihat
 # catatan di bagian restart, paling bawah, soal kenapa `pm2 restart --update-env`
 # dari cron justru mematikan bot yang mau diselamatkan.
-SKRIP_JALAN="${SKRIP_JALAN:-/root/jalankan-bot-1.sh}"
+#
+# Menunjuk langsung ke skrip di dalam repo, bukan ke /root/jalankan-bot-1.sh yang
+# sekarang cuma penerus. Alasannya: yang dipanggil penjaga tiap 2 menit sebaiknya
+# berkas yang ikut terlacak git — kalau isinya berubah, perubahannya kelihatan di
+# `git diff`, bukan cuma di ingatan orang yang menyuntingnya.
+SKRIP_JALAN="${SKRIP_JALAN:-/root/wa-bot-usu/jalankan.sh}"
 URL="${URL:-http://127.0.0.1:3000/health}"
 STATE_DIR="${STATE_DIR:-/root/wa-bot-usu}"
 GAGAL_MATI="${GAGAL_MATI:-2}"      # ×2 menit  → restart setelah ~4 menit tak menjawab

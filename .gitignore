@@ -32,6 +32,9 @@ push-ke-github.sh
 penjaga-bot.log
 .bot.lock
 outbox.json
+# Kembarannya: antrean yang menyerah setelah gagal 3x. Isinya pesan siap kirim
+# lengkap dengan JID grup tujuan — data jalan, bukan kode (index.js:558).
+outbox-dibuang.json
 
 # Temuan keamanan yang BELUM diperbaiki. Repo ini publik: menerbitkan daftar
 # endpoint yang belum bergerbang sama saja dengan menerbitkan petanya. Berkasnya
@@ -50,3 +53,11 @@ catatan/
 # sambil merapikan. Kalau diputuskan boleh, cukup hapus baris di bawah ini —
 # tapi baca dulu isinya sekali lagi dengan mata "ini akan publik".
 halaman/progres.html
+
+# rahasia.env — SUDAH TIDAK DIPAKAI sejak 22 Agustus 2026. Ia sempat menampung
+# salinan kedua dari API_TOKEN, PANEL_PASSWORD, dan BOT2_TOKEN; jalankan.sh
+# sekarang membaca tiap rahasia dari satu berkas simpanannya sendiri, karena
+# salinan kedua hanya menunggu untuk basi dan yang basi itu muncul sebagai 401
+# tanpa penjelasan. Barisnya sengaja ditinggal sebagai jaring: kalau berkasnya
+# dibuat lagi oleh siapa pun, ia tetap tidak ikut ter-commit.
+rahasia.env
