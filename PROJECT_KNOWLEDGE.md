@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.691** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **11.801** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -686,6 +686,35 @@ seolah proyeknya lahir dari kode, padahal kebalikannya. Barisnya sudah menunggu 
 - Sapaan bot menaut `instagram.com/usulovepolmed` (`index.js:181`) sementara akun yang disebut
   aktif `usupolmedupdate`. Tidak bisa diverifikasi dari server (Instagram menolak tanpa login),
   jadi **tidak diubah** — tanya pemilik.
+
+### ✅ `/health` punya tampilan untuk manusia — 22 Agustus 2026
+
+Pertanyaan pemilik: "kok `/health` nggak ada UI-nya?" Jawabannya memang begitu rancangannya —
+tapi satu alamat bisa melayani dua pembaca.
+
+`/health` sekarang **memilih bentuk jawaban dari header `Accept`**: peramban dapat halaman
+status (hijau/kuning/merah, uptime, terkunci, menunggu-dipindai, menyegar tiap 20 detik),
+mesin tetap dapat JSON yang **sama persis** dengan sebelumnya, dengan kode 200/503 yang sama.
+
+⚠ **Urutan `req.accepts(['json','html'])` itu keamanan, bukan gaya.** `curl` mengirim
+`Accept: */*`, yang cocok dengan dua-duanya, dan `accepts()` memulangkan yang **pertama
+disebut** kalau klien tidak punya preferensi — jadi `'json'` wajib di depan. Kalau dibalik,
+`penjaga-bot.sh` (yang membaca badan mentah dengan `grep -q '"terkunci":true'`) akan menerima
+HTML, gagal mengenali keadaan, lalu **me-restart bot yang justru sedang menunggu tangan
+manusia**. Diuji: `Accept: */*` → JSON tanpa satu tanda `<` pun; `Accept: text/html` → halaman.
+
+Halamannya sengaja tanpa berkas luar (tidak ada `<link>`/`<script src>`) — halaman yang
+tugasnya menjawab "botnya hidup atau tidak" tidak boleh ikut mati karena satu berkas rupa.
+Dan isinya dibatasi field yang sama dengan JSON-nya: endpoint ini publik tanpa sandi.
+
+⚠ **Belum aktif di produksi.** Kode masuk repo, tapi kedua proses bot masih menjalankan versi
+lama. Restart dihindari dengan sengaja: `menungguPindai` cuma hidup di memori (`index.js:271`),
+jadi proses baru me-*reset*-nya dan langsung mengetuk WhatsApp lagi sampai
+`PINDAI_MAKS_SIKLUS` (5) siklus QR — ketukan ke nomor yang sedang dibatasi, persis yang
+dihindari sejak 19 Agustus. Diuji tanpa restart, lewat aplikasi Express terpisah yang memasang
+`panel.routes.js` dengan `K` palsu. Akan hidup sendiri pada restart berikutnya, apa pun
+sebabnya. **Restart HARUS lewat `/root/jalankan-bot-1.sh`**, bukan `pm2 restart` telanjang —
+skrip itu yang membawa ulang `API_TOKEN` dan `PANEL_PASSWORD`.
 
 ### Perlu diputuskan pemilik
 

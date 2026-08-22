@@ -161,7 +161,7 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>11.691</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>11.801</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
 
 <p class="muted">Yang tersisa cuma satu, dan itu memang tidak ada di server ini:
@@ -252,6 +252,17 @@ admin yang sudah dirotasi — di enam tempat.</p>
       repo terpisah bernama <code>jualbelimedan</code> — jadi kemungkinan besar itu merek induk
       yang memang disengaja, bukan salah ketik. Yang perlu diputuskan: pengguna situs ini
       seharusnya menerima OTP atas nama siapa?
+    </span></li>
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Menunggu restart</span><br>
+      <strong><code>/health</code> sekarang punya tampilan, tapi belum tayang.</strong> Dibuka
+      dari peramban ia menyajikan halaman status; dipanggil mesin ia tetap memulangkan JSON yang
+      sama persis. Kodenya sudah masuk repo dan sudah diuji, <b>tapi kedua proses bot masih
+      menjalankan versi lama</b> — dan restart sengaja tidak dilakukan, karena penanda "menunggu
+      dipindai" cuma hidup di memori: proses baru me-reset-nya dan langsung mengetuk WhatsApp
+      lima kali lagi ke nomor yang sedang dibatasi. Akan hidup sendiri pada restart berikutnya.
+      Kalau mau dipercepat, restartnya lewat <code>/root/jalankan-bot-1.sh</code> — bukan
+      <code>pm2 restart</code> telanjang, karena skrip itu yang membawa ulang token dan sandinya.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>

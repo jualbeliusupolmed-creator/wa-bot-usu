@@ -33,8 +33,9 @@ module.exports = function pasangRutePanel(app, K) {
         // Definisinya disamakan persis dengan /status — dulu /health cuma cek `waSocket`
         // tanpa `connectedPhone`, jadi bisa bilang sehat padahal login belum selesai.
         const isConnected = !!(K.waSocket && K.connectedPhone && !K.currentQR);
+        const kode = isConnected ? 200 : 503;
         // Endpoint publik — JANGAN bocorkan nomor telepon di sini.
-        res.status(isConnected ? 200 : 503).json({
+        const badan = {
             ok: isConnected,
             uptime: Math.floor(process.uptime()),
             // Dibaca penjaga-bot.sh: sesi terkunci berarti yang dibutuhkan tangan
@@ -43,7 +44,26 @@ module.exports = function pasangRutePanel(app, K) {
             // Sama alasannya: perangkat belum tertaut dan bot sedang diam menunggu
             // ada yang memindai. Proses baru tidak memindai QR-nya sendiri.
             menungguPindai: K.menungguPindai,
-        });
+        };
+
+        // Peramban dapat tampilan, mesin tetap dapat JSON yang sama persis.
+        //
+        // URUTAN DAFTARNYA YANG MENENTUKAN, dan ini bukan gaya penulisan:
+        // `curl` mengirim `Accept: */*`, yang cocok dengan dua-duanya — dan
+        // `req.accepts()` memulangkan yang PERTAMA disebut kalau klien tidak
+        // punya preferensi. Jadi 'json' harus di depan. Peramban menyebut
+        // `text/html` dengan bobot lebih tinggi, jadi dia yang dapat halaman.
+        //
+        // Yang dijaga di sini: penjaga-bot.sh membaca badan respons mentah-mentah
+        // dengan `grep -q '"terkunci":true'`. Satu baris HTML yang bocor ke
+        // jawaban untuk curl akan membuat penjaganya salah membaca — dan penjaga
+        // yang salah membaca itu me-restart bot yang justru sedang menunggu tangan
+        // manusia. Karena itu HTML-nya hanya keluar pada permintaan yang secara
+        // eksplisit lebih memilih text/html.
+        if (req.accepts(['json', 'html']) !== 'html') {
+            return res.status(kode).json(badan);
+        }
+        res.status(kode).type('html').send(halamanKesehatan(badan));
     });
 
     // ── QR JSON endpoint (untuk admin panel web) ─────────────────────────────────
@@ -319,3 +339,82 @@ module.exports = function pasangRutePanel(app, K) {
         res.json({ logs: K.messageLog });
     });
 };
+
+/*
+ * Tampilan /health untuk mata manusia.
+ *
+ * Sengaja tanpa berkas luar — tidak ada <link>, tidak ada <script src>. Halaman
+ * yang tugasnya menjawab "botnya hidup atau tidak" tidak boleh ikut mati gara-gara
+ * satu berkas rupa gagal dimuat.
+ *
+ * Isinya persis field yang sama dengan versi JSON-nya, tidak lebih: endpoint ini
+ * publik tanpa sandi, jadi nomor telepon, nama kontak, dan isi pesan TIDAK boleh
+ * mampir ke sini — sama seperti aturan di handler-nya.
+ */
+function halamanKesehatan({ ok, uptime, terkunci, menungguPindai }) {
+    // Tiga keadaan tidak-sehat yang beda tindakannya, jadi dibedakan di layar juga:
+    // yang dua butuh tangan manusia, yang satu biasanya pulih sendiri.
+    let nada = 'baik', judul = 'Tersambung', jelas = 'Bot terhubung ke WhatsApp dan siap menerima pesan.';
+    if (!ok && terkunci) {
+        nada = 'awas'; judul = 'Sesi terkunci';
+        jelas = 'WhatsApp menolak sesi ini. Restart tidak menyembuhkannya — buka kunci dari dashboard, lalu periksa daftar perangkat tertaut di HP.';
+    } else if (!ok && menungguPindai) {
+        nada = 'awas'; judul = 'Belum tertaut';
+        jelas = 'Perangkat belum dipindai, jadi bot sengaja diam dan tidak mengetuk WhatsApp berulang kali. Tautkan dari dashboard kalau memang perangkatnya sudah dilepas.';
+    } else if (!ok) {
+        nada = 'buruk'; judul = 'Terputus';
+        jelas = 'Bot sedang tidak terhubung ke WhatsApp. Penjaga memeriksanya tiap dua menit dan menyambung ulang sendiri.';
+    }
+
+    const j = Math.floor(uptime / 3600);
+    const m = Math.floor((uptime % 3600) / 60);
+    const lama = j ? `${j} jam ${m} menit` : `${m} menit`;
+    const ya = (v) => (v ? 'ya' : 'tidak');
+
+    return `<!doctype html>
+<html lang="id"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="20">
+<title>Status bot — ${judul}</title>
+<style>
+:root{--bg:#f6f7f9;--kartu:#fff;--tinta:#111;--redup:#5b6470;--garis:#e3e6ea;
+      --baik:#0f7b3f;--awas:#9a6200;--buruk:#b3261e}
+@media (prefers-color-scheme:dark){
+:root{--bg:#0e1116;--kartu:#161a21;--tinta:#e9edf2;--redup:#9aa4b2;--garis:#262c36;
+      --baik:#4ade80;--awas:#fbbf24;--buruk:#f87171}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;
+     background:var(--bg);color:var(--tinta);
+     font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.kartu{width:100%;max-width:460px;background:var(--kartu);border:1px solid var(--garis);
+       border-radius:14px;padding:26px 24px}
+.atas{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--redup)}
+h1{margin:.5rem 0 0;font-size:1.55rem;display:flex;align-items:center;gap:.55rem}
+.titik{width:12px;height:12px;border-radius:50%;flex:none}
+.baik .titik{background:var(--baik)} .awas .titik{background:var(--awas)} .buruk .titik{background:var(--buruk)}
+.baik h1{color:var(--baik)} .awas h1{color:var(--awas)} .buruk h1{color:var(--buruk)}
+p.jelas{margin:.7rem 0 0;color:var(--redup)}
+dl{margin:20px 0 0;padding-top:16px;border-top:1px solid var(--garis);
+   display:grid;grid-template-columns:1fr auto;gap:.5rem 1rem;font-size:.93rem}
+dt{color:var(--redup)} dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.kaki{margin:20px 0 0;padding-top:14px;border-top:1px solid var(--garis);
+      font-size:.82rem;color:var(--redup)}
+a{color:inherit}
+code{font-size:.85em;background:var(--bg);padding:1px 5px;border-radius:4px}
+</style></head>
+<body><div class="kartu ${nada}">
+  <div class="atas">Bot WhatsApp · jualbeliusupolmed</div>
+  <h1><span class="titik"></span>${judul}</h1>
+  <p class="jelas">${jelas}</p>
+  <dl>
+    <dt>Hidup sejak</dt><dd>${lama} lalu</dd>
+    <dt>Sesi terkunci</dt><dd>${ya(terkunci)}</dd>
+    <dt>Menunggu dipindai</dt><dd>${ya(menungguPindai)}</dd>
+  </dl>
+  <p class="kaki">Halaman ini menyegarkan diri tiap 20 detik. Alamat yang sama
+  memulangkan JSON untuk mesin — itu yang dibaca penjaga bot tiap dua menit.
+  Kendalinya ada di <a href="/home">panel</a> (perlu sandi).</p>
+</div></body></html>`;
+}
