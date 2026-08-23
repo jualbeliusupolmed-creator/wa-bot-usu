@@ -20,7 +20,7 @@ module.exports = function pasangRuteWa(app, K) {
     // TIDAK — itu dibaca lewat K.<nama> supaya selalu nilai terbaru.
     const {
         BROADCAST_MAX, GROUPS_TTL_MS, OUTBOX_MAX, OUTBOX_TTL_MS,
-        botSiap, broadcastTargets, bump,         enrichDicariMessage, getSavedStatuses, kickQueue, messageQueue,
+        bot2Siap, botSiap, broadcastTargets, bump,         enrichDicariMessage, getSavedStatuses, kickQueue, messageQueue,
         saveLidResolutionMap, saveStatus, simpanOutbox, swapLegacyGreeting,
         
     } = K;
@@ -64,6 +64,48 @@ module.exports = function pasangRuteWa(app, K) {
     app.post('/send', requireAuth, async (req, res) => {
         const { target, url } = req.body;
         if (!target) return res.status(400).json({ error: 'Target required' });
+
+        // ── Dua nomor, satu gerbang ───────────────────────────────────────────
+        // Situs cuma tahu satu alamat bot, dan alamat itu menunjuk ke sini. Kalau
+        // sesi WhatsApp bot INI mati sementara perangkat kedua sehat, kiriman
+        // diserahkan ke sana daripada mengantre di bot yang tidak bisa mengirim.
+        //
+        //   perangkat: 'auto' (bawaan) — pakai bot ini; kalau tidak siap, serahkan
+        //              'ini'           — jangan pernah diserahkan
+        //              'lain'          — paksa lewat perangkat kedua
+        //
+        // X-Diteruskan menutup lingkaran: bot kedua menjalankan berkas yang sama,
+        // jadi tanpa penanda ini dua bot yang sama-sama tidak siap bisa saling
+        // melempar permintaan yang sama.
+        const sudahDiteruskan = req.get('X-Diteruskan') === '1';
+        const perangkat = String(req.body.perangkat || 'auto').toLowerCase();
+        const bolehTeruskan = !sudahDiteruskan && perangkat !== 'ini';
+        if (bolehTeruskan && (perangkat === 'lain' || !botSiap())) {
+            const siap = await bot2Siap();
+            if (siap) {
+                const { perangkat: _buang, ...isi } = req.body;
+                const hasil = await K.teruskanKeBot2('/send', {
+                    method: 'POST', body: isi, headers: { 'X-Diteruskan': '1' },
+                });
+                // Sengaja TIDAK jatuh balik ke antrean lokal kalau bot kedua menolak:
+                // dua jalur untuk satu pesan adalah cara paling rapi untuk mengirim
+                // pesan yang sama dua kali. Yang gagal dilaporkan apa adanya.
+                bump(hasil.status < 400 ? 'diteruskan_bot2' : 'teruskan_bot2_gagal');
+                return res.status(hasil.status).json({
+                    ...hasil.body,
+                    perangkat: 'lain',
+                    catatan: 'Dikirim lewat perangkat KEDUA — nomor pengirimnya berbeda '
+                        + 'dari nomor bot pertama.',
+                });
+            }
+            if (perangkat === 'lain') {
+                return res.status(503).json({
+                    error: 'Perangkat kedua tidak siap mengirim.', perangkat: 'lain',
+                });
+            }
+            // 'auto' dan perangkat kedua juga tidak siap → lanjut ke jalur biasa di
+            // bawah, yang akan mengantre atau menolak sesuai umur pesannya.
+        }
 
         const jid = toJid(target);
         const message = enrichDicariMessage(swapLegacyGreeting(req.body.message, jid), jid);
@@ -116,6 +158,7 @@ module.exports = function pasangRuteWa(app, K) {
         res.json({
             status: true,
             tertunda,
+            perangkat: 'ini',
             antre: messageQueue.length,
             detail: tertunda
                 ? 'Bot sedang tidak tersambung — pesan disimpan dan dikirim otomatis begitu tersambung lagi.'

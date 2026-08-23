@@ -505,12 +505,48 @@ function notifyOwner(text) {
     const nomor = nomorAlarm();
     const target = nomor ? toJid(nomor) : (connectedPhone ? `${connectedPhone}@s.whatsapp.net` : '');
     if (!target) return;
+
+    // Alarm ini lahir justru SAAT bot bermasalah — dan sampai 23 Agustus 2026 ia
+    // diantre di bot yang sedang bermasalah itu. Hasilnya persis seperti yang
+    // ditemukan malam ini: pemberitahuan "Sesi WhatsApp terkunci" tertahan 3,4 jam
+    // di antrean, di belakang kunci yang ingin ia laporkan. Peringatan yang cuma
+    // sampai kalau tidak ada yang perlu diperingatkan.
+    //
+    // Kalau bot ini tidak bisa mengirim tapi perangkat kedua bisa, alarm lewat
+    // sana. Inilah pekerjaan paling berharga untuk nomor cadangan: memberi tahu
+    // bahwa nomor utama jatuh. Gagalnya diabaikan diam-diam dan pesannya tetap
+    // diantre di bawah — alarm tidak boleh menjatuhkan apa pun.
     // TTL panjang: alarm padam justru lahir SAAT bot bermasalah, jadi kalau ia
     // ikut kedaluwarsa dalam tiga menit, pemilik tidak pernah diberi tahu tentang
     // satu-satunya kejadian yang paling perlu ia ketahui.
-    messageQueue.push({ jid: target, message: text, ts: Date.now(), ttl: OUTBOX_TTL_MS });
+    const tugas = { jid: target, message: text, ts: Date.now(), ttl: OUTBOX_TTL_MS };
+    messageQueue.push(tugas);
     simpanOutbox();
     kickQueue();
+
+    // Diantre DULU, baru dicoba lewat perangkat kedua — urutannya disengaja. Kalau
+    // prosesnya mati di antara keduanya, yang tertinggal adalah alarm yang masih
+    // akan berangkat, bukan alarm yang hilang.
+    //
+    // Dan kalau perangkat kedua berhasil, salinan lokalnya DICABUT. Membiarkannya
+    // berarti pemilik menerima alarm yang sama dua kali: sekarang, lalu sekali lagi
+    // berjam-jam kemudian saat bot pertama pulih — pada saat mana isinya ("sesi
+    // terkunci") justru sudah tidak benar lagi. Alarm basi lebih buruk daripada
+    // tidak ada alarm kedua.
+    if (!botSiap()) {
+        bot2Siap().then(async (siap) => {
+            if (!siap) return;
+            const hasil = await teruskanKeBot2('/send', {
+                method: 'POST',
+                body: { target, message: `${text}\n\n_(dikirim lewat perangkat kedua — perangkat pertama sedang tidak bisa mengirim)_` },
+                headers: { 'X-Diteruskan': '1' },
+            });
+            if (hasil.status >= 400) return;   // gagal → biarkan salinan lokal menunggu
+            const i = messageQueue.indexOf(tugas);
+            if (i >= 0) { messageQueue.splice(i, 1); simpanOutbox(); }
+            bump('alarm_lewat_bot2');
+        }).catch(() => {});
+    }
 }
 
 // ── Kotak keluar tahan-mati ──────────────────────────────────────────────────
@@ -1463,7 +1499,7 @@ async function teruskanKeBot2(jalur, opsi = {}) {
     try {
         const res = await fetch(`${BOT2_URL}${jalur}`, {
             method: opsi.method || 'GET',
-            headers: { Authorization: BOT2_TOKEN, 'Content-Type': 'application/json' },
+            headers: { Authorization: BOT2_TOKEN, 'Content-Type': 'application/json', ...(opsi.headers || {}) },
             body: opsi.body ? JSON.stringify(opsi.body) : undefined,
             // Bot kedua ada di mesin yang sama; kalau ia tidak menjawab dalam 8 detik
             // ia memang mati, dan dashboard tidak boleh ikut menggantung karenanya.
@@ -1480,6 +1516,44 @@ async function teruskanKeBot2(jalur, opsi = {}) {
 
 
 
+
+// ── Dua nomor, satu gerbang ──────────────────────────────────────────────────
+// Situs cuma tahu SATU alamat bot (BAILEYS_API_URL) dan alamat itu menunjuk ke
+// sini. Sampai 23 Agustus 2026 itu berarti: kalau sesi WhatsApp bot ini mati,
+// situs tidak bisa mengirim apa pun — walaupun perangkat kedua sedang sehat dan
+// justru memegang nomor yang dipajang situs. Malam 22→23 Agustus keadaan itu
+// benar-benar terjadi selama berjam-jam.
+//
+// Jadi /send sekarang bisa menyerahkan kirimannya ke perangkat kedua. Yang perlu
+// dijaga dua hal, dan keduanya lebih penting daripada fiturnya sendiri:
+//
+//   TIDAK BOLEH DOBEL     — kalau diteruskan, JANGAN juga diantre di sini.
+//   TIDAK BOLEH BERPUTAR  — bot kedua menjalankan berkas yang sama persis, jadi
+//                           ia bisa meneruskan balik. Penjaganya header
+//                           X-Diteruskan: permintaan yang sudah pernah
+//                           diteruskan tidak pernah diteruskan lagi.
+//
+// Statusnya di-cache sebentar: /send bisa dipanggil beruntun, dan menanyai bot
+// kedua lewat HTTP tiap kali cuma menambah lambat pada jalur yang justru sedang
+// dipakai karena ada yang mati.
+let bot2SiapCache = { pada: 0, siap: false };
+const BOT2_CACHE_MS = 15000;
+
+async function bot2Siap() {
+    if (!BOT2_TOKEN) return false;
+    if (Date.now() - bot2SiapCache.pada < BOT2_CACHE_MS) return bot2SiapCache.siap;
+    const hasil = await teruskanKeBot2('/status');
+    const siap = hasil.status === 200 && !!hasil.body?.connected;
+    bot2SiapCache = { pada: Date.now(), siap };
+    return siap;
+}
+
+// Nomor yang benar-benar mengirim, supaya pemanggilnya tidak perlu menebak dari
+// nomor mana pesannya muncul di layar pelanggan.
+async function nomorBot2() {
+    const hasil = await teruskanKeBot2('/status');
+    return hasil.status === 200 ? (hasil.body?.phone || '') : '';
+}
 
 // ── Sapaan lama dari website → diganti sapaan resmi bot ──────────────────────
 // Website punya jawaban cadangan sendiri ("Halo! 👋 Ketik salah satu perintah…")
@@ -2870,6 +2944,7 @@ app.listen(PORT, process.env.BIND_HOST || '127.0.0.1', () => {
 // pekerjaan fase berikutnya, dan sekarang setidaknya ia bisa dilihat.
 const K = {
     AKAR: __dirname, API_TOKEN, BOT2_TOKEN, BOT_PREFIX,
+    bot2Siap, nomorBot2,
     BROADCAST_MAX, DEFAULT_GREETING, DIBUANG_TTL_MS, GREETING_MAX,
     GROUPS_TTL_MS, KUKI_NAMA, KUNCI_SESI, MODUL_BAWAAN,
     MSG_ARCHIVE_CAP, OUTBOX_MAX, OUTBOX_TTL_MS, OWNER_NUMBER,

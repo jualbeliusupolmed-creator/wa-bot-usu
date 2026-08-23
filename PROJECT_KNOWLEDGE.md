@@ -79,7 +79,7 @@ meneruskan ke `/api/admin/outbox` di situs.
 
 | Berkas | Baris | Tanggung jawab |
 |---|---:|---|
-| `index.js` | 2.955 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
+| `index.js` | 3.030 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
 | `src/lib/utils.js` | 184 | 18 fungsi murni — masuk-keluar, tanpa state. |
 | `src/lib/gerbang.js` | 265 | Token mesin, sandi manusia, kuki sesi, rem tebak-token, dua gerbang pemulihan. Berbentuk pabrik. |
 | `src/routes/web.routes.js` | 252 | 18 rute yang menjawab HTML + pintu masuk/keluar. |
@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.234** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.368** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -879,6 +879,51 @@ ini, plus lima bentuk lain (sesi baru, hasil pairing-code, kosong, null, `me` ta
 Pelajarannya lebih umum dari satu field: **penanda yang namanya paling meyakinkan
 belum tentu yang isinya benar.** Yang membuktikannya bukan dokumentasi, tapi satu
 sesi hidup yang membantahnya.
+
+### 🔀 Dua nomor, satu gerbang — 23 Agustus 2026
+
+Situs cuma tahu SATU alamat bot (`BAILEYS_API_URL`), dan alamat itu menunjuk bot
+pertama. Sampai hari ini itu berarti: **sesi bot pertama mati = situs tidak bisa
+mengirim apa pun** — walaupun perangkat kedua sehat dan justru memegang nomor yang
+dipajang situs. Malam 22→23 Agustus keadaan itu berlangsung berjam-jam.
+
+`/send` sekarang bisa menyerahkan kirimannya ke perangkat kedua:
+
+| `perangkat` | Artinya |
+|---|---|
+| `auto` (bawaan) | pakai bot ini; kalau tidak siap kirim, serahkan ke perangkat kedua |
+| `ini` | jangan pernah diserahkan |
+| `lain` | paksa lewat perangkat kedua |
+
+Dua hal yang dijaga lebih ketat daripada fiturnya sendiri:
+
+- **Tidak boleh dobel.** Kalau diteruskan, pesannya TIDAK juga diantre di sini —
+  dan kalau perangkat kedua menolak, tidak ada jatuh-balik ke antrean lokal. Dua
+  jalur untuk satu pesan adalah cara paling rapi mengirim pesan yang sama dua kali.
+- **Tidak boleh berputar.** Bot kedua menjalankan berkas yang sama persis, jadi ia
+  bisa meneruskan balik. Penjaganya header `X-Diteruskan`: permintaan yang sudah
+  pernah diteruskan tidak pernah diteruskan lagi.
+
+Jawabannya menyebut `perangkat: 'ini' | 'lain'` — pemanggilnya tidak perlu menebak
+dari nomor mana pesannya muncul di layar pelanggan.
+
+**Alarm pemilik ikut lewat jalur ini, dan itu yang paling terasa.** Bukti bahwa ia
+perlu ada ditemukan tergeletak di antrean malam itu: pemberitahuan *"🔒 Sesi
+WhatsApp terkunci"* tertahan **3,4 jam** di bot yang sedang terkunci — peringatan
+yang cuma sampai kalau tidak ada yang perlu diperingatkan. Sekarang `notifyOwner()`
+mengantre dulu (kalau prosesnya mati, yang tertinggal alarm yang masih akan
+berangkat), lalu mencoba perangkat kedua; kalau berhasil, **salinan lokalnya
+dicabut** supaya pemilik tidak menerima alarm yang sama lagi berjam-jam kemudian —
+saat isinya justru sudah tidak benar.
+
+Diuji: tabel keputusan 9 kombinasi dengan syarat-syaratnya dikutip langsung dari
+`wa.routes.js`, plus satu kirim sungguhan ke nomor pemilik lewat `/send` bot
+pertama saat sesinya sedang terkunci — dijawab `perangkat: "lain"`, bot kedua yang
+mengirim, antrean bot pertama tidak bertambah.
+
+Yang TIDAK ikut: `/broadcast`, `/story`, `/send-raw` masih perangkat pertama saja.
+Siaran dari nomor yang berganti-ganti bukan kegagalan yang perlu ditutupi
+otomatis — itu keputusan yang harus diambil sadar.
 
 ### 🐛 403 mengetuk tiap 60 detik semalaman — 23 Agustus 2026
 

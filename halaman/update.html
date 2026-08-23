@@ -161,7 +161,7 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.234</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.368</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
 
 <p class="muted"><b>22 Agustus 2026, dini hari</b> — <code>/health</code> dapat tampilan untuk
@@ -228,6 +228,24 @@ gangguan jaringan pada sesi yang sehat sudah cukup untuk membuatnya diam setenga
 boot ia bisa menunda start 30 menit padahal sesinya siap pakai. Sekarang yang dipakai
 <code>creds.me.id</code> — identitas akun yang selalu ada begitu pairing selesai. Diuji terhadap
 berkas sesi yang asli di mesin ini, bukan terhadap dugaan.</p>
+
+<p class="muted"><b>Dan sekarang dua nomornya benar-benar saling menopang.</b> Situs cuma tahu
+satu alamat bot, dan alamat itu menunjuk bot pertama — jadi selama sesi bot pertama mati, situs
+tidak bisa mengirim apa pun, walaupun perangkat kedua sehat dan justru memegang nomor yang
+dipajang situs. Sekarang kirimannya diserahkan ke perangkat yang bisa mengirim. Dua hal dijaga
+lebih ketat daripada fiturnya sendiri: <b>tidak boleh dobel</b> (kalau diserahkan, pesannya tidak
+juga diantre di sini, dan tidak ada jatuh-balik yang bisa mengirimkannya dua kali) dan <b>tidak
+boleh berputar</b> (bot kedua menjalankan berkas yang sama, jadi tanpa penanda ia bisa melempar
+balik). Jawabannya selalu menyebut perangkat mana yang mengambil — pemanggilnya tidak perlu
+menebak dari nomor mana pesannya muncul.</p>
+
+<p class="muted"><b>Buktinya kenapa ini perlu tergeletak di antrean malam itu:</b> pemberitahuan
+"🔒 Sesi WhatsApp terkunci" tertahan <b>3,4 jam</b> di bot yang sedang terkunci — peringatan
+yang cuma sampai kalau tidak ada yang perlu diperingatkan. Alarm pemilik sekarang lewat perangkat
+kedua, dan salinan lokalnya dicabut kalau berhasil, supaya alarm yang sama tidak datang lagi
+berjam-jam kemudian saat isinya sudah tidak benar. Diuji sungguhan: satu pesan dikirim ke
+<code>/send</code> bot pertama yang sedang terkunci, dijawab "perangkat: lain", dan bot kedua
+yang mengirimkannya.</p>
 
 <p class="muted"><b>23 Agustus, dini hari — bot pertama terkunci, dan 18 menit sebelumnya ia
 mengetuk tiap 60 detik.</b> Kode <code>403</code> dari WhatsApp jatuh ke cabang "gangguan
@@ -315,16 +333,14 @@ admin yang sudah dirotasi — di enam tempat.</p>
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Dua perangkat, tapi situs cuma punya satu alamat kirim.</strong> Sejak bot pertama
-      terkunci dini hari ini, situs <b>tidak bisa mengirim WhatsApp sama sekali</b> — padahal
-      perangkat kedua sehat dan justru memegang nomor yang dipajang situs. Sebabnya
-      <code>BAILEYS_API_URL</code> cuma satu dan menunjuk bot pertama. Tiga jalan, dan pilihannya
-      bukan teknis: <b>(a)</b> pasang bot kedua di nginx lalu arahkan alamat itu ke sana —
-      nomor publik dan yang menjawab jadi sama; <b>(b)</b> bot pertama meneruskan kiriman ke bot
-      kedua saat sesinya sendiri mati — tidak perlu ubah nginx maupun Vercel, tapi balasannya
-      keluar dari nomor yang berbeda dari yang dichat; <b>(c)</b> biarkan, dan terima bahwa
-      matinya satu perangkat berarti matinya semua kiriman. Saya tidak memilih sendiri karena
-      ketiganya mengubah nomor mana yang muncul di layar pelanggan.
+      <strong>Satu baris di Vercel supaya nomor kedua bisa menerima.</strong> Arah keluar sudah
+      beres — kiriman otomatis pindah ke perangkat yang sehat. Arah masuk belum: webhook situs
+      baru mengenali token perangkat mana pun sejak hari ini, tapi env-nya masih berisi satu
+      token. Selama itu, chat yang masuk lewat nomor yang dipajang situs dibalas sapaan lalu
+      diam. Yang perlu dilakukan: isi <code>BAILEYS_API_TOKEN</code> di Vercel dengan
+      <b>dua token dipisah koma</b> — token bot pertama <b>tetap di depan</b> (alamat kirim
+      situs menunjuk ke sana), token bot kedua sesudahnya. Tokennya ada di
+      <code>/root/.api_token_bot1</code> dan <code>/root/wa-bot-2/api_token</code> di VPS.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
