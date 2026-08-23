@@ -56,7 +56,7 @@ akan salah membaca sistem ini.
          │                      └──────────────────┘
          ▼
    ┌───────────┐
-   │ Supabase  │  40 tabel
+   │ Supabase  │  41 tabel
    └───────────┘
 ```
 
@@ -200,7 +200,7 @@ berkas → pemanggil, dan sebaliknya):
 Semuanya bisa dibangkitkan lagi dari git kalau ternyata dibutuhkan. Yang **tidak**
 boleh dihidupkan lagi tanpa berpikir: `middleware.js`.
 
-### 1.4 Database — 40 tabel
+### 1.4 Database — 41 tabel
 
 Semua tabel punya RLS aktif. Situs mengaksesnya dengan service-role dari server;
 `anon` hanya boleh membaca yang memang publik (iklan aktif, kategori, profil
@@ -1227,6 +1227,44 @@ menahan kepala antrean ber-`tahan`, penandanya dilepas di `finally`, dan
 alarm yang masih akan berangkat, bukan yang tertahan selamanya). Ikut serta:
 sapaan bot akhirnya mengiklankan `.PANTAU` (sinkron dari `bot-wa/`), dan 405
 `GET /reset` menyertakan header `Allow: POST`.
+
+### 💀 Dua fitur Super App ternyata belum pernah hidup — 23 Agustus 2026 (sore, repo situs)
+
+Audit lanjutan (commit `be40d47` repo situs) mencocokkan kode gelombang pagi ke
+database produksi dan menemukan **migrasi yang tidak pernah dijalankan**: tabel
+`buyer_contacts` dan kolom `listings.last_milestone_notified` dirujuk kode sejak
+pagi tapi tidak ada di database. Semua gagalnya senyap — insert `/api/minat`
+fire-and-forget, select milestone tertangkap `catch` — jadi fitur kontak pembeli,
+panel admin Buyer Contacts, cron `deal-followup`, dan notifikasi milestone view
+belum pernah bekerja sedetik pun. **Pelajaran:** commit yang menyertakan berkas
+`supabase/migration_*.sql` BELUM berarti migrasinya jalan — selalu cek
+`information_schema` sebelum mempercayai fiturnya hidup.
+
+Ikut ditemukan dan ditutup di commit yang sama:
+
+- **`maxDuration` cron**: tidak satu pun route cron menyetelnya; `weekly-report`
+  (jeda 2,5 dtk/penjual) dibunuh default 10–15 dtk Vercel setelah ~6 penjual.
+  Ketujuh cron + webhook baileys (yang meng-await seluruh fan-out notifikasi
+  iklan baru) sekarang `maxDuration = 300` — dan deploy-nya diterima, bukti
+  tambahan akun ini bukan Hobby.
+- **Struk alur "Dicari" via WA** cuma di-dedup `ref_id` hasil baca AI (kosong =
+  lolos); sekarang ikut memeriksa + menyimpan hash gambar seperti jalur utama.
+- **`/api/minat`** berhenti meneruskan nomor/nama mentah kiriman klien ke WA
+  penjual: nomor wajib lolos `formatWaForBaileys`, nama dibersihkan dari
+  baris-baru/markup.
+- **Komentar & like** berhenti menembus postingan mading `hidden`; penghitungnya
+  atomik lewat RPC (`increment/decrement_mading_likes`,
+  `increment_mading_comments` — migrasi `rpc_penghitung_mading_atomik`).
+- **Retensi chat anonim**: room closed/idle > 30 hari dan waiting > 1 hari
+  disapu cron `expire` harian (pesan ikut lewat ON DELETE CASCADE).
+- Klaim "3x lebih banyak pembeli" di weekly-report diganti (angka itu sudah
+  dicabut dari /lomba karena tanpa data); `views_count` mading (selalu 0)
+  berhenti dipajang API; foto struk dibatasi 8 MB.
+
+Database sekarang **41 tabel**. Yang masih tersisa sebagai kelemahan yang
+DIKETAHUI dan diterima: rate limiter in-memory per-instance (bukan lintas
+instance — batas keras butuh Upstash/Firewall), dan `bump`/counter di halaman
+bot tidak terkait perubahan ini.
 
 ### Perlu diputuskan pemilik
 

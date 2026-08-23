@@ -382,6 +382,25 @@ tayang; celah <b>alarm dobel</b> di jalur alarm-lewat-perangkat-kedua ditutup (s
 restart); dan 405 di <code>GET /reset</code> kini menyebut <code>Allow: POST</code> seperti
 seharusnya.</p>
 
+<p class="muted"><b>Sore harinya, audit kedua mencocokkan kode gelombang pagi ke database
+produksi — dan dua fiturnya ternyata belum pernah hidup.</b> Tabel kontak pembeli dan kolom
+penanda milestone view dirujuk kode sejak pagi, tapi migrasinya tidak pernah dijalankan; semua
+gagalnya senyap, jadi fitur "log kontak pembeli", panel adminnya, follow-up 24 jamnya, dan
+notifikasi "iklanmu tembus 100 view" belum pernah bekerja sedetik pun. Keduanya kini diterapkan.
+Pelajarannya satu kalimat: <b>berkas migrasi yang ikut ter-commit belum berarti migrasinya
+jalan</b> — periksa databasenya, bukan reponya.</p>
+
+<p class="muted">Di commit yang sama, tujuh perkara lain ditutup. Ketujuh cron (dan webhook yang
+menanggung seluruh kiriman notifikasi saat iklan tayang) akhirnya menyetel batas durasinya
+sendiri — sebelumnya laporan mingguan penjual dibunuh Vercel setelah ±enam penerima, tanpa jejak
+dan tanpa lanjutan. Struk pembayaran di alur "Dicari" ikut memeriksa sidik jari gambar, bukan
+cuma nomor referensi hasil baca AI yang bisa kosong. Tombol "hubungi penjual" berhenti meneruskan
+nomor dan nama kiriman klien mentah-mentah ke WA penjual. Komentar dan like berhenti menembus
+postingan mading yang sudah disembunyikan, dan penghitungnya jadi atomik. Obrolan anonim dapat
+umur: room yang selesai atau ditinggalkan lebih dari sebulan disapu tiap hari. Klaim "3x lebih
+banyak pembeli" yang diam-diam hidup lagi di pesan mingguan diganti kalimat yang jujur. Dan foto
+struk dibatasi 8 MB sebelum menyentuh AI.</p>
+
 <p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
 halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
 delapan kartu utang teknis yang enam di antaranya sudah dikerjakan sore itu juga, dan satu
