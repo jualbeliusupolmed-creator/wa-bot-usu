@@ -518,6 +518,44 @@ dengan "hilang" jelas bukan perbaikan. Ketukannya juga tidak membawa isi pesan s
 hanya penanda "ada yang baru" — isinya tetap diambil lewat jalur yang memeriksa siapa saja
 peserta obrolan itu.</p>
 
+<p class="muted"><b>Lalu pemilik bertanya sesuatu yang lebih dasar: kalau A mencari teman lalu
+menyerah (tutup tab, HP mati), dan B baru datang mencari SETELAH itu — apakah mereka akan
+pernah jumpa?</b> Jawabannya, dengan desain lama: tidak akan pernah, seberapa pun besar
+toleransi timeout dinaikkan. Itu bukan bug yang bisa ditambal dengan angka lebih ramah —
+itu keterbatasan desain "dua orang harus online di jam yang sama". Menaikkan interval
+polling dan ambang basi (paragraf sebelumnya) menutup gejala "radar berputar selamanya",
+bukan akar masalah "mereka tidak pernah tumpang tindih waktu".</p>
+
+<p class="muted"><b>Perbaikannya: room tunggu berhenti kedaluwarsa, dan orang yang sudah
+pergi diberi tahu belakangan.</b> Heartbeat/basi 15–45 detik dibuang total dari matchmaking
+— room tunggu sah dipasangkan kapan pun, walau dibuat kemarin. Satu tabel baru
+(<code>chat_identity_wa</code>) memetakan identitas anonim ke nomor WA HANYA untuk push
+notification, service-role saja, tidak pernah keluar ke respons API — anonimitas ke lawan
+bicara tetap utuh. Begitu ada yang gabung ke room tunggumu, push notification (infrastruktur
+yang sama dengan notif barang baru) mengabari kamu untuk kembali. Dibuktikan hidup-hidup di
+produksi: A mencari lalu berhenti polling sama sekali (mensimulasikan HP mati), B datang
+belakangan dari akun yang tidak pernah tahu soal A — dan mereka tetap dipasangkan ke room
+yang sama begitu B mencari.</p>
+
+<p class="muted"><b>Sekalian, <code>/chat</code> dirombak jadi kotak masuk</b> — bukan lagi
+formulir "klik cari, radar berputar, langsung masuk satu room". Obrolan anonim disematkan
+di paling atas (tombol "Cari Teman Baru" terpisah, dipencet saat masuk, bukan otomatis),
+Chat Jual Beli di bawahnya, satu halaman. Room yang masih menunggu tampil sebagai kartu
+"Menunggu partner..." di kotak masuk, bisa dibatalkan kapan saja. Sesi TIDAK hilang — malah
+lebih kuat dari sebelumnya: sumber kebenarannya pindah dari localStorage (satu perangkat)
+ke server, dan setiap obrolan dibuka lewat tautan <code>?room=</code> yang bisa dipakai
+ulang dari perangkat mana pun, termasuk dari notifikasi push. Riwayat yang sudah berakhir
+pun tetap tersimpan di kotak masuk, bukan cuma yang masih aktif.</p>
+
+<p class="muted">Perombakan ini sekalian membongkar akar <b>"stuck putih aja saat chat
+pembeli"</b> yang dilaporkan sebelumnya — dan ternyata lebih dalam dari sekadar data yang
+belum sempat dimuat (yang sudah ditambal duluan). Struktur tab lama menggerbangi seluruh
+tampilan obrolan di balik satu kondisi yang salah: memilih room dari Chat Jual Beli, atau
+membuka tautan <code>?room=</code> dari tombol Tawar/Minat di halaman barang, selalu
+mendarat di kombinasi kondisi yang TIDAK PERNAH dirender — layar putih total, bukan cuma
+lambat. Desain kotak masuk yang baru menghapus gerbang itu sepenuhnya, jadi kelas bug ini
+sekarang mustahil terjadi lagi di titik mana pun yang menuju <code>/chat?room=</code>.</p>
+
 <p class="muted"><b>Dan kali ini tidak berhenti di "seharusnya jalan".</b> Dua akun uji sekali
 pakai dibuat di situs sungguhan, dipertemukan lewat pencarian teman ngobrol seperti pengunjung
 biasa, lalu satu mengirim pesan sementara yang lain mendengarkan. Ketukannya sampai dalam
