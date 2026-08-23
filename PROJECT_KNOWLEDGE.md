@@ -1338,6 +1338,30 @@ tidak tertinggal.
   ditampilkan, tapi obrolan terikat akun supaya pelanggaran bisa ditindak;
   klaim "100% Rahasia" diganti "Anonim ke Lawan Bicara".
 
+### 💬 Chat sempat mati total, dan kini selamat dari refresh — 23 Agustus 2026 (malam, repo situs)
+
+Uji ujung-ke-ujung dengan **dua akun uji sungguhan** (daftar tanpa OTP, jalani
+alurnya seperti pengguna, semua jejak dihapus sesudahnya) membuktikan rantai
+wajib-akun bekerja — daftar → posting terlacak → 3× match → 3 laporan dari room
+berbeda → blokir otomatis → matchmaking menolak 403 sampai tanggalnya — **dan
+menangkap satu bug fatal**: sejak gelombang wajib-akun, halaman berhenti
+mengirim `senderId` (identitas kini dari sesi) tapi validasi `POST
+/api/chat/room/[id]` masih mewajibkannya → **SEMUA kirim pesan dijawab 400**.
+Chat mati total dan tidak ada uji tanpa-login yang bisa melihatnya. Diperbaiki
+di `0f9049d`, dibuktikan pulih di produksi.
+
+Menyusul `5cde279`: **obrolan selamat dari refresh** — room aktif dicatat di
+localStorage, saat halaman dimuat ulang keadaannya ditanyakan ke server dan
+dilanjutkan (chat → lanjut, waiting → lanjut menunggu, closed → dilupakan);
+satu useEffect pengikut (roomId, chatState) yang menyimpan/membersihkan, jadi
+tidak ada jalur keluar yang bisa lupa. `fetchRoomData` juga menurunkan
+alias/fakultas lawan dari room+myId — chat marketplace yang dibuka lewat
+tautan `?room=` tidak lagi menampilkan lawan "Anonim" kosong.
+
+**Pelajaran sesi ini, dua kali terbukti:** gerbang tanpa-login lulus semua pun,
+alur BER-login bisa mati total. Akun uji sekali pakai (daftar tanpa OTP) adalah
+cara termurah mengujinya — buat, jalani, hapus.
+
 ### Perlu diputuskan pemilik
 
 - **Membersihkan baris `payments` lama.** 415 baris pending yang tidak lagi
