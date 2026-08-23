@@ -79,7 +79,7 @@ meneruskan ke `/api/admin/outbox` di situs.
 
 | Berkas | Baris | Tanggung jawab |
 |---|---:|---|
-| `index.js` | 2.874 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
+| `index.js` | 2.955 | Inti bot: soket Baileys, antrean kirim, state, dan pemuatan modul. Dulu 4.075 baris dan memuat semuanya. |
 | `src/lib/utils.js` | 184 | 18 fungsi murni — masuk-keluar, tanpa state. |
 | `src/lib/gerbang.js` | 265 | Token mesin, sandi manusia, kuki sesi, rem tebak-token, dua gerbang pemulihan. Berbentuk pabrik. |
 | `src/routes/web.routes.js` | 252 | 18 rute yang menjawab HTML + pintu masuk/keluar. |
@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.112** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.234** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -879,6 +879,106 @@ ini, plus lima bentuk lain (sesi baru, hasil pairing-code, kosong, null, `me` ta
 Pelajarannya lebih umum dari satu field: **penanda yang namanya paling meyakinkan
 belum tentu yang isinya benar.** Yang membuktikannya bukan dokumentasi, tapi satu
 sesi hidup yang membantahnya.
+
+### 🐛 403 mengetuk tiap 60 detik semalaman — 23 Agustus 2026
+
+Bot pertama terkunci pukul 23:06 UTC. Yang menarik bukan kuncinya (itu bekerja
+benar), tapi 18 menit sebelumnya:
+
+```
+[reconnect] Koneksi terputus (kode: 403). Reconnect ke-15 dalam 60s...
+[reconnect] Koneksi terputus (kode: 403). Reconnect ke-16 dalam 60s...
+…18 kali…
+[reconnect] Dapat 401 (percobaan 1/3) → 2/3 → sesi TERKUNCI
+```
+
+`403` (forbidden) jatuh ke cabang paling bawah — *"428 & lainnya = gangguan
+sementara"* — yang backoff-nya mentok di **60 detik dan tidak pernah menyerah**.
+Jadi 18 percobaan login pada nomor yang justru sedang ditolak WhatsApp: persis
+pola yang seluruh mesin kunci-sesi ini dibangun untuk mencegah, lolos lewat satu
+kode status yang tidak pernah dimasukkan daftar.
+
+**403 sekarang sekeluarga dengan 401** — "penolakan tingkat akun", bukan
+"gangguan jaringan". Bedanya dijaga ketat: **403 tidak pernah boleh menghapus
+sesi.** "Kamu tidak boleh masuk" bukan "perangkatmu sudah dilepas dari HP", dan
+menghapus sesi karenanya berarti meminta QR baru untuk nomor yang sedang diblokir.
+
+Diuji dengan tabel keputusan yang **syarat-syaratnya dikutip langsung dari
+`index.js`** (bukan diketik ulang di berkas uji, supaya uji dan kode tidak bisa
+berbeda diam-diam): 11 kombinasi kode status × keadaan kunci × `KUNCI_SESI`,
+termasuk pembuktian bahwa 403 tidak punya jalan ke cabang penghapus sesi.
+
+### 🐛 `sesiTerkunci` cuma hidup di memori — 23 Agustus 2026
+
+Ditemukan sambil memperbaiki yang di atas, dan **keluarga bugnya sama persis
+dengan `menungguPindai` kemarin**: keputusan mahal yang disimpan di tempat yang
+hilang saat restart.
+
+Komentar di kodenya sendiri sudah menjelaskan kenapa itu penting — *"burst cepat
+itu untuk MENENTUKAN apakah 401-nya sungguhan; setelah terkunci pertanyaan itu
+sudah terjawab"* — tapi jawabannya tidak pernah mendarat di disk. Tiap restart
+membeli jawaban yang sama lagi dengan tiga ketukan, pada nomor yang sedang
+ditolak.
+
+`pindai_state.json` sekarang menampung **dua** keputusan berhenti-mengetuk, plus
+`kunciSiklus` supaya jedanya tidak balik ke 10 menit tiap proses lahir:
+
+| | |
+|---|---|
+| `menungguPindai` | tidak ada yang memindai QR-nya (22 Agu) |
+| `sesiTerkunci` | WhatsApp menolak sesi ini berkali-kali (23 Agu) |
+| `kunciSiklus` | sudah berapa kali ditolak — menentukan jeda 10→60 menit |
+
+Saat boot, kunci yang tersimpan dipulihkan dan bot **tetap mencoba sekali**: orang
+yang me-restart bot biasanya sedang membetulkan sesuatu. Yang dihemat dua ketukan
+sesudahnya — begitu yang pertama ditolak, penandanya sudah menyala dan bot
+langsung masuk jalur lambat.
+
+Dua jebakan yang ikut ditutup: `simpanPindaiState()` di cabang `open` dulu
+dipanggil di TENGAH, sebelum `sesiTerkunci` dan `kunciSiklus` sempat dinolkan —
+jadi berkasnya menyimpan keadaan yang sudah tidak berlaku. Dan penyimpanan saat
+buka-kunci manual dipasang di **setter** `K.sesiTerkunci`, bukan di rutenya:
+siapa pun yang menambah jalan buka-kunci berikutnya akan lupa memanggilnya, dan
+"kunci yang dibuka tapi hidup lagi sesudah restart" termasuk kebingungan yang
+paling mahal untuk dilacak.
+
+Terbukti di produksi: boot menulis *"Melanjutkan keadaan TERKUNCI … satu
+percobaan sekarang … bukan tiga ketukan beruntun"*, satu percobaan dilakukan,
+ditolak, `kunciSiklus` naik 3→4 dan mendarat di disk.
+
+### 🔑 `BAILEYS_API_TOKEN` boleh berisi lebih dari satu token — 23 Agustus 2026 (repo situs)
+
+Perangkat kedua tertaut 22 Agu 15:44 ke nomor **yang dipajang situs**
+(`contact.marketplaceWa` / `supportPhone`). Webhook situs membandingkan
+`Authorization` dengan **satu** nilai, sama-persis — jadi setiap pesan yang masuk
+lewat nomor itu ditolak. Diuji langsung ke produksi dengan token bot kedua (badan
+kosong; auth diperiksa sebelum badan dibaca, jadi tidak ada pesan yang lahir):
+`401 Unauthorized webhook`.
+
+Di sisi pelanggan: chat ke nomor yang tertulis di situs dibalas **sapaan** — itu
+dikirim bot sendiri, lokal — lalu **diam** untuk semua yang butuh situs.
+
+Env-nya sekarang dibaca sebagai daftar dipisah koma lewat `src/lib/botTokens.js`.
+Satu nilai berarti persis seperti dulu.
+
+| Arah | Rute | Token |
+|---|---|---|
+| Masuk (bot → situs) | `/api/wa/baileys`, `/api/admin/outbox` | perangkat **mana pun** |
+| Keluar (situs → bot) | `lib/fonnte.js`, `/api/admin/baileys`, `/api/admin/bot-logs`, `/api/admin/broadcast/group-japri`, `/api/admin/wa-inject` | yang **pertama** |
+
+Yang paling gampang terlewat justru arah keluar: `BAILEYS_API_URL` cuma menunjuk
+satu bot, jadi kalau env-nya jadi dua nilai dan pemakainya tidak diubah, header
+yang terkirim menjadi `"tok1,tok2"` dan **semua pengiriman rusak**. Karena itu
+tidak ada lagi satu pun tempat yang membaca `process.env.BAILEYS_API_TOKEN`
+langsung. Perbandingannya juga dipindah ke `timingSafeEqual` atas hash, meniru
+`cronAuth.js`, tanpa short-circuit supaya tidak bocor token ke berapa yang cocok.
+
+⚠ **Belum cukup untuk menyalakan perangkat kedua.** Jalur balasan masih satu:
+`BAILEYS_API_URL` menunjuk bot pertama, jadi orang yang chat ke nomor kedua akan
+dibalas DARI nomor pertama. Dan sejak bot pertama terkunci, situs tidak bisa
+mengirim apa pun sama sekali — padahal perangkat yang sehat sedang duduk di
+sebelahnya memegang nomor publik. Itu keputusan arsitektur, bukan tambalan:
+lihat `/update`.
 
 ### 🐛 `forbidden` sesudah taut-ulang itu SEMENTARA, dan saya sempat salah membacanya — 22 Agustus 2026 (sore)
 

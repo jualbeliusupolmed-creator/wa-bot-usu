@@ -307,10 +307,23 @@ function credsTertaut(creds) {
 // tidak relevan.
 const PINDAI_FILE = path.join(DATA_DIR, 'pindai_state.json');
 
+// Berkas ini menampung DUA keputusan "berhenti mengetuk", bukan satu. Keduanya
+// mahal untuk diambil ulang dan murah untuk disimpan:
+//
+//   menungguPindai — tidak ada yang memindai QR-nya (sejak 22 Agu 2026)
+//   sesiTerkunci   — WhatsApp menolak sesi ini berkali-kali (sejak 23 Agu 2026)
+//
+// `sesiTerkunci` menyusul karena sebabnya persis sama dengan yang pertama: ia
+// cuma hidup di memori, jadi tiap restart melupakannya dan bot mengulang burst
+// 3 ketukan "untuk memastikan 401-nya sungguhan" — pertanyaan yang sudah dijawab
+// sebelum restart, pada nomor yang justru sedang ditolak. `kunciSiklus` ikut
+// disimpan supaya jedanya tidak balik ke 10 menit tiap kali prosesnya lahir.
 function simpanPindaiState() {
     try {
-        if (menungguPindai) {
-            fs.writeFileSync(PINDAI_FILE, JSON.stringify({ menungguPindai: true, sejak: Date.now() }), { mode: 0o600 });
+        if (menungguPindai || sesiTerkunci) {
+            fs.writeFileSync(PINDAI_FILE, JSON.stringify({
+                menungguPindai, sesiTerkunci, kunciSiklus, sejak: Date.now(),
+            }), { mode: 0o600 });
         } else if (fs.existsSync(PINDAI_FILE)) {
             fs.unlinkSync(PINDAI_FILE);
         }
@@ -337,10 +350,16 @@ function credsTerdaftarDiDisk() {
 
 function muatPindaiState() {
     try {
-        if (!fs.existsSync(PINDAI_FILE)) return false;
+        if (!fs.existsSync(PINDAI_FILE)) return {};
         const isi = JSON.parse(fs.readFileSync(PINDAI_FILE, 'utf8'));
-        return !!isi?.menungguPindai;
-    } catch (_) { return false; }
+        return {
+            menungguPindai: !!isi?.menungguPindai,
+            sesiTerkunci: !!isi?.sesiTerkunci,
+            // Berkas dari versi lama tidak punya angka ini; nol berarti jeda mulai
+            // dari yang tercepat, sama seperti perilaku sebelumnya.
+            kunciSiklus: Number(isi?.kunciSiklus) || 0,
+        };
+    } catch (_) { return {}; }
 }
 
 
@@ -2127,7 +2146,20 @@ async function startBotInner(myGen) {
             // (428 gangguan sementara, 515 restartRequired yang NORMAL) cukup sambung
             // ulang dgn creds yang sama. Menghapus sesi → QR scan ulang berulang =
             // sinyal mencurigakan ke WhatsApp → risiko nomor diblokir.
-            if (statusCode === 401) {
+            //
+            // 403 (forbidden) ikut di sini sejak 23 Agustus 2026, dan itu memperbaiki
+            // ketukan yang nyata. Sebelumnya ia jatuh ke cabang "gangguan sementara"
+            // paling bawah, yang backoff-nya mentok di 60 DETIK dan tidak pernah
+            // menyerah. Malam 22→23 Agustus bot mengetuk 18 kali berturut-turut
+            // seperti itu, lalu dapat 401 tiga kali, lalu terkunci — 18 percobaan
+            // login pada nomor yang justru sedang ditolak WhatsApp, persis pola yang
+            // seluruh mesin kunci-sesi ini dibangun untuk mencegah.
+            //
+            // Bedanya dengan 401 dijaga: 403 TIDAK PERNAH boleh menghapus sesi.
+            // "Ditolak masuk" bukan "perangkat dilepas dari HP" — dan menghapus sesi
+            // karenanya berarti meminta QR baru untuk nomor yang sedang diblokir.
+            const penolakanAkun = statusCode === 401 || statusCode === 403;
+            if (penolakanAkun) {
                 logoutStrikes++;
                 // `!sesiTerkunci`: burst cepat itu untuk MENENTUKAN apakah 401-nya
                 // sungguhan. Setelah terkunci pertanyaan itu sudah terjawab, jadi
@@ -2137,7 +2169,7 @@ async function startBotInner(myGen) {
                     // Belum tentu benar-benar dilepas dari HP. Coba lagi dengan creds
                     // yang SAMA — kalau 401-nya cuma gangguan sementara, bot pulih
                     // sendiri dan tidak ada yang perlu scan apa pun.
-                    console.warn(`[reconnect] Dapat 401 (percobaan ${logoutStrikes}/${LOGOUT_STRIKES}). `
+                    console.warn(`[reconnect] Dapat ${statusCode} (percobaan ${logoutStrikes}/${LOGOUT_STRIKES}). `
                         + 'Sesi BELUM dihapus, coba sambung ulang dengan sesi yang sama...');
                     reconnectAttempts = 0;
                     scheduleRestart(5000 * logoutStrikes);
@@ -2148,8 +2180,9 @@ async function startBotInner(myGen) {
                     logoutStrikes = 0;
                     if (!sesiTerkunci) {
                         sesiTerkunci = true;
+                        simpanPindaiState();   // keputusan ini harus selamat dari restart
                         bump('sesi_terkunci');
-                        console.warn(`[sesi] 401 berturut-turut ${LOGOUT_STRIKES}x — sesi TIDAK dihapus `
+                        console.warn(`[sesi] ${statusCode} berturut-turut ${LOGOUT_STRIKES}x — sesi TIDAK dihapus `
                             + '(kunci sesi aktif). Bot akan terus mencoba dengan creds yang sama tiap '
                             + `${Math.round(kunciRetryMs() / 60000)} menit (makin lama kalau terus ditolak). Kalau perangkat memang dilepas `
                             + 'dari HP, buka kunci dari dashboard untuk scan QR baru.');
@@ -2163,7 +2196,20 @@ async function startBotInner(myGen) {
                     reconnectAttempts = 0;
                     const jeda = kunciRetryMs();
                     kunciSiklus++;                     // percobaan berikutnya menunggu lebih lama
+                    simpanPindaiState();               // ...dan tetap lebih lama sesudah restart
                     scheduleRestart(jeda);
+                } else if (statusCode === 403) {
+                    // KUNCI_SESI dimatikan, tapi 403 tetap tidak boleh menghapus sesi:
+                    // yang dikatakan WhatsApp adalah "kamu tidak boleh masuk", bukan
+                    // "perangkatmu sudah tidak terdaftar". Melambat, bukan menghapus.
+                    logoutStrikes = 0;
+                    reconnectAttempts = 0;
+                    const jeda403 = kunciRetryMs();
+                    kunciSiklus++;
+                    simpanPindaiState();
+                    console.warn(`[reconnect] 403 berturut-turut ${LOGOUT_STRIKES}x dan kunci sesi mati. `
+                        + `Sesi tetap TIDAK dihapus — dicoba lagi ${Math.round(jeda403 / 60000)} menit lagi.`);
+                    scheduleRestart(jeda403);
                 } else {
                     console.warn(`[reconnect] 401 berturut-turut ${logoutStrikes}x — perangkat memang `
                         + 'dilepas dari WhatsApp. Sesi dicadangkan, bot akan menampilkan QR.');
@@ -2183,7 +2229,11 @@ async function startBotInner(myGen) {
                 reconnectAttempts = 0;
                 scheduleRestart(2000);
             } else {
-                // 428 & lainnya = gangguan sementara. Sambung ulang backoff, JANGAN hapus sesi.
+                // 428 & lainnya = gangguan sementara sungguhan (jaringan, server WA).
+                // Sambung ulang dengan backoff, JANGAN hapus sesi. Penolakan tingkat
+                // akun (401/403) sudah ditangani di atas dan tidak sampai ke sini —
+                // backoff 60 detik yang tidak pernah menyerah ini memang cuma cocok
+                // untuk gangguan yang akan pulih sendiri.
                 reconnectAttempts++;
                 const backoff = Math.min(3000 * Math.pow(1.8, reconnectAttempts - 1), 60000);
                 console.log(`[reconnect] Koneksi terputus (kode: ${statusCode ?? 'unknown'}). Reconnect ke-${reconnectAttempts} dalam ${Math.round(backoff/1000)}s...`);
@@ -2197,18 +2247,22 @@ async function startBotInner(myGen) {
             menungguPindai = false;
             siklusQrSiaSia = 0;
             sesiTerdaftar = true;
-            // Sudah tersambung: penanda diam di disk tidak boleh tertinggal, atau
-            // proses berikutnya akan diam padahal sesinya sehat.
-            simpanPindaiState();
             connectedPhone = sock.user?.id?.split(':')[0] || '';
             connectedAt = new Date().toISOString();
             reconnectAttempts = 0;
             logoutStrikes = 0;   // sambungan sehat → hitungan 401 mulai dari nol lagi
             kunciSiklus = 0;     // dan jeda kunci kembali ke yang tercepat
-            if (sesiTerkunci) {
-                sesiTerkunci = false;
+            const tadinyaTerkunci = sesiTerkunci;
+            sesiTerkunci = false;
+            // Sudah tersambung: SEMUA penanda "berhenti mengetuk" di disk harus lenyap,
+            // atau proses berikutnya lahir dalam keadaan diam/terkunci padahal sesinya
+            // sehat. Sengaja dipanggil SESUDAH ketiga penandanya dinolkan — dulu ia
+            // dipanggil di tengah, sebelum `sesiTerkunci` dan `kunciSiklus` sempat
+            // disentuh, jadi berkasnya menyimpan keadaan yang sudah tidak berlaku.
+            simpanPindaiState();
+            if (tadinyaTerkunci) {
                 console.log('[sesi] Tersambung lagi dengan sesi yang sama — kunci dilepas sendiri. '
-                    + '401 tadi memang palsu, dan tidak ada yang perlu scan apa pun.');
+                    + 'Penolakan tadi memang sementara, dan tidak ada yang perlu scan apa pun.');
                 notifyOwner('✅ *Sesi WhatsApp pulih sendiri*\n\nBot tersambung lagi memakai sesi lama. '
                     + 'Tidak perlu scan QR.');
             }
@@ -2760,7 +2814,30 @@ app.listen(PORT, process.env.BIND_HOST || '127.0.0.1', () => {
     // berulang kali (lihat catatan di PINDAI_FILE). Kalau ternyata sesinya sudah
     // tertaut lagi — mis. pemilik mengembalikan folder .bak — penandanya tidak
     // relevan lagi dan bot menyambung seperti biasa.
-    if (muatPindaiState() && !credsTerdaftarDiDisk()) {
+    const keadaanLalu = muatPindaiState();
+    const tertautDiDisk = credsTerdaftarDiDisk();
+    if (keadaanLalu.sesiTerkunci && tertautDiDisk) {
+        // Proses sebelumnya sudah menyimpulkan WhatsApp menolak sesi ini. Kesimpulan
+        // itu tidak perlu dibeli dua kali: tanpa baris ini, `sesiTerkunci` lahir
+        // false dan penolakan pertama sesudah restart memicu lagi burst 3 ketukan
+        // "untuk memastikan" — pada nomor yang sudah jelas sedang ditolak.
+        //
+        // Botnya TETAP mencoba sekali sekarang, dan itu disengaja: orang yang me-restart
+        // bot biasanya sedang membetulkan sesuatu, jadi satu ketukan langsung itu
+        // berguna. Yang dihemat adalah dua ketukan sesudahnya — begitu yang pertama
+        // ditolak, cabang 401/403 langsung masuk jalur kunci karena penandanya
+        // sudah menyala.
+        sesiTerkunci = true;
+        kunciSiklus = keadaanLalu.kunciSiklus;
+        console.warn('[sesi] Melanjutkan keadaan TERKUNCI dari proses sebelumnya. Satu percobaan '
+            + `sekarang; kalau masih ditolak, berikutnya ${Math.round(kunciRetryMs() / 60000)} menit lagi `
+            + '(bukan tiga ketukan beruntun). Buka kunci dari dashboard kalau perangkatnya memang '
+            + 'sudah dilepas dari HP.');
+        startBot().catch((e) => {
+            console.error('[startBot] gagal init:', e?.message || e);
+            setTimeout(() => startBot().catch(() => {}), 10000);
+        });
+    } else if (keadaanLalu.menungguPindai && !tertautDiDisk) {
         menungguPindai = true;
         console.warn('[pindai] Melanjutkan keadaan DIAM dari proses sebelumnya — perangkat belum '
             + 'tertaut dan tidak ada yang memindai. Tidak ada ketukan ke WhatsApp sampai ada yang '
@@ -2855,7 +2932,11 @@ const K = {
     get reconnectAttempts() { return reconnectAttempts; },
     set reconnectAttempts(v) { reconnectAttempts = v; },
     get sesiTerkunci() { return sesiTerkunci; },
-    set sesiTerkunci(v) { sesiTerkunci = v; },
+    // Rute /sesi/buka-kunci menulis lewat sini. Penyimpanan ikut di setter, bukan
+    // di rutenya: siapa pun yang membuka kunci nanti akan lupa memanggilnya, dan
+    // kunci yang "dibuka" tapi hidup lagi sesudah restart adalah jenis kebingungan
+    // yang paling mahal untuk dilacak.
+    set sesiTerkunci(v) { sesiTerkunci = !!v; if (!sesiTerkunci) kunciSiklus = 0; simpanPindaiState(); },
     get sessionLostAt() { return sessionLostAt; },
     set sessionLostAt(v) { sessionLostAt = v; },
     get settings() { return settings; },

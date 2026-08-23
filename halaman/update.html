@@ -161,7 +161,7 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.112</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.234</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
 
 <p class="muted"><b>22 Agustus 2026, dini hari</b> — <code>/health</code> dapat tampilan untuk
@@ -229,6 +229,34 @@ boot ia bisa menunda start 30 menit padahal sesinya siap pakai. Sekarang yang di
 <code>creds.me.id</code> — identitas akun yang selalu ada begitu pairing selesai. Diuji terhadap
 berkas sesi yang asli di mesin ini, bukan terhadap dugaan.</p>
 
+<p class="muted"><b>23 Agustus, dini hari — bot pertama terkunci, dan 18 menit sebelumnya ia
+mengetuk tiap 60 detik.</b> Kode <code>403</code> dari WhatsApp jatuh ke cabang "gangguan
+sementara" yang backoff-nya mentok di satu menit dan tidak pernah menyerah. Delapan belas
+percobaan login pada nomor yang justru sedang ditolak — persis pola yang seluruh mesin kunci
+sesi ini dibangun untuk mencegah, lolos lewat satu kode status yang tidak pernah dimasukkan
+daftar. Sekarang <code>403</code> sekeluarga dengan <code>401</code>: penolakan tingkat akun,
+bukan gangguan jaringan. Satu beda dijaga ketat — <b>403 tidak pernah boleh menghapus sesi</b>.
+"Kamu tidak boleh masuk" bukan "perangkatmu sudah dilepas dari HP", dan menghapus sesi karenanya
+berarti meminta QR baru untuk nomor yang sedang diblokir.</p>
+
+<p class="muted"><b>Sambil memperbaikinya, ketahuan penandanya pun cuma hidup di memori —
+keluarga bug yang sama dengan kemarin.</b> Komentar di kodenya sendiri sudah menjelaskan kenapa
+burst tiga ketukan itu ada: untuk <em>menentukan</em> apakah penolakannya sungguhan. Tapi
+jawabannya tidak pernah mendarat di disk, jadi tiap restart membelinya lagi dengan tiga ketukan
+baru. Sekarang keadaan terkunci ikut tersimpan, lengkap dengan sudah berapa kali ditolak supaya
+jedanya tidak balik ke sepuluh menit tiap proses lahir. Saat menyala lagi bot <b>tetap mencoba
+sekali</b> — orang yang me-restart biasanya sedang membetulkan sesuatu — lalu langsung masuk
+jalur lambat kalau masih ditolak. Sudah terbukti di produksi malam ini.</p>
+
+<p class="muted"><b>Dan perangkat kedua ternyata tidak pernah bisa bicara dengan situs.</b>
+Nomor yang dipajang di situs justru dipegang perangkat kedua, sementara webhook situs
+membandingkan token dengan satu nilai saja — jadi setiap pesan yang masuk lewat nomor itu
+ditolak <code>401</code>. Pengirimnya menerima sapaan (itu dikirim bot sendiri) lalu kesunyian
+untuk semua yang butuh situs. Situs sekarang menerima token perangkat mana pun. Yang paling
+gampang terlewat justru arah sebaliknya: alamat kirim situs cuma satu, jadi kalau daftar
+tokennya bertambah tanpa pemakainya diubah, yang terkirim adalah seluruh daftar sekaligus dan
+semua pengiriman rusak — sekarang tidak ada lagi tempat yang membaca env itu langsung.</p>
+
 <p class="muted"><b>Sore harinya nomornya kembali — dan saya sempat salah membaca apa yang
 terjadi sesudahnya.</b> Tiga iklan hari ini gagal berangkat ke dua grup dengan galat
 <code>forbidden</code>; ambil keterangan grupnya pun ditolak, dan daftar grup bot tidak memuat
@@ -285,6 +313,19 @@ admin yang sudah dirotasi — di enam tempat.</p>
 
 <div class="card">
   <ul class="todo">
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Dua perangkat, tapi situs cuma punya satu alamat kirim.</strong> Sejak bot pertama
+      terkunci dini hari ini, situs <b>tidak bisa mengirim WhatsApp sama sekali</b> — padahal
+      perangkat kedua sehat dan justru memegang nomor yang dipajang situs. Sebabnya
+      <code>BAILEYS_API_URL</code> cuma satu dan menunjuk bot pertama. Tiga jalan, dan pilihannya
+      bukan teknis: <b>(a)</b> pasang bot kedua di nginx lalu arahkan alamat itu ke sana —
+      nomor publik dan yang menjawab jadi sama; <b>(b)</b> bot pertama meneruskan kiriman ke bot
+      kedua saat sesinya sendiri mati — tidak perlu ubah nginx maupun Vercel, tapi balasannya
+      keluar dari nomor yang berbeda dari yang dichat; <b>(c)</b> biarkan, dan terima bahwa
+      matinya satu perangkat berarti matinya semua kiriman. Saya tidak memilih sendiri karena
+      ketiganya mengubah nomor mana yang muncul di layar pelanggan.
+    </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
       <strong>Tiga iklan hari ini belum sampai ke dua grup — bisa dikirim ulang.</strong>
