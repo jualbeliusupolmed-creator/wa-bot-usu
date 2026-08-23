@@ -67,6 +67,20 @@ if (!API_TOKEN) {
 }
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '.'; // set ke mount path Volume/Disk kalau mau file persisten
+
+// ── Identitas bot ini di mata WEBHOOK situs ──────────────────────────────────
+// Env situs cuma mengenal SATU token (milik bot pertama), jadi bot KEDUA
+// menembak webhook memakai token bot pertama (WEBHOOK_TOKEN, diisi jalankan.sh
+// bot 2) sambil menandai dirinya `perangkat=lain`. Situs membaca tanda itu dan
+// mengarahkan semua balasannya kembali lewat perangkat ini (gerbang failover
+// /send perangkat:'lain') — pelanggan dibalas dari nomor yang memang ia chat.
+// Di bot pertama kedua env ini kosong dan semuanya berjalan seperti sedia kala.
+const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN || API_TOKEN;
+const WEBHOOK_PERANGKAT = (process.env.WEBHOOK_PERANGKAT || '').trim();
+function tandaiPerangkat(form) {
+    if (WEBHOOK_PERANGKAT) form.append('perangkat', WEBHOOK_PERANGKAT);
+    return form;
+}
 const AUTH_DIR = process.env.AUTH_DIR || path.join(DATA_DIR, 'auth_info_baileys');
 const MARKETPLACE_GROUP_JID = process.env.GROUP_JID || '';
 
@@ -2497,7 +2511,7 @@ async function startBotInner(myGen) {
                     gForm.append('source', 'group');
                     gForm.append('group_jid', sender);
                     if (buf) gForm.append('file', new Blob([buf], { type: mime }), fname);
-                    await fetch(WEBHOOK_URL, { method: 'POST', body: gForm, headers: { 'Authorization': API_TOKEN } }).catch(() => {});
+                    await fetch(WEBHOOK_URL, { method: 'POST', body: tandaiPerangkat(gForm), headers: { 'Authorization': WEBHOOK_TOKEN } }).catch(() => {});
                 } catch (e) { console.error('[grup] error:', e.message); }
                 continue;
             }
@@ -2541,7 +2555,7 @@ async function startBotInner(myGen) {
                         fmForm.append('message', fmText.slice(0, 1500));
                         fmForm.append('fromMe', 'true');
                         if (isMediaFm) fmForm.append('manual_media', '1');
-                        fetch(WEBHOOK_URL, { method: 'POST', body: fmForm, headers: { 'Authorization': API_TOKEN } }).catch(() => {});
+                        fetch(WEBHOOK_URL, { method: 'POST', body: tandaiPerangkat(fmForm), headers: { 'Authorization': WEBHOOK_TOKEN } }).catch(() => {});
                         // Balasan manual admin ikut diarsipkan, kalau tidak inbox dashboard
                         // cuma menampilkan sisi pelanggan dan riwayatnya terbaca timpang.
                         recordMessage(manualTarget, 'out', isMediaFm ? (fmText || '[media]') : fmText, 'manual');
@@ -2761,7 +2775,7 @@ async function startBotInner(myGen) {
                                 pForm.append('file', new Blob([img.buf], { type: img.mime }), `image${i + 1}.jpg`);
                             });
                             try {
-                                const pResp = await fetch(WEBHOOK_URL, { method: 'POST', body: pForm, headers: { 'Authorization': API_TOKEN } });
+                                const pResp = await fetch(WEBHOOK_URL, { method: 'POST', body: tandaiPerangkat(pForm), headers: { 'Authorization': WEBHOOK_TOKEN } });
                                 const pText = await pResp.text();
                                 if (!pResp.ok) { console.error(`Webhook error ${pResp.status}: ${pText}`); }
                                 else {
@@ -2835,8 +2849,8 @@ async function startBotInner(myGen) {
                 const hookStart = Date.now();
                 const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
-                    body: form,
-                    headers: { 'Authorization': API_TOKEN }
+                    body: tandaiPerangkat(form),
+                    headers: { 'Authorization': WEBHOOK_TOKEN }
                 });
                 const responseText = await response.text();
                 const hookMs = Date.now() - hookStart;

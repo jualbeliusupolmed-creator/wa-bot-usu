@@ -467,6 +467,36 @@ saling menemukan lewat poll, ruang hantu dijawab "sudah tidak ada" dengan penjel
 semua jejak ujinya dihapus. Satu catatan untuk penguji berikutnya: chat anonim sengaja menolak
 menjodohkan akun dengan dirinya sendiri — mengujinya butuh dua akun, bukan dua tab.</p>
 
+<p class="muted"><b>Dan permintaan "samakan beranda, satukan semua server" membongkar dua hal
+lagi.</b> Beranda ternyata memajang mockup tetap di bagian mading — termasuk sebuah pengumuman
+<em>karangan</em> mengatasnamakan BEM KM USU, lengkap dengan angka suka yang direka-reka. Sekarang
+bagian itu menampilkan dua postingan mading yang sungguhan dari database, dan tautan "Info
+Kampus" dari beranda — yang selama ini diam saja diabaikan — akhirnya membuka tab yang benar.
+Lalu tombol "Chat Penjual" di halaman produk ternyata gagal untuk <b>SETIAP</b> barang, bukan
+cuma satu: kueri yang membacanya menyebut kolom fakultas penjual yang <b>tidak pernah ada</b> di
+tabel profil, dan basis data menjawabnya dengan galat yang salah dibaca sebagai "barang tidak
+ada". Dibuktikan dengan memanggil basis data langsung memakai kueri yang persis sama; sekarang
+sudah dibuang, dan barangnya muncul lagi.</p>
+
+<p class="muted">Menyambungkan server yang berbeda-beda: pelanggan yang chat lewat <b>nomor bot
+kedua</b> akhirnya dibalas dari nomor yang sama — bukan lagi dari bot pertama yang tidak pernah
+mereka ajak bicara. Bot kedua kini menandai asalnya sendiri di setiap pesan yang diteruskan ke
+situs, situs meneruskan tanda itu ke jalur penyerahan yang sudah ada sejak siang, dan semua
+balasan otomatis pun ikut lewat perangkat yang benar — tanpa menyentuh satu pun pengaturan
+rahasia di Vercel. Salinan kode bot yang tersimpan di repo situs (untuk arsip) juga disegarkan
+dari berkas yang sungguhan dilacak git, karena sempat tertinggal jauh sejak refactor kemarin.</p>
+
+<p class="muted">Satu hal terakhir belum bisa diselesaikan dari sini, dan sengaja tidak
+ditutup-tutupi: <b>obrolan anonim belum benar-benar instan</b>. Pesannya sampai — cuma lewat
+jaring pengaman setiap sepuluh detik, bukan seketika. Dibuktikan bertahap: kanal realtime-nya
+sendiri sehat, server bisa bicara ke basis data dengan kuncinya, tapi kunci yang sama tidak
+pernah sampai ke kode yang berjalan di peramban pengunjung — diuji ulang di tiga versi terbitan
+berbeda, hasilnya selalu sama. Pola ini cocok persis dengan satu pengaturan di Vercel: nilai
+lingkungan yang ditandai "Sensitif" memang sengaja disembunyikan dari proses penerbitan, padahal
+nilai jenis ini justru dirancang untuk ikut terbawa ke kode peramban. Perbaikannya cuma satu
+sakelar di dasbor Vercel — dan itu satu-satunya bagian pekerjaan ini yang tangannya bukan di
+sini.</p>
+
 <p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
 halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
 delapan kartu utang teknis yang enam di antaranya sudah dikerjakan sore itu juga, dan satu

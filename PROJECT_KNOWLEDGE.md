@@ -1398,8 +1398,58 @@ tertulis di repo (commit situs `70c5d55`). Pola yang sama tiga kali sehari:
 **perubahan skema langsung-ke-produksi tanpa berkas migrasi selalu meledak
 belakangan — dan selalu ketahuan lewat uji, bukan pembacaan.**
 
+### 🧱 "Barang tidak ditemukan" di SETIAP produk — 23 Agustus 2026 (larut, repo situs)
+
+Dilaporkan pemilik dari satu URL produk sungguhan. Dibuktikan bukan ditebak:
+memanggil PostgREST langsung dengan kueri persis milik
+`/api/chat/marketplace/start` (`select=*,seller_profiles(name,faculty)`)
+mengembalikan `"column seller_profiles_1.faculty does not exist"` —
+`information_schema` mengonfirmasi `seller_profiles` memang tidak pernah
+punya kolom `faculty` (kolom itu cuma ada di `chat_rooms.user1_faculty` /
+`user2_faculty`, tabel berbeda). Galat skema PostgREST terjadi SEBELUM
+grant/RLS dievaluasi — berlaku untuk kunci akses apa pun, termasuk
+`service_role` yang dipakai route ini — jadi **tombol "Chat Penjual" gagal di
+iklan APA PUN**, bukan cuma satu. `faculty` dibuang dari kedua query + insert
+room (commit situs `9ff69c0`), diverifikasi dengan mengulang kueri PostgREST
+yang sama: galat skemanya hilang.
+
+### 📡 Chat anonim belum realtime — env klien kena tandai "Sensitive" di Vercel ⚠ perlu klarifikasi (tindakan pemilik)
+
+Dilaporkan pemilik. Dibuktikan bertahap, bukan ditebak:
+
+1. Realtime Broadcast Supabase SENDIRI sehat — dua klien anon-key saling
+   kirim/terima broadcast dalam hitungan detik (skrip Node terpisah).
+2. Server bisa membuat klien Supabase dengan `NEXT_PUBLIC_SUPABASE_ANON_KEY`:
+   uji diagnostik `POST /api/analytics/pwa-install` menjawab galat RLS ASLI
+   ("new row violates row-level security policy"), bukan pesan kustom "Supabase
+   belum dikonfigurasi" — jadi env-nya TERBACA di server saat runtime.
+3. Tapi bundel JS yang dikirim ke BROWSER di `/chat` tidak pernah memuat
+   literal kunci itu — diuji di TIGA build berbeda (termasuk satu build yang
+   sengaja menyentuh `chat/page.jsx` supaya hash chunk-nya pasti baru, dan
+   perubahan barunya terbukti ikut ter-compile — cuma kuncinya yang tidak ada).
+
+Kesimpulan: env-nya ada, tapi hanya terlihat oleh RUNTIME server, tidak oleh
+proses BUILD. Itu persis perilaku env var yang ditandai **"Sensitive"** di
+Vercel — fitur itu sengaja menyembunyikan nilainya dari `next build` (supaya
+tidak bocor ke bundel publik), tapi `NEXT_PUBLIC_*` justru DIRANCANG untuk
+di-bake ke bundel klien saat build. Menandainya Sensitive membatalkan
+tujuannya sendiri.
+
+**Perbaikannya ada di tangan pemilik** (Vercel dashboard, bukan kode):
+Project → Settings → Environment Variables → `NEXT_PUBLIC_SUPABASE_ANON_KEY` →
+matikan toggle "Sensitive" (atau hapus & tambah ulang tanpa menandainya) →
+Redeploy. Sesudah itu chat harus instan; sampai itu dilakukan, chat tetap
+BENAR (pesan sampai), cuma lewat jaring pengaman polling 10 detik, bukan
+Broadcast. Console browser sekarang mencatat `[chat] Realtime tidak
+tersambung` / `Kanal realtime tidak dibuat` kalau ini terulang di masa depan
+(commit situs `48ea027`) — dulu gagalnya sepenuhnya senyap.
+
 ### Perlu diputuskan pemilik
 
+- **Matikan toggle "Sensitive" pada `NEXT_PUBLIC_SUPABASE_ANON_KEY` di Vercel,
+  lalu Redeploy.** Satu-satunya sebab chat anonim belum realtime (lihat bagian
+  23 Agu di atas) — sudah dibuktikan lewat tiga build berbeda, bukan tebakan.
+  Tidak bisa dikerjakan dari sini: butuh akses dashboard Vercel.
 - **Membersihkan baris `payments` lama.** 415 baris pending yang tidak lagi
   menunjuk iklan mana pun. Ditawarkan 21 Agustus dan **ditolak dengan sengaja** —
   pemilik memilih membiarkannya sebagai jejak. Saran: ubah statusnya jadi `expired`
