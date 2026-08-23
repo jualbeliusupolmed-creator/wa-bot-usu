@@ -401,6 +401,28 @@ umur: room yang selesai atau ditinggalkan lebih dari sebulan disapu tiap hari. K
 banyak pembeli" yang diam-diam hidup lagi di pesan mingguan diganti kalimat yang jujur. Dan foto
 struk dibatasi 8 MB sebelum menyentuh AI.</p>
 
+<p class="muted"><b>Lalu semuanya diuji sungguhan di produksi — dan pengujian menemukan yang
+tidak ditemukan pembacaan.</b> Dua puluhan skenario dijalankan dengan data uji yang dibuat lalu
+dihapus sendiri (alur yang mengirim WhatsApp ke manusia sengaja tidak disentuh): sensor kata
+kasar, lapor lima kali sampai tersembunyi, seluruh alur obrolan anonim berikut pagar-pagarnya,
+penghitung view berikut remnya, dan kedua rem laju. Hampir semua lulus — tapi <b>tombol like
+mading ternyata mati sejak lahir</b>, dan komentar ikut mati sehari kemudian. Penyebabnya satu
+sifat pustaka yang tidak diduga siapa pun: objek query Supabase itu bukan Promise penuh — ia
+tidak punya metode <code>.catch</code>, jadi memanggilnya justru melempar galat sebelum query
+berangkat. Idiom keliru itu ada di empat tempat (dua di antaranya bom waktu di webhook yang
+belum sempat meledak), dibuktikan dulu di luar dugaan, lalu dibetulkan semuanya. Pengujian juga
+menyelamatkan satu hal sebelum terjadi: penanda milestone view lahir bernilai nol untuk semua
+iklan, jadi satu view berikutnya pada iklan yang sudah 156 kali dilihat akan mengirim WA "baru
+tembus 10 dilihat" — beruntun. Penandanya di-backfill sesuai kenyataan sebelum ada yang sempat
+menerima pesan basi itu.</p>
+
+<p class="muted"><b>Dan tombol Profil di navbar bawah akhirnya membuka pintu, bukan
+kebohongan kecil.</b> Ia menunjuk <code>/penjual/login</code> — yang bukan halaman login,
+melainkan halaman profil publik untuk penjual bernama "login" yang tidak pernah ada. Sekarang
+satu pintu: <code>/profil</code> memeriksa sesi di server lalu mengantar ke dasbor (sudah masuk)
+atau halaman masuk (belum); yang sudah masuk dan nyasar ke halaman login dipantulkan ke dasbor;
+tautan lama ke alamat yang salah ikut diantar ke pintu yang sama.</p>
+
 <p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
 halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
 delapan kartu utang teknis yang enam di antaranya sudah dikerjakan sore itu juga, dan satu

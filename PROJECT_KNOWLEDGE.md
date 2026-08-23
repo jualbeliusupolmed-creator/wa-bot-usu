@@ -1266,6 +1266,44 @@ DIKETAHUI dan diterima: rate limiter in-memory per-instance (bukan lintas
 instance — batas keras butuh Upstash/Firewall), dan `bump`/counter di halaman
 bot tidak terkait perubahan ini.
 
+### 🧪 Uji produksi menemukan yang tidak ditemukan pembacaan — 23 Agustus 2026 (repo situs)
+
+Seluruh fitur baru diuji langsung di produksi (data uji dibuat sendiri, dihapus
+sesudahnya; alur yang mengirim WA ke manusia TIDAK ditembak). Hasilnya ±20
+skenario lulus — tapi dua baru lulus *karena* diuji:
+
+1. **`PostgrestBuilder` supabase-js TIDAK PUNYA `.catch`** — ia thenable yang
+   hanya punya `.then`, dan `supa.rpc(...).catch(...)` melempar TypeError
+   sebelum query jalan. Karena idiom itu, **like mading mati sejak lahir** (500),
+   komentar ikut mati (idiomnya saya tiru tanpa curiga), dan dua titik di webhook
+   menunggu meledak (update pemantau "Dicari" — membatalkan notifikasi pembeli
+   ke-2 dst — dan indeks post grup). Pola benar: `const { error } = await ...`
+   — query supabase tidak pernah reject. Dibuktikan dengan
+   `typeof builder.catch === "undefined"`, bukan ditebak. (commit `5b6f9cf`)
+2. **Milestone view basi**: `last_milestone_notified` lahir 0 untuk semua iklan,
+   jadi satu view berikutnya pada iklan ber-156 views memicu WA "tembus 10
+   dilihat" beruntun sampai terkejar. Data di-backfill sesuai views sekarang,
+   dan backfill-nya diabadikan di `migration_buyer_contacts.sql`.
+
+Yang terverifikasi lulus: sensor kata kasar (leet + spasi, "pantai" selamat),
+lapor 5× → auto-sembunyi, seluruh alur chat (match, kirim, sensor, pagar
+keanggotaan 403, keluar, batalkan-room-orang tidak mempan), minat (nomor palsu →
+NULL tanpa WA, nama tersanitasi), view counter + rem 1/6jam, rate limit mading
+(429) & match (429 di permintaan ke-11), 13 halaman publik 200, kedua bot sehat.
+Belum teruji: cron pada jadwalnya, alur WA nyata (`.PANTAU` dkk — tes manusia),
+panel admin, realtime dua peramban.
+
+### 🚪 Tombol Profil jadi satu pintu — 23 Agustus 2026 (repo situs)
+
+Navbar bawah menautkan "Profil" ke `/penjual/login` — yang BUKAN halaman login,
+melainkan `/penjual/[wa]` dengan wa="login": profil publik penjual yang tidak
+pernah ada. Login sungguhan di `/dashboard/login`. Sekarang satu pintu
+(commit `74d1b7d`): halaman server `/profil` memeriksa `getSellerSession()` lalu
+mengantar ke `/dashboard` (sudah masuk) atau `/dashboard/login` (belum);
+`/dashboard/login/layout.jsx` memantulkan yang sudah masuk ke dashboard; slug
+cadangan login/profil/masuk di `/penjual/[wa]` diantar ke `/profil`; tab Profil
+tetap menyala di `/dashboard` lewat properti `match`.
+
 ### Perlu diputuskan pemilik
 
 - **Membersihkan baris `payments` lama.** 415 baris pending yang tidak lagi
