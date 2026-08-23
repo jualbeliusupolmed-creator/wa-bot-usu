@@ -1384,6 +1384,20 @@ produksi dengan dua akun uji lalu jejaknya dihapus):
 4. **`userId` hantu** di handler visibilitychange — variabel yang dihapus saat
    identitas pindah ke sesi masih dirujuk; ReferenceError tertelan `.catch`.
 
+### 📬 Inbox marketplace mati sejak lahir — 23 Agustus 2026 (malam, repo situs)
+
+Sapuan uji 14 skenario semua fitur chat (dua akun uji, jejak dihapus) meluluskan
+13 — jodoh cepat, pesan dua arah + sensor, lapor, keluar + pesan sistem, resume,
+room tertutup menolak pesan, pagar 401 — dan menangkap yang ke-14:
+`/api/chat/marketplace/inbox` menjawab *"Could not find a relationship"* untuk
+siapa pun. `chat_rooms.listing_id` ditambahkan ke produksi TANPA foreign key,
+padahal embedded join PostgREST (`listings:listing_id`) mengenali relasi hanya
+lewat FK. Dipasang `fk_chat_rooms_listing` (ON DELETE SET NULL), inbox pulih
+seketika, dan `migration_chat.sql` kini mencatat kolom + FK yang tidak pernah
+tertulis di repo (commit situs `70c5d55`). Pola yang sama tiga kali sehari:
+**perubahan skema langsung-ke-produksi tanpa berkas migrasi selalu meledak
+belakangan — dan selalu ketahuan lewat uji, bukan pembacaan.**
+
 ### Perlu diputuskan pemilik
 
 - **Membersihkan baris `payments` lama.** 415 baris pending yang tidak lagi
