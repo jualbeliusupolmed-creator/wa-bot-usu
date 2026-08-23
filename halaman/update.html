@@ -518,6 +518,22 @@ dengan "hilang" jelas bukan perbaikan. Ketukannya juga tidak membawa isi pesan s
 hanya penanda "ada yang baru" — isinya tetap diambil lewat jalur yang memeriksa siapa saja
 peserta obrolan itu.</p>
 
+<p class="muted"><b>Dan kali ini tidak berhenti di "seharusnya jalan".</b> Dua akun uji sekali
+pakai dibuat di situs sungguhan, dipertemukan lewat pencarian teman ngobrol seperti pengunjung
+biasa, lalu satu mengirim pesan sementara yang lain mendengarkan. Ketukannya sampai dalam
+<b>1,4 detik</b> — sudah termasuk perjalanan bolak-balik ke server. Pemberitahuan "temanmu telah
+meninggalkan obrolan" diuji terpisah dan sampai dalam 1,7 detik. Uji pertama sempat gagal, dan
+itu justru berguna: gagalnya terjadi karena penerbitan belum mendarat, bukan karena kodenya —
+kalau tidak diuji ulang sampai lulus, sesi ini akan berakhir dengan klaim yang tidak dipegang
+bukti apa pun. Akun dan ruang obrolan ujinya dicatat untuk dihapus, tidak dibiarkan mengendap.</p>
+
+<p class="muted">Satu perbaikan lagi lahir dari uji itu, sebelum sempat jadi masalah:
+pustaka Supabase ternyata memperingatkan bahwa cara lama mengirim ketukan diam-diam menempuh
+jalan pintas yang <b>dijadwalkan dihapus</b>. Kalau jalan pintas itu hilang di kemudian hari,
+gejalanya akan persis bug yang baru saja ditutup — pesan tersimpan, tidak ada yang mengetuk,
+dan tidak ada galat sama sekali. Ketukannya sekarang memakai jalur resmi, dengan cara lama
+disimpan sebagai cadangan kalau versi pustakanya ternyata lebih tua.</p>
+
 <p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
 halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
 delapan kartu utang teknis yang enam di antaranya sudah dikerjakan sore itu juga, dan satu
