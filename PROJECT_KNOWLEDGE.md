@@ -56,7 +56,7 @@ akan salah membaca sistem ini.
          │                      └──────────────────┘
          ▼
    ┌───────────┐
-   │ Supabase  │  41 tabel
+   │ Supabase  │  43 tabel
    └───────────┘
 ```
 
@@ -200,7 +200,7 @@ berkas → pemanggil, dan sebaliknya):
 Semuanya bisa dibangkitkan lagi dari git kalau ternyata dibutuhkan. Yang **tidak**
 boleh dihidupkan lagi tanpa berpikir: `middleware.js`.
 
-### 1.4 Database — 41 tabel
+### 1.4 Database — 43 tabel
 
 Semua tabel punya RLS aktif. Situs mengaksesnya dengan service-role dari server;
 `anon` hanya boleh membaca yang memang publik (iklan aktif, kategori, profil
@@ -210,7 +210,7 @@ penjual, blog, penilaian, papan dicari).
 `mading_posts` · `mading_comments` · `mading_likes` · `mading_reports`
 (lapor + auto-sembunyi) · `chat_rooms` · `chat_messages` (keduanya TANPA
 kebijakan publik — lihat catatan RLS 23 Agu) · `keyword_subscriptions`
-(perintah `.PANTAU`) · `receipt_hashes` (anti-fraud struk) · `buyer_contacts`
+(perintah `.PANTAU`) · `receipt_hashes` (anti-fraud struk) · `buyer_contacts` · `chat_reports` + `chat_bans` (lapor & blokir otomatis)
 
 **Inti transaksi**
 `listings` (45 baris, 25 aktif) · `payments` (497) · `seller_profiles` (82) ·
@@ -1303,6 +1303,40 @@ mengantar ke `/dashboard` (sudah masuk) atau `/dashboard/login` (belum);
 `/dashboard/login/layout.jsx` memantulkan yang sudah masuk ke dashboard; slug
 cadangan login/profil/masuk di `/penjual/[wa]` diantar ke `/profil`; tab Profil
 tetap menyala di `/dashboard` lewat properti `match`.
+
+### 🔐 Mading & chat jadi wajib akun, dan obrolan belajar dari Telegram — 23 Agustus 2026 (petang, repo situs)
+
+Dua gelombang bersambung:
+
+**Gelombang tool lain** (`a252d5c`..`13be29c`): posting mading dan chat anonim
+kini **wajib login** (satu sistem akun: sesi penjual, `getUserSession` =
+`getSellerSession`); identitas penulis/peserta tersimpan **di server** sebagai
+hash bergaram (`hashIdentitas(wa)` — garamnya env, tak bisa dihitung ulang dari
+isi database), publik tetap melihat "Anonim". Plus **chat marketplace in-app**
+baru (`/api/chat/marketplace/start` + `inbox`, `chat_rooms.type='marketplace'`
+memakai WA asli sebagai id peserta, tab Chat Jual Beli tidak lagi dummy).
+Kolom `listing_id` di `chat_rooms` sudah ada di DB — kali ini migrasinya
+tidak tertinggal.
+
+**Gelombang sesi ini** (`20c42fa`) melengkapi pola bot chat anonim Telegram
+(@chatbot/RandomTalk) dan menambal yang tertinggal:
+
+- **Lapor & blokir otomatis**: tombol 🚩 di room → `POST
+  /api/chat/room/[id]/report`; hanya peserta, satu suara per room; dilaporkan
+  ≥3 room berbeda dalam 30 hari → blokir 7 hari dari matchmaking DAN
+  marketplace (tabel `chat_reports` + `chat_bans`, RLS tanpa kebijakan publik,
+  sudah diterapkan — migrasi `chat_lapor_dan_blokir` / berkas
+  `migration_chat_lapor.sql`). Database kini **43 tabel**.
+- **Radar macet**: `handleStartMatch` tak membaca status respons — 401/403/429
+  membuat "Mencari..." berputar selamanya. Kini 401 diantar ke pintu `/profil`
+  (mading juga), 403/429 kembali ke idle dengan alasannya.
+- **Start marketplace dikeraskan**: pesan pembuka disensor + dipotong 500
+  (tadinya satu-satunya pesan tanpa saringan), kutipan di notifikasi WA penjual
+  dibersihkan dari markup/baris-baru, dan direm 10/menit (tiap chat pertama
+  memicu WA ke penjual).
+- Layar awal chat memuat **aturan main yang jujur**: nama tak pernah
+  ditampilkan, tapi obrolan terikat akun supaya pelanggaran bisa ditindak;
+  klaim "100% Rahasia" diganti "Anonim ke Lawan Bicara".
 
 ### Perlu diputuskan pemilik
 
