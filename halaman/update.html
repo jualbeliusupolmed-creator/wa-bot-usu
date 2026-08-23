@@ -452,6 +452,21 @@ keadaannya ditanyakan ke server, dan percakapan dilanjutkan dari tempatnya, buka
 Lawan bicara di chat jual-beli yang dibuka lewat tautan juga akhirnya punya nama, bukan "Anonim"
 kosong.</p>
 
+<p class="muted"><b>Larut malam, keluhan "ga pernah berhasil chat anonim" dibongkar sampai ke
+akarnya — dan akarnya empat.</b> Dua orang yang menekan Mulai hampir bersamaan sama-sama membuat
+ruang tunggu, dan tidak ada mekanisme apa pun yang menjodohkan sesama penunggu: keduanya
+menunggu selamanya. Penunggu yang menutup halaman meninggalkan ruang tunggu "hidup" selama tiga
+menit, dan pencari berikutnya dipasangkan ke kekosongan — itulah "berhasil cuma di satu sisi".
+Pencarian dari tab kedua diam-diam menghapus ruang milik tab pertama, yang terus bertanya pada
+ruang yang sudah tiada. Dan satu sisa refactor: handler tab-aktif masih memakai variabel yang
+sudah dihapus, galatnya tertelan senyap. Sekarang setiap poll penunggu adalah <b>detak
+jantung</b> — hanya ruang yang berdetak dalam 15 detik terakhir yang boleh dijodohkan — dan
+penunggu <b>ikut menjodohkan</b>: melihat ruang tunggu lain yang segar, ia bergabung ke sana.
+Ketiganya dibuktikan lulus di produksi dengan dua akun uji (ruang basi ditolak, dua penunggu
+saling menemukan lewat poll, ruang hantu dijawab "sudah tidak ada" dengan penjelasan), lalu
+semua jejak ujinya dihapus. Satu catatan untuk penguji berikutnya: chat anonim sengaja menolak
+menjodohkan akun dengan dirinya sendiri — mengujinya butuh dua akun, bukan dua tab.</p>
+
 <p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
 halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
 delapan kartu utang teknis yang enam di antaranya sudah dikerjakan sore itu juga, dan satu

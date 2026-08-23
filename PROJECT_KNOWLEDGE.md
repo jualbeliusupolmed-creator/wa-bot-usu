@@ -1362,6 +1362,28 @@ tautan `?room=` tidak lagi menampilkan lawan "Anonim" kosong.
 alur BER-login bisa mati total. Akun uji sekali pakai (daftar tanpa OTP) adalah
 cara termurah mengujinya — buat, jalani, hapus.
 
+### 💘 Matchmaking berhenti mengandalkan keberuntungan — 23 Agustus 2026 (larut, repo situs)
+
+Keluhan pemilik "ga pernah berhasil chat anonim, kadang cuma satu sisi" ternyata
+EMPAT bug yang bertumpuk (commit `fbe502c`, ketiganya dibuktikan lulus di
+produksi dengan dua akun uji lalu jejaknya dihapus):
+
+1. **Dua penunggu saling menunggu selamanya** — dua orang menekan Mulai hampir
+   bersamaan → dua room waiting, dan poll hanya menengok room sendiri. Kini
+   poll penunggu ikut MENJODOHKAN: ada room tunggu lain yang segar → bergabung
+   (klaim atomik `eq status waiting`), room sendiri dibuang. Klien selalu
+   memakai id room dari jawaban poll, bukan yang di-poll.
+2. **Room bangkai** — penunggu yang menutup tab meninggalkan room waiting 3
+   menit; pencari berikutnya "berhasil" mengobrol dengan kekosongan. Kini poll =
+   DETAK JANTUNG (`updated_at`), dan penjodohan hanya melirik room berdetak
+   < 15 detik.
+3. **Satu akun dua tab** — find dari tab kedua menghapus room tab pertama; tab
+   pertama mem-poll room hantu tanpa kabar. Poll kini mengenali `not_found`:
+   berhenti + menjelaskan. (Konsekuensi desain: akun tidak bisa dijodohkan
+   dengan dirinya sendiri — menguji chat anonim BUTUH dua akun.)
+4. **`userId` hantu** di handler visibilitychange — variabel yang dihapus saat
+   identitas pindah ke sesi masih dirujuk; ReferenceError tertelan `.catch`.
+
 ### Perlu diputuskan pemilik
 
 - **Membersihkan baris `payments` lama.** 415 baris pending yang tidak lagi
