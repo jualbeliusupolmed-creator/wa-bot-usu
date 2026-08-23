@@ -338,6 +338,50 @@ harga juga dicabut: tidak ada datanya.</p>
 <b>sejarah sebelum kodenya ada</b>. Halaman itu masih mulai dari commit pertama 11 Juni 2026,
 padahal usahanya berdiri <b>8 Desember</b> — berbulan-bulan sebelum ada satu baris kode pun.</p>
 
+<p class="muted"><b>23 Agustus, pagi — gelombang "Super App" mendarat di repo situs lewat tool
+lain.</b> Sepuluh commit dalam 47 menit: mading &amp; menfess, chat anonim satu-lawan-satu,
+paket langganan toko, penyiapan Play Store, perintah <code>.PANTAU</code>, dan pemeriksa struk
+yang menolak foto yang sudah pernah dipakai. Fiturnya nyata dan migrasinya jalan. Tapi audit
+sesudahnya menemukan satu hal yang membatalkan janji fiturnya sendiri: <b>chat "anonim" itu
+terbuka untuk siapa pun.</b> Migrasi-nya membuat kebijakan database yang mengizinkan role publik
+membaca, menulis, dan mengubah semua room dan semua pesan — dan kunci anon Supabase memang ada
+di dalam bundle yang diunduh setiap peramban. Artinya seluruh isi obrolan bisa dibaca orang luar
+langsung dari database, tanpa menyentuh situs sama sekali. Yang membuatnya makin janggal:
+kebijakan itu tidak dipakai siapa-siapa, karena semua route chat memakai kunci admin yang
+melewati RLS.</p>
+
+<p class="muted">Kebijakannya <b>dicabut hari itu juga</b> — RLS tetap menyala, tanpa satu pun
+pintu publik; satu-satunya jalan masuk sekarang API situs, yang akhirnya memeriksa <b>siapa</b>
+yang bertanya: bukan peserta room, tidak ada pesan untukmu. Poll matchmaking berhenti membocorkan
+identitas kedua peserta (bekal lengkap untuk menyamar), semua tulisan anonim — postingan mading,
+komentar, like, pesan chat, pencarian teman — dapat rem laju per-IP, dan filter kata kasarnya
+berhenti bisa ditembus dengan <code>b4ngsat</code> atau <code>a n j i n g</code> (sekaligus
+berhenti menyensor "pantai" karena mengandung "tai"). Kolom <code>author_ip_hash</code> yang
+selama ini kosong akhirnya diisi hash bergaram — anonim ke sesama mahasiswa, tidak anonim ke
+moderasi — dan justru karena terisi, API publiknya berhenti mengembalikan kolom itu. Mading juga
+dapat tombol <b>Lapor</b>: lima pelapor berbeda menyembunyikan postingan otomatis, tanpa
+menunggu admin bangun.</p>
+
+<p class="muted"><b>Beban chat-nya juga dijinakkan sebelum sempat jadi tagihan.</b> Semula tiap
+pasangan yang mengobrol menarik pesan lewat API tiap dua detik — orang yang cuma menunggu
+balasan ikut membakar kuota Vercel. Sekarang pengirim menyiarkan sinyal lewat kanal Supabase
+Realtime <em>Broadcast</em> per-room dan penerima baru menarik saat sinyal datang; polling
+tinggal jaring pengaman sepuluh detik. Sengaja bukan <em>postgres_changes</em> seperti saran
+audit sebelah: cara itu butuh persis kebijakan baca-publik yang baru saja dicabut. Ikut serta:
+ruang tunggu pencarian teman menyerah setelah tiga menit (umur room tunggu di server juga tiga
+menit — menunggu lebih lama berarti mem-poll sesuatu yang tidak akan datang), PWA yang dibuka
+tanpa koneksi mendapat halaman offline sendiri alih-alih dinosaurus Chrome, langganan toko
+<code>pro</code> yang kedaluwarsa akhirnya diturunkan otomatis oleh cron harian, dan 4.016 baris
+salinan kode bot yang mati ikut terbuang dari repo.</p>
+
+<p class="muted">Di repo bot sendiri, tiga hal kecil menyusul: sapaan bot akhirnya
+<b>mengiklankan <code>.PANTAU</code></b> — perintahnya sudah hidup di webhook situs sejak pagi,
+tapi yang mengedit sapaannya cuma salinan <code>bot-wa/</code> di repo situs, yang tidak pernah
+tayang; celah <b>alarm dobel</b> di jalur alarm-lewat-perangkat-kedua ditutup (selama percobaan
+±8 detik itu di udara, antrean lokal menahan diri, dan penandanya tidak pernah selamat dari
+restart); dan 405 di <code>GET /reset</code> kini menyebut <code>Allow: POST</code> seperti
+seharusnya.</p>
+
 <p class="muted">Perapian <b>22 Agustus 2026</b>, dan kali ini yang dirapikan adalah
 halamannya sendiri. <code>/progres-claude</code> masih membaca seperti pagi 21 Agustus:
 delapan kartu utang teknis yang enam di antaranya sudah dikerjakan sore itu juga, dan satu

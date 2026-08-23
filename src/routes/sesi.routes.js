@@ -43,6 +43,7 @@ module.exports = function pasangRuteSesi(app, K) {
     // Tidak ada pemanggil yang hilang karenanya: dashboard tidak pernah memakai
     // jalur GET ini, dan POST /reset di bawah tetap apa adanya.
     app.get('/reset', requireAuth, requireRelink, (req, res) => {
+        res.set('Allow', 'POST');
         res.status(405).json({
             error: 'GET /reset tidak menghapus apa pun. Aksi yang tidak bisa dibatalkan '
                 + 'tidak boleh dijalankan oleh permintaan GET.',

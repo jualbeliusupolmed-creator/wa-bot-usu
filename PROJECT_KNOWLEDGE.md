@@ -56,7 +56,7 @@ akan salah membaca sistem ini.
          │                      └──────────────────┘
          ▼
    ┌───────────┐
-   │ Supabase  │  32 tabel
+   │ Supabase  │  40 tabel
    └───────────┘
 ```
 
@@ -200,11 +200,17 @@ berkas → pemanggil, dan sebaliknya):
 Semuanya bisa dibangkitkan lagi dari git kalau ternyata dibutuhkan. Yang **tidak**
 boleh dihidupkan lagi tanpa berpikir: `middleware.js`.
 
-### 1.4 Database — 32 tabel
+### 1.4 Database — 40 tabel
 
 Semua tabel punya RLS aktif. Situs mengaksesnya dengan service-role dari server;
 `anon` hanya boleh membaca yang memang publik (iklan aktif, kategori, profil
 penjual, blog, penilaian, papan dicari).
+
+**Super App (semua sejak 23 Agu 2026)**
+`mading_posts` · `mading_comments` · `mading_likes` · `mading_reports`
+(lapor + auto-sembunyi) · `chat_rooms` · `chat_messages` (keduanya TANPA
+kebijakan publik — lihat catatan RLS 23 Agu) · `keyword_subscriptions`
+(perintah `.PANTAU`) · `receipt_hashes` (anti-fraud struk) · `buyer_contacts`
 
 **Inti transaksi**
 `listings` (45 baris, 25 aktif) · `payments` (497) · `seller_profiles` (82) ·
@@ -1154,6 +1160,73 @@ di VPS ini. Yang dipakai: `esbuild` (dipasang di scratchpad, bukan di repo) deng
 `--loader:.js=jsx --outfile=/dev/null` untuk **parse-only** atas seluruh `src/`. Bukan
 pengganti build — tidak menangkap kesalahan impor atau tipe — tapi menangkap semua kesalahan
 sintaks sebelum deploy. Skripnya dibuang bersama scratchpad; tulis ulang kalau perlu.
+
+### 🌊 Gelombang "Super App" masuk lewat tool lain — 23 Agustus 2026 (pagi, repo situs)
+
+Sepuluh commit (10:53–11:40 WIB, gaya conventional-commit Inggris, bukan dari sesi
+Claude ini) menambah ±8.500 baris: navbar bawah + layout Super App, **Mading/Menfess**
+(`/mading`), **chat anonim 1-on-1** (`/chat`), paket langganan toko fisik, penyiapan
+PWA Play Store, dan dua hal yang menyentuh perilaku bot: perintah **`.PANTAU`**
+(langganan kata kunci, dieksekusi di webhook situs `api/wa/baileys`, tabel
+`keyword_subscriptions`) dan **anti-fraud struk** (SHA-256 gambar, tabel
+`receipt_hashes`, dipasang di jalur web dan WA). Migrasi-migrasinya sudah dijalankan;
+deploy-nya tayang.
+
+Dua jejak yang perlu diketahui sesi berikutnya:
+
+- **`bot-wa/` di monorepo situs ikut diedit tool itu** (sapaan + `PLAIN_COMMAND_WORDS`
+  dapat `pantau`) — padahal yang jalan di VPS repo INI. Sudah disinkron balik ke
+  `index.js`/`src/lib/utils.js` di sini pada hari yang sama; kalau ada yang mengedit
+  `bot-wa/` lagi, salin ke repo bot juga atau perubahan itu tidak pernah tayang.
+- Ikut ter-commit `bot-wa/index.js.original` (4.016 baris kode mati) dan
+  `supabase/.temp/` — sudah dihapus + di-gitignore.
+
+### 🔓 RLS chat anonim terbuka untuk siapa pun — 23 Agustus 2026 (siang, repo situs)
+
+Migrasi chat gelombang itu membuat kebijakan RLS `SELECT/INSERT/UPDATE true` untuk
+role `public` di `chat_rooms` dan `chat_messages`. Anon key ada di bundle peramban,
+jadi **seluruh isi "chat anonim" bisa dibaca, dipalsukan, dan ditutup siapa pun**
+lewat REST Supabase — tanpa lewat API situs. Ironisnya kebijakan itu tidak dipakai
+siapa-siapa: semua route `/api/chat/*` memakai service_role.
+
+Perbaikan (commit `7e3ed0b`..`a6dec8d` repo situs):
+
+- Kebijakan publiknya **dicabut** (migrasi `kunci_rls_chat_anonim`, sudah diterapkan;
+  `migration_chat.sql` di repo ikut dibetulkan supaya tidak membukanya lagi). Pola
+  yang benar untuk tabel yang cuma diakses API: RLS menyala, **tanpa** kebijakan publik.
+- Route chat memeriksa **keanggotaan room** (userId ∈ {user1,user2}); poll matchmaking
+  berhenti membocorkan userId lawan (bekal menyamar).
+- **Rate limit per-IP** di semua tulisan anonim (mading/komentar/like/chat/match).
+- Filter kata kasar: tahan leet + penyela (`b4ngsat`, `a n j i n g`), dan berhenti
+  salah menyensor (`pantai` kena karena substring `tai`). Uji: 12 kasus, semua lulus.
+- `author_ip_hash` akhirnya diisi (hash bergaram via `lib/identitasHash.js`,
+  garam `IP_HASH_SALT`/`CRON_SECRET`) — dan karena terisi, GET publik `/api/mading`
+  berhenti mengembalikan kolom itu (hash sama = dua postingan tertaut ke satu penulis).
+- Tombol **Lapor**: 5 pelapor berbeda → status `hidden` otomatis (tabel
+  `mading_reports`, sudah diterapkan).
+- **Chat pindah ke Supabase Realtime Broadcast** (kanal per-room) + polling turun
+  jadi jaring pengaman 10 detik; polling 2 detik lama = ~1 request/detik per pasangan
+  ke Vercel. Sengaja **bukan** `postgres_changes`: itu butuh kebijakan SELECT anon —
+  persis yang baru dicabut. Ruang tunggu matchmaking menyerah setelah 3 menit
+  (sama dengan umur room `waiting` di server).
+- Cron `expire` juga menurunkan `subscription_tier` → `free` saat
+  `subscription_expires_at` lewat (baris ber-NULL tidak disentuh); PWA offline dapat
+  halaman `/offline` lewat `fallbacks` next-pwa.
+
+Catatan cron: `vercel.json` kini berisi **7 cron** dan deploy-nya diterima — batas
+cron akun ini terbukti bukan 2. Tidak perlu dikonsolidasi.
+
+### 🔁 Alarm dobel `notifyOwner` ditutup sebelum sempat terjadi — 23 Agustus 2026 (repo bot)
+
+Jalur alarm-lewat-bot-2 (commit `24749b5`) punya jendela balapan ±8 detik: alarm
+diantre lokal **dan** dicoba lewat perangkat kedua; kalau bot pulih dan menguras
+antrean selagi percobaan itu di udara, alarm yang sama berangkat dari dua nomor.
+Sekarang tugasnya ditandai `tahan` selama percobaan berjalan — `processQueue`
+menahan kepala antrean ber-`tahan`, penandanya dilepas di `finally`, dan
+`muatOutbox` membuangnya saat boot (proses mati di tengah percobaan meninggalkan
+alarm yang masih akan berangkat, bukan yang tertahan selamanya). Ikut serta:
+sapaan bot akhirnya mengiklankan `.PANTAU` (sinkron dari `bot-wa/`), dan 405
+`GET /reset` menyertakan header `Allow: POST`.
 
 ### Perlu diputuskan pemilik
 

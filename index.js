@@ -168,10 +168,11 @@ const DEFAULT_GREETING = process.env.GREETING_TEXT || [
     `Kalau ingin jual beli & cari barang lewat *bot*, awali pesan dengan tanda titik ( *${BOT_PREFIX}* ), contoh: *${BOT_PREFIX}MENU*`,
     '',
     `• *${BOT_PREFIX}JUAL* — Pasang iklan`,
-    `• *${BOT_PREFIX}CARI [nama barang]* — Cari barang`,
+    `• *${BOT_PREFIX}CARI [nama barang]* — Cari barang (+ foto)`,
+    `• *${BOT_PREFIX}PANTAU [kata kunci]* — Notifikasi otomatis ada barang baru`,
     `• *${BOT_PREFIX}PERPANJANG* — Perpanjang iklan`,
-    `• *${BOT_PREFIX}UPGRADE* — Upgrade iklan`,
-    `• *${BOT_PREFIX}SAYA* — Profil & statistik saya`,
+    `• *${BOT_PREFIX}UPGRADE* — Upgrade iklan (Featured/Bump)`,
+    `• *${BOT_PREFIX}SAYA* — Profil & statistik toko`,
     `• *${BOT_PREFIX}MENU* — Lihat semua perintah lengkap`,
     '',
     'Dan jika ingin lebih mudah, bisa melalui website:',
@@ -534,6 +535,14 @@ function notifyOwner(text) {
     // terkunci") justru sudah tidak benar lagi. Alarm basi lebih buruk daripada
     // tidak ada alarm kedua.
     if (!botSiap()) {
+        // `tahan` menutup celah alarm dobel: kalau bot INI pulih dan menguras
+        // antrean selagi percobaan lewat perangkat kedua masih di udara (≤8 dtk),
+        // alarm yang sama berangkat dari dua nomor. Selama penandanya menyala,
+        // processQueue menahan diri; penanda dilepas begitu percobaannya selesai —
+        // dan muatOutbox membuangnya saat boot, jadi proses yang mati di tengah
+        // percobaan meninggalkan alarm yang masih akan berangkat, bukan alarm
+        // yang tertahan selamanya.
+        tugas.tahan = true;
         bot2Siap().then(async (siap) => {
             if (!siap) return;
             const hasil = await teruskanKeBot2('/send', {
@@ -545,7 +554,10 @@ function notifyOwner(text) {
             const i = messageQueue.indexOf(tugas);
             if (i >= 0) { messageQueue.splice(i, 1); simpanOutbox(); }
             bump('alarm_lewat_bot2');
-        }).catch(() => {});
+        }).catch(() => {}).finally(() => {
+            delete tugas.tahan;
+            kickQueue();   // kalau salinan lokalnya masih ada, ia boleh jalan lagi
+        });
     }
 }
 
@@ -598,6 +610,10 @@ function muatOutbox() {
         const sekarang = Date.now();
         const hidup = isi.filter((t) => t && t.jid
             && sekarang - (t.ts || 0) < (t.ttl || TTL_BALASAN_MS));
+        // `tahan` cuma bermakna selama percobaan kirim-lewat-bot2 yang memasangnya
+        // masih hidup — dan percobaan itu mati bersama proses lama. Dibiarkan,
+        // kepala antrean tertahan selamanya.
+        hidup.forEach((t) => { delete t.tahan; });
         messageQueue.push(...hidup.slice(0, OUTBOX_MAX));
         const dibuang = isi.length - hidup.length;
         console.log(`[outbox] ${messageQueue.length} pesan tertunda dimuat`
@@ -698,6 +714,10 @@ async function processQueue() {
     // MEMBUANG pesan pelanggan. Sudah pernah terjadi: 21 Agu 2026, satu pesan ke
     // 6288211366083 hilang persis begitu, beberapa detik setelah sesi direset.
     if (!botSiap()) { scheduleQueue(1000); return; }               // belum login → tahan, jangan buang
+    // Kepala antrean sedang dicoba lewat perangkat kedua (lihat notifyOwner):
+    // tunggu percobaan itu selesai supaya alarm yang sama tidak berangkat dari
+    // dua nomor. Paling lama ~8 detik — timeout teruskanKeBot2.
+    if (messageQueue[0]?.tahan) { scheduleQueue(2000); return; }
     const wait = nextSendAt - Date.now();
     if (wait > 0) { scheduleQueue(wait); return; }
 
