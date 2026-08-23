@@ -615,7 +615,7 @@ memuat semua `.html` yang dilacak git — termasuk `public/lomba.html`, `halaman
 `halaman/update.html`. Jadi **setiap kali salah satu halaman itu disunting, angkanya berubah**,
 dan menulis angka baru ke halaman itu bisa membatalkan angkanya sendiri. Urutan yang benar:
 sunting seluruh isinya dulu → hitung → baru **ganti digitnya saja** (jumlah baris tidak berubah,
-jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.368** — naik dari 11.454 murni
+jadi hitungannya tetap benar). Angka per 22 Agustus malam: **12.411** — naik dari 11.454 murni
 karena suntingan halaman hari itu, bukan karena kode bot bertambah.
 
 ### ✅ Analisis `/lomba` dikerjakan — 22 Agustus 2026
@@ -879,6 +879,47 @@ ini, plus lima bentuk lain (sesi baru, hasil pairing-code, kosong, null, `me` ta
 Pelajarannya lebih umum dari satu field: **penanda yang namanya paling meyakinkan
 belum tentu yang isinya benar.** Yang membuktikannya bukan dokumentasi, tapi satu
 sesi hidup yang membantahnya.
+
+### ☠ `GET /reset` mencabut sesi bot kedua — 23 Agustus 2026, 02:58
+
+Saya menutup gerbang taut-ulang bot kedua, dan sebelum menutupnya saya "memeriksa
+keadaan gerbang" dengan memanggil endpoint-endpoint yang dijaganya:
+
+```
+/pairing-code -> HTTP 400   (badan kosong ditolak — cuma pemeriksaan)
+/reset        -> HTTP 200   ← ini BUKAN pemeriksaan. Ini mengerjakannya.
+```
+
+`GET /reset` menghapus sesi WhatsApp seketika. Tanpa konfirmasi, tanpa badan
+permintaan yang perlu benar — cukup satu GET dengan token yang sah. Sesi bot kedua
+tercabut, dan bot kedua itu yang memegang nomor yang dipajang situs.
+
+**Yang menyelamatkannya bukan kehati-hatian saya, tapi keputusan lama yang benar:**
+`clearAuthState()` MEMINDAHKAN sesi ke `auth_info_baileys.bak-<stempel>`, bukan
+menghapusnya. Pemulihannya: hentikan prosesnya sebelum ia sempat menulis sesi
+kosong, pindahkan folder `.bak-` kembali, nyalakan. 1.435 berkas utuh, tersambung
+lagi ke nomor yang sama tanpa QR.
+
+Dua perbaikan, dan yang kedua lebih penting daripada yang pertama:
+
+1. **`ALLOW_RELINK` bot kedua sekarang bawaannya `false`.** Alasan membukanya —
+   supaya nomornya bisa ditautkan sama sekali — habis begitu pairing selesai.
+2. **`GET /reset` tidak lagi mengerjakan apa pun** (405, menunjuk ke POST).
+   GET seharusnya aman dibaca berkali-kali oleh siapa pun: peramban yang prefetch,
+   pemindai tautan, riwayat, seseorang yang menekan Enter dua kali di bilah alamat.
+   **Aksi yang tidak bisa dibatalkan tidak boleh berada di belakang kata kerja yang
+   artinya "ambilkan".** Tidak ada pemanggil yang hilang — dashboard tidak pernah
+   memakai jalur GET itu. Diuji dengan memasang `sesi.routes.js` apa adanya di
+   Express terpisah ber-`K` palsu, dengan gerbang dibuat seolah `ALLOW_RELINK=true`
+   (satu-satunya keadaan di mana cabang itu terpakai): GET → 405 dan
+   `clearAuthState` tidak tersentuh; POST → 200 dan tetap bekerja.
+
+Pelajaran yang lebih umum, dan ini kedua kalinya dalam dua hari: **"memeriksa"
+lewat memanggil endpoint sungguhan bukan pemeriksaan — itu pemakaian.** Kemarin
+satu pesan uji mendarat di grup 956 orang karena saya memperkirakan ia akan
+ditolak. Hari ini satu GET yang dikira bertanya justru menjawab dengan mencabut
+sesi. Kalau yang ingin diketahui adalah "apa yang AKAN terjadi", tempat
+memeriksanya kode, bukan produksi.
 
 ### 🔀 Dua nomor, satu gerbang — 23 Agustus 2026
 

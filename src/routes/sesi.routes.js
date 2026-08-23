@@ -27,10 +27,29 @@ module.exports = function pasangRuteSesi(app, K) {
     });
 
     // ── Reset / Hapus sesi ────────────────────────────────────────────────────────
-    app.get('/reset', requireAuth, requireRelink, async (req, res) => {
-        try { await K.clearAuthState(); } catch (e) { console.error('[reset] gagal hapus sesi:', e); }
-        res.send('Sesi dihapus. Restarting...');
-        setTimeout(() => exitAfterFlush(1), 1000);
+    //
+    // GET di sini SENGAJA tidak lagi mengerjakan apa pun. Sampai 23 Agustus 2026 ia
+    // membuang sesi WhatsApp seketika — tanpa konfirmasi, tanpa badan permintaan
+    // yang perlu benar. Satu GET dengan token yang sah sudah cukup, dan itu
+    // betul-betul terjadi pukul 02:58 malam itu: sebuah pemeriksaan yang dikira
+    // cuma menanyakan keadaan gerbang justru mencabut sesi bot kedua. Yang
+    // menyelamatkannya cuma clearAuthState() yang MEMINDAHKAN sesi ke folder .bak.
+    //
+    // GET seharusnya aman dibaca berkali-kali oleh siapa pun — peramban yang
+    // melakukan prefetch, pemindai tautan, riwayat, seseorang yang menekan Enter
+    // dua kali di bilah alamat. Aksi yang tidak bisa dibatalkan tidak boleh berada
+    // di belakang kata kerja yang artinya "ambilkan".
+    //
+    // Tidak ada pemanggil yang hilang karenanya: dashboard tidak pernah memakai
+    // jalur GET ini, dan POST /reset di bawah tetap apa adanya.
+    app.get('/reset', requireAuth, requireRelink, (req, res) => {
+        res.status(405).json({
+            error: 'GET /reset tidak menghapus apa pun. Aksi yang tidak bisa dibatalkan '
+                + 'tidak boleh dijalankan oleh permintaan GET.',
+            caraBenar: 'POST /reset dengan token yang sama.',
+            akibat: 'Sesi WhatsApp dipindah ke folder .bak- lalu bot restart dan meminta '
+                + 'QR baru. Jangan lakukan kalau nomornya sedang dibatasi WhatsApp.',
+        });
     });
 
     app.post('/reset', requireAuth, requireRelink, async (req, res) => {

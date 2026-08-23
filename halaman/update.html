@@ -161,7 +161,7 @@ sebaliknya. Semuanya dihitung ulang lagi dari klon segar dan disamakan.</p>
 sendiri</b>. Rumusnya memuat semua berkas HTML yang dilacak git — dan halaman ini salah satunya.
 Jadi menyunting <code>/lomba</code>, <code>/projek</code>, atau <code>/update</code> mengubah
 angkanya, dan menulis angka barunya bisa membatalkan angka itu juga. Sekarang urutannya: sunting
-dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.368</b> — naik dari 11.454
+dulu sampai selesai, hitung, baru ganti digitnya saja. Angkanya <b>12.411</b> — naik dari 11.454
 murni karena suntingan halaman hari ini, bukan karena kode botnya bertambah.</p>
 
 <p class="muted"><b>22 Agustus 2026, dini hari</b> — <code>/health</code> dapat tampilan untuk
@@ -228,6 +228,30 @@ gangguan jaringan pada sesi yang sehat sudah cukup untuk membuatnya diam setenga
 boot ia bisa menunda start 30 menit padahal sesinya siap pakai. Sekarang yang dipakai
 <code>creds.me.id</code> — identitas akun yang selalu ada begitu pairing selesai. Diuji terhadap
 berkas sesi yang asli di mesin ini, bukan terhadap dugaan.</p>
+
+<p class="muted"><b>Lalu saya mencabut sesi bot kedua — dengan sebuah pemeriksaan.</b> Sebelum
+menutup gerbang taut-ulang, saya memanggil endpoint yang dijaganya untuk melihat gerbangnya masih
+terbuka atau tidak. <code>/pairing-code</code> menjawab 400, seperti pemeriksaan biasa.
+<code>/reset</code> menjawab 200 — dan itu bukan jawaban, itu pelaksanaan. Sesi bot kedua
+tercabut, bot yang justru memegang nomor yang dipajang situs. Yang menyelamatkannya bukan
+kehati-hatian saya, tapi keputusan lama yang benar: fungsi penghapus sesi <b>memindahkan</b>
+sesinya ke folder cadangan, bukan menghapusnya. Prosesnya saya hentikan sebelum sempat menulis
+sesi kosong, foldernya dikembalikan, dan bot kedua tersambung lagi ke nomor yang sama tanpa QR —
+1.435 berkas utuh.</p>
+
+<p class="muted">Dua hal diperbaiki sesudahnya, dan yang kedua lebih penting. Gerbang taut-ulang
+bot kedua sekarang <b>bawaannya tertutup</b> — alasan membukanya habis begitu nomornya tertaut.
+Dan <code>GET /reset</code> tidak lagi mengerjakan apa pun: ia menjawab 405 dan menunjuk ke POST.
+<b>Aksi yang tidak bisa dibatalkan tidak boleh berada di belakang kata kerja yang artinya
+"ambilkan"</b> — GET dilakukan peramban yang prefetch, pemindai tautan, riwayat, dan orang yang
+menekan Enter dua kali di bilah alamat. Tidak ada yang kehilangan pemanggil: dashboard tidak
+pernah memakai jalur itu.</p>
+
+<p class="muted">Ini kedua kalinya dalam dua hari, dan polanya sama: <b>"memeriksa" dengan
+memanggil endpoint sungguhan bukan pemeriksaan — itu pemakaian.</b> Kemarin satu pesan uji
+mendarat di grup 956 orang karena saya memperkirakan ia akan ditolak. Hari ini satu GET yang
+dikira bertanya justru menjawab dengan mencabut sesi. Kalau yang ingin diketahui adalah apa yang
+<em>akan</em> terjadi, tempat memeriksanya kode — bukan produksi.</p>
 
 <p class="muted"><b>Dan sekarang dua nomornya benar-benar saling menopang.</b> Situs cuma tahu
 satu alamat bot, dan alamat itu menunjuk bot pertama — jadi selama sesi bot pertama mati, situs
