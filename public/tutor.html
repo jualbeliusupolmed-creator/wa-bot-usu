@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tutorial Menfess — USU Polmed Update</title>
-  <meta name="description" content="Panduan singkat memakai Menfess USU Polmed Update dan alur moderasi publikasi Instagram.">
+  <meta name="description" content="Panduan memasang auto-post Instagram untuk Menfess USU Polmed Update.">
   <meta name="robots" content="index,follow">
   <meta name="theme-color" content="#5426a8">
   <link rel="canonical" href="https://bot.jualbeliusupolmed.web.id/tutor">
@@ -43,30 +43,42 @@
   <main class="tutor">
     <section class="tutor-hero">
       <span class="tutor-tag">USU Polmed Update</span>
-      <h1>Tutorial Menfess</h1>
-      <p>Kirim cerita atau informasi kampus secara nyaman, lalu lihat tanggapan komunitas. Semua posting tetap melalui moderasi dan aturan komunitas.</p>
+      <h1>Pasang Auto-post Instagram</h1>
+      <p>Panduan admin untuk menghubungkan Menfess USU Polmed ke Instagram secara aman: konten tetap diseleksi manusia, lalu diterbitkan dengan satu tombol.</p>
       <div class="tutor-actions">
-        <a class="btn" href="https://www.jualbeliusupolmed.web.id/mading">Buka Menfess</a>
-        <a class="btn alt" href="https://www.jualbeliusupolmed.web.id">Buka Marketplace</a>
+        <a class="btn" href="#pasang">Mulai Setup</a>
+        <a class="btn alt" href="https://www.jualbeliusupolmed.web.id/admin/mading">Buka Admin Mading</a>
       </div>
     </section>
 
-    <h2>Untuk mahasiswa</h2>
+    <h2 id="pasang">Sebelum mulai</h2>
     <section class="steps">
-      <article class="step"><span class="step-no">1</span><h3>Buka Menfess</h3><p>Masuk ke halaman Sosial / Menfess di situs USU Polmed Update.</p></article>
-      <article class="step"><span class="step-no">2</span><h3>Tulis dengan bijak</h3><p>Pilih kampus, isi pesan, dan tambahkan foto bila memang relevan. Jangan memasukkan data pribadi orang lain.</p></article>
-      <article class="step"><span class="step-no">3</span><h3>Ikut percakapan</h3><p>Gunakan komentar, Balas, suka, atau bagikan dengan sopan. Laporkan konten yang melanggar.</p></article>
+      <article class="step"><span class="step-no">1</span><h3>Akun Professional</h3><p>Ubah akun Instagram khusus Menfess menjadi akun Professional dan hubungkan ke Facebook Page yang dikelola admin.</p></article>
+      <article class="step"><span class="step-no">2</span><h3>Akses Meta</h3><p>Buat akses publikasi lewat Meta untuk memperoleh ID akun Instagram dan access token dengan izin publikasi konten.</p></article>
+      <article class="step"><span class="step-no">3</span><h3>Domain publik</h3><p>Pastikan domain website aktif via HTTPS. Instagram harus dapat mengambil gambar Menfess yang dibuat sistem.</p></article>
     </section>
 
-    <h2>Untuk admin: setujui ke Instagram</h2>
+    <h2>Pasang konfigurasi di server</h2>
     <section class="admin-note">
-      <h3>Approve satu per satu, lalu terbitkan sekarang</h3>
+      <h3>Simpan rahasia hanya di environment server</h3>
       <ol>
-        <li>Buka panel <strong>Admin → Mading</strong>.</li>
-        <li>Pastikan Menfess sudah dibaca, layak tayang, dan statusnya <strong>Aktif</strong>.</li>
-        <li>Tekan <strong>Terbitkan IG</strong>, lalu konfirmasi. Sistem membuat gambar aman untuk feed dan mengirimkannya ke Instagram.</li>
+        <li>Di Vercel, isi <strong>META_IG_ACCESS_TOKEN</strong> dan <strong>META_IG_USER_ID</strong> untuk akun Menfess. Jangan masukkan nilainya ke kode, GitHub, atau halaman ini.</li>
+        <li>Pastikan <strong>NEXT_PUBLIC_SITE_URL</strong> mengarah ke domain produksi agar gambar posting dapat diakses Meta.</li>
+        <li>Jalankan migrasi Supabase yang membuat antrean publikasi Instagram, lalu deploy versi website terbaru.</li>
       </ol>
-      <p>Jika gagal, cek koneksi akun Instagram bisnis dan konfigurasi Meta di server. Jangan pernah menaruh token akses di halaman ini atau di chat.</p>
+      <p>Untuk keamanan, satu akun Instagram sebaiknya memakai token dan ID akun sendiri. Jangan memakai token yang sama untuk akun Menfess dan Katalog.</p>
+    </section>
+
+    <h2>Approve dan terbitkan</h2>
+    <section class="steps">
+      <article class="step"><span class="step-no">1</span><h3>Moderasi dahulu</h3><p>Baca post, cek foto, dan pastikan status Menfess adalah <strong>Aktif</strong>. Konten melanggar harus disembunyikan.</p></article>
+      <article class="step"><span class="step-no">2</span><h3>Tekan Terbitkan IG</h3><p>Di <strong>Admin → Mading</strong>, tekan tombol <strong>Terbitkan IG</strong>, lalu konfirmasi. Sistem menyiapkan gambar aman untuk feed.</p></article>
+      <article class="step"><span class="step-no">3</span><h3>Cek hasilnya</h3><p>Status berubah menjadi <strong>Terbit IG</strong>. Jika gagal, cek konfigurasi Meta dan ulangi setelah masalahnya diperbaiki.</p></article>
+    </section>
+
+    <section class="admin-note">
+      <h3>Untuk tiga akun Instagram</h3>
+      <p><strong>USU Polmed Update</strong> untuk konten umum yang dikurasi manual; <strong>akun Menfess</strong> untuk post Mading yang disetujui; dan <strong>Katalog USU Polmed</strong> untuk iklan jual aktif. Masing-masing perlu koneksi Meta dan riwayat publikasinya sendiri agar konten tidak tertukar.</p>
     </section>
   </main>
 </body>
