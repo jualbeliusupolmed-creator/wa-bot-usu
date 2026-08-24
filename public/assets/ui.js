@@ -128,11 +128,12 @@
     if (document.querySelector('.nav')) return;
     var jalur = location.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
     if (jalur === '/dashboard') jalur = '/';
-    var tamu = jalur === '/lomba';
+    var tamu = jalur === '/lomba' || jalur === '/tutor';
     var daftar = tamu ? HALAMAN_TAMU : HALAMAN;
+    var rumahTamu = jalur === '/tutor' ? '/tutor' : '/lomba';
     var el = document.createElement('nav');
     el.className = 'nav';
-    var h = '<div class="nav-in"><a class="nav-brand" href="' + (tamu ? '/lomba' : '/') + '"><span class="nav-mark">JB</span>' +
+    var h = '<div class="nav-in"><a class="nav-brand" href="' + (tamu ? rumahTamu : '/') + '"><span class="nav-mark">JB</span>' +
             '<span>' + (tamu ? 'Jual Beli USU&nbsp;Polmed' : 'Bot USU&nbsp;Polmed') + '</span></a><div class="nav-links">';
     for (var i = 0; i < daftar.length; i++) {
       var p = daftar[i];

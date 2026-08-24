@@ -169,6 +169,12 @@ module.exports = function pasangRuteHalaman(app, ctx) {
         res.sendFile(path.join(AKAR, 'public', 'lomba.html'));
     });
 
+    // Tutorial publik untuk pengguna Menfess dan alur moderasi yang aman.
+    // Tidak ada kredensial, data percakapan, atau endpoint internal di halaman ini.
+    app.get('/tutor', (req, res) => {
+        res.sendFile(path.join(AKAR, 'public', 'tutor.html'));
+    });
+
     // ── Panel bot versi demo (public) ────────────────────────────────────────────
     // Berkas yang SAMA dengan /dashboard — bukan salinan.
     //
