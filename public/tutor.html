@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tutorial Menfess — USU Polmed Update</title>
-  <meta name="description" content="Panduan memasang auto-post Instagram untuk Menfess USU Polmed Update.">
+  <title>Setup Auto-post Instagram — USU Polmed Update</title>
+  <meta name="description" content="Panduan admin menghubungkan akun Instagram Menfess USU Polmed ke Meta dan Vercel dengan aman.">
   <meta name="robots" content="index,follow">
   <meta name="theme-color" content="#5426a8">
   <link rel="canonical" href="https://bot.jualbeliusupolmed.web.id/tutor">
@@ -15,79 +15,415 @@
   <script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
   <script src="/assets/ui.js?v=20260825" defer></script>
   <style>
-    .tutor { max-width: 980px; margin: 0 auto; padding: 36px 20px 72px; }
-    .tutor-hero { padding: 34px; border-radius: 28px; color: #fff; background: linear-gradient(135deg,#34146f,#6d31ca); box-shadow: 0 20px 48px rgba(69,27,143,.22); }
-    .tutor-hero h1 { margin: 8px 0 12px; font-size: clamp(2rem,5vw,3.5rem); letter-spacing: -.045em; line-height: 1; }
-    .tutor-hero p { max-width: 650px; margin: 0; color: rgba(255,255,255,.82); font-size: 1.05rem; line-height: 1.65; }
-    .tutor-tag { display: inline-block; border-radius: 999px; padding: 6px 10px; background: rgba(255,255,255,.16); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-    .tutor-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
-    .tutor-actions a { text-decoration: none; }
-    .tutor-actions .btn { background: #fff; color: #421b8a; }
-    .tutor-actions .btn.alt { background: transparent; color: #fff; border-color: rgba(255,255,255,.42); }
-    .tutor h2 { margin: 42px 0 14px; font-size: 1.45rem; letter-spacing: -.025em; }
-    .guide-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
-    .guide-step { min-width: 0; padding: 21px; border: 1px solid var(--line,#dce1e8); border-radius: 20px; background: var(--card,#fff); }
-    .step-no { display:inline-grid; place-items:center; width:30px; height:30px; border-radius:50%; background:#eee6ff; color:#5224a5; font-weight:700; }
-    .guide-step h3 { margin: 14px 0 7px; color: var(--ink,#1d1d1f); font-size: 1.05rem; }
-    .guide-step p { max-width: none; margin: 0; line-height: 1.6; color: var(--muted,#596273); font-size: .94rem; }
-    .admin-note { border-left: 4px solid #7b3fe4; margin-top: 14px; padding: 20px 22px; border-radius: 0 18px 18px 0; background: #f6f2ff; }
-    .admin-note h3 { margin: 0 0 8px; color: #32136d; }
-    .admin-note p, .admin-note li { color: #4d5565; line-height: 1.6; }
-    .admin-note p { margin: 0; }
-    .admin-note ol { margin: 10px 0 0; padding-left: 20px; }
-    @media (prefers-color-scheme: dark) {
-      .guide-step { background:#1c1c22; border-color:#33333e; }
-      .guide-step h3, .guide-step strong { color:#f5f2ff; }
-      .guide-step p { color:#d1cadf; }
-      .admin-note { background:#21183a; }
-      .admin-note h3 { color:#d7c5ff; }
-      .admin-note p, .admin-note li { color:#d8d4e2; }
-      .admin-note strong { color:#fff; }
+    .ig-guide {
+      --ig-ink: #17141f;
+      --ig-muted: #656071;
+      --ig-card: #fff;
+      --ig-soft: #f7f5fa;
+      --ig-line: #e8e3ed;
+      --ig-purple: #5926a9;
+      --ig-green: #087f5b;
+      max-width: 1020px;
+      margin: 0 auto;
+      padding: 28px 20px 88px;
+      color: var(--ig-ink);
     }
-    @media (max-width: 700px) { .tutor { padding: 18px 14px 56px; } .tutor-hero { padding: 27px 22px; border-radius: 22px; } .guide-grid { grid-template-columns: 1fr; } }
+    .ig-guide *, .ig-guide *::before, .ig-guide *::after { box-sizing: border-box; }
+    .ig-guide a { color: inherit; }
+    .ig-guide-hero {
+      position: relative;
+      overflow: hidden;
+      margin: 0;
+      padding: clamp(28px, 6vw, 58px);
+      border: 0;
+      border-radius: 32px;
+      color: #fff;
+      background: linear-gradient(135deg, #27104f 0%, #5926a9 58%, #7a46d2 100%);
+      box-shadow: 0 24px 64px rgba(67, 27, 134, .22);
+    }
+    .ig-guide-hero::after {
+      content: "";
+      position: absolute;
+      right: -95px;
+      bottom: -125px;
+      width: 330px;
+      height: 330px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.09);
+    }
+    .ig-guide-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 11px;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 999px;
+      background: rgba(255,255,255,.12);
+      font-size: .73rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .ig-guide-hero h1 {
+      position: relative;
+      z-index: 1;
+      max-width: 720px;
+      margin: 16px 0 14px;
+      font-family: Outfit, sans-serif;
+      font-size: clamp(2.15rem, 6vw, 4.25rem);
+      line-height: .98;
+      letter-spacing: -.05em;
+    }
+    .ig-guide-hero p {
+      position: relative;
+      z-index: 1;
+      max-width: 690px;
+      margin: 0;
+      color: rgba(255,255,255,.83);
+      font-size: clamp(.98rem, 2vw, 1.1rem);
+      line-height: 1.68;
+    }
+    .ig-guide-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .ig-guide-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 17px;
+      border: 1px solid rgba(255,255,255,.36);
+      border-radius: 999px;
+      color: #fff;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .ig-guide-button.primary { border-color: #fff; background: #fff; color: #421784; }
+    .ig-guide-button:hover { transform: translateY(-1px); text-decoration: none; }
+    .ig-guide-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 12px;
+      margin: 18px 0 0;
+    }
+    .ig-guide-summary > div {
+      min-width: 0;
+      padding: 17px 18px;
+      border: 1px solid var(--ig-line);
+      border-radius: 18px;
+      background: var(--ig-card);
+    }
+    .ig-guide-summary small { display: block; margin-bottom: 4px; color: var(--ig-muted); font-size: .75rem; }
+    .ig-guide-summary strong { display: block; font-size: .94rem; line-height: 1.4; }
+    .ig-guide-section { scroll-margin-top: 24px; margin-top: 52px; }
+    .ig-guide-section-head { max-width: 720px; margin-bottom: 18px; }
+    .ig-guide-kicker { margin: 0 0 5px; color: var(--ig-purple); font-size: .76rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+    .ig-guide h2 { margin: 0; font-family: Outfit, sans-serif; font-size: clamp(1.55rem, 3vw, 2.05rem); letter-spacing: -.03em; }
+    .ig-guide-section-head > p:last-child { margin: 8px 0 0; color: var(--ig-muted); line-height: 1.65; }
+    .ig-guide-steps { display: grid; gap: 14px; }
+    .ig-guide-step {
+      display: grid;
+      grid-template-columns: 42px minmax(0,1fr);
+      gap: 14px;
+      padding: clamp(19px, 4vw, 27px);
+      border: 1px solid var(--ig-line);
+      border-radius: 23px;
+      background: var(--ig-card);
+    }
+    .ig-guide-step-no {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #eee5ff;
+      color: var(--ig-purple);
+      font-family: Outfit, sans-serif;
+      font-weight: 700;
+    }
+    .ig-guide-step h3 { margin: 3px 0 8px; font-family: Outfit, sans-serif; font-size: 1.16rem; letter-spacing: -.015em; }
+    .ig-guide-step p, .ig-guide-step li { color: var(--ig-muted); line-height: 1.66; }
+    .ig-guide-step p { margin: 0; }
+    .ig-guide-step ol, .ig-guide-step ul { margin: 9px 0 0; padding-left: 21px; }
+    .ig-guide-step li + li { margin-top: 5px; }
+    .ig-guide-step a { color: var(--ig-purple); font-weight: 600; }
+    .ig-guide-code {
+      overflow-x: auto;
+      margin: 13px 0 0;
+      padding: 15px 16px;
+      border: 1px solid #322844;
+      border-radius: 14px;
+      background: #18141f;
+      color: #f3edff;
+      font: 500 .84rem/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;
+      white-space: pre;
+    }
+    .ig-guide-callout {
+      margin-top: 16px;
+      padding: 20px 22px;
+      border: 1px solid #ded0fa;
+      border-radius: 19px;
+      background: #f6f1ff;
+    }
+    .ig-guide-callout strong { display: block; margin-bottom: 5px; color: #3c1478; }
+    .ig-guide-callout p { margin: 0; color: #5c5269; line-height: 1.65; }
+    .ig-guide-callout.safe { border-color: #bce9d8; background: #effbf6; }
+    .ig-guide-callout.safe strong { color: #076749; }
+    .ig-guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+    .ig-guide-card { min-width: 0; padding: 22px; border: 1px solid var(--ig-line); border-radius: 21px; background: var(--ig-card); }
+    .ig-guide-card h3 { margin: 0 0 8px; font-family: Outfit, sans-serif; font-size: 1.08rem; }
+    .ig-guide-card p { margin: 0; color: var(--ig-muted); line-height: 1.62; }
+    .ig-guide-status { display: inline-flex; margin-bottom: 12px; padding: 5px 9px; border-radius: 999px; background: #ecf9f4; color: var(--ig-green); font-size: .72rem; font-weight: 700; }
+    .ig-guide-table-wrap { overflow-x: auto; border: 1px solid var(--ig-line); border-radius: 20px; background: var(--ig-card); }
+    .ig-guide-table { width: 100%; border-collapse: collapse; min-width: 650px; }
+    .ig-guide-table th, .ig-guide-table td { padding: 16px 18px; border-bottom: 1px solid var(--ig-line); text-align: left; vertical-align: top; line-height: 1.55; }
+    .ig-guide-table tr:last-child td { border-bottom: 0; }
+    .ig-guide-table th { background: var(--ig-soft); color: var(--ig-muted); font-size: .77rem; letter-spacing: .04em; text-transform: uppercase; }
+    .ig-guide-table td:first-child { color: var(--ig-ink); font-weight: 600; }
+    .ig-guide-table td:last-child { color: var(--ig-muted); }
+    .ig-guide-footer { margin-top: 52px; padding: 24px; border: 0; border-radius: 23px; background: #18141f; color: #fff; }
+    .ig-guide-footer h2 { font-size: 1.35rem; }
+    .ig-guide-footer p { margin: 8px 0 18px; color: #cfc7da; line-height: 1.6; }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-theme="light"]) .ig-guide {
+        --ig-ink: #f5f2fa;
+        --ig-muted: #b8b1c2;
+        --ig-card: #1c1921;
+        --ig-soft: #24202a;
+        --ig-line: #35303c;
+        --ig-purple: #c3a4ff;
+      }
+      html:not([data-theme="light"]) .ig-guide-step-no { background: #39275c; color: #dbc9ff; }
+      html:not([data-theme="light"]) .ig-guide-callout { border-color: #4d396d; background: #251c33; }
+      html:not([data-theme="light"]) .ig-guide-callout strong { color: #dbc9ff; }
+      html:not([data-theme="light"]) .ig-guide-callout p { color: #c8c0d1; }
+      html:not([data-theme="light"]) .ig-guide-callout.safe { border-color: #245c49; background: #152820; }
+      html:not([data-theme="light"]) .ig-guide-callout.safe strong { color: #8ce0bd; }
+      html:not([data-theme="light"]) .ig-guide-status { background: #173528; color: #8ce0bd; }
+    }
+    html[data-theme="dark"] .ig-guide {
+      --ig-ink: #f5f2fa;
+      --ig-muted: #b8b1c2;
+      --ig-card: #1c1921;
+      --ig-soft: #24202a;
+      --ig-line: #35303c;
+      --ig-purple: #c3a4ff;
+    }
+    html[data-theme="dark"] .ig-guide-step-no { background: #39275c; color: #dbc9ff; }
+    html[data-theme="dark"] .ig-guide-callout { border-color: #4d396d; background: #251c33; }
+    html[data-theme="dark"] .ig-guide-callout strong { color: #dbc9ff; }
+    html[data-theme="dark"] .ig-guide-callout p { color: #c8c0d1; }
+    html[data-theme="dark"] .ig-guide-callout.safe { border-color: #245c49; background: #152820; }
+    html[data-theme="dark"] .ig-guide-callout.safe strong { color: #8ce0bd; }
+    html[data-theme="dark"] .ig-guide-status { background: #173528; color: #8ce0bd; }
+    @media (max-width: 720px) {
+      .ig-guide { padding: 16px 13px 64px; }
+      .ig-guide-hero { border-radius: 25px; }
+      .ig-guide-summary, .ig-guide-grid { grid-template-columns: 1fr; }
+      .ig-guide-section { margin-top: 42px; }
+      .ig-guide-step { grid-template-columns: 36px minmax(0,1fr); gap: 11px; border-radius: 19px; }
+      .ig-guide-step-no { width: 34px; height: 34px; }
+    }
   </style>
 </head>
 <body>
-  <main class="tutor">
-    <section class="tutor-hero">
-      <span class="tutor-tag">USU Polmed Update</span>
-      <h1>Pasang Auto-post Instagram</h1>
-      <p>Panduan admin untuk menghubungkan Menfess USU Polmed ke Instagram secara aman: konten tetap diseleksi manusia, lalu diterbitkan dengan satu tombol.</p>
-      <div class="tutor-actions">
-        <a class="btn" href="#pasang">Mulai Setup</a>
-        <a class="btn alt" href="https://www.jualbeliusupolmed.web.id/admin/mading">Buka Admin Mading</a>
+  <main class="ig-guide">
+    <header class="ig-guide-hero">
+      <span class="ig-guide-eyebrow">Panduan admin · Instagram</span>
+      <h1>Hubungkan Menfess ke Instagram</h1>
+      <p>Ikuti urutan ini satu kali untuk menghubungkan akun Instagram Professional, Meta Developer, dan server produksi. Nilai token tidak pernah ditulis di kode maupun halaman ini.</p>
+      <div class="ig-guide-actions">
+        <a class="ig-guide-button primary" href="#langkah">Mulai dari langkah 1</a>
+        <a class="ig-guide-button" href="https://www.jualbeliusupolmed.web.id/admin/mading">Buka Admin Mading</a>
+      </div>
+    </header>
+
+    <section class="ig-guide-summary" aria-label="Ringkasan setup">
+      <div><small>Yang disiapkan</small><strong>Instagram Professional + Facebook Page</strong></div>
+      <div><small>Yang disimpan di server</small><strong>Instagram User ID + access token</strong></div>
+      <div><small>Cara uji saat ini</small><strong>Tombol “Terbitkan IG” di Admin Mading</strong></div>
+    </section>
+
+    <section class="ig-guide-section" id="langkah">
+      <div class="ig-guide-section-head">
+        <p class="ig-guide-kicker">Setup utama</p>
+        <h2>Kerjakan sesuai urutan</h2>
+        <p>Gunakan akun Facebook yang memang menjadi admin aset USU Polmed. Jangan menggunakan akun pinjaman karena access token bergantung pada izin pengelolanya.</p>
+      </div>
+
+      <div class="ig-guide-steps">
+        <article class="ig-guide-step">
+          <span class="ig-guide-step-no">1</span>
+          <div>
+            <h3>Ubah akun Menfess menjadi Instagram Professional</h3>
+            <ol>
+              <li>Buka akun Instagram khusus Menfess.</li>
+              <li>Masuk ke <strong>Settings and privacy → Account type and tools</strong>.</li>
+              <li>Pilih <strong>Switch to professional account → Business</strong>.</li>
+              <li>Pastikan akun bersifat publik, bukan private.</li>
+            </ol>
+          </div>
+        </article>
+
+        <article class="ig-guide-step">
+          <span class="ig-guide-step-no">2</span>
+          <div>
+            <h3>Hubungkan ke Facebook Page</h3>
+            <ol>
+              <li>Buat Facebook Page khusus, misalnya <strong>USU Polmed Menfess</strong>.</li>
+              <li>Buka <a href="https://business.facebook.com/" target="_blank" rel="noopener noreferrer">Meta Business Suite</a>.</li>
+              <li>Masuk ke <strong>Settings → Business assets</strong>, lalu tambahkan Page dan akun Instagram tadi.</li>
+              <li>Hubungkan keduanya dan berikan admin akses untuk membuat konten.</li>
+            </ol>
+            <p>Backend saat ini menggunakan Instagram API melalui Facebook Login, sehingga hubungan Page dan Instagram Professional diperlukan.</p>
+          </div>
+        </article>
+
+        <article class="ig-guide-step">
+          <span class="ig-guide-step-no">3</span>
+          <div>
+            <h3>Buat aplikasi di Meta for Developers</h3>
+            <ol>
+              <li>Buka <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer">Meta for Developers → My Apps</a>.</li>
+              <li>Pilih <strong>Create App</strong> dengan tipe <strong>Business</strong>.</li>
+              <li>Gunakan nama seperti <strong>USU Polmed Auto Publisher</strong>.</li>
+              <li>Hubungkan aplikasi ke Business Portfolio yang memiliki Page dan Instagram Menfess.</li>
+              <li>Tambahkan produk <strong>Instagram API with Facebook Login</strong>.</li>
+            </ol>
+          </div>
+        </article>
+
+        <article class="ig-guide-step">
+          <span class="ig-guide-step-no">4</span>
+          <div>
+            <h3>Aktifkan izin publikasi</h3>
+            <p>Token yang digunakan untuk tes harus memiliki izin berikut:</p>
+            <div class="ig-guide-code">instagram_basic
+instagram_content_publish
+pages_show_list
+pages_read_engagement</div>
+            <p>Untuk akun Instagram yang dimiliki dan dikelola sendiri, gunakan akses aplikasi bagi aset sendiri. Advanced Access diperlukan ketika aplikasi melayani aset milik pihak lain.</p>
+          </div>
+        </article>
+
+        <article class="ig-guide-step">
+          <span class="ig-guide-step-no">5</span>
+          <div>
+            <h3>Ambil Instagram User ID dan token</h3>
+            <ol>
+              <li>Buka <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer">Graph API Explorer</a>.</li>
+              <li>Pilih aplikasi yang baru dibuat dan generate User Access Token dengan empat izin di atas.</li>
+              <li>Jalankan permintaan berikut:</li>
+            </ol>
+            <div class="ig-guide-code">GET /me/accounts?fields=id,name,access_token,instagram_business_account</div>
+            <ul>
+              <li>Simpan nilai <strong>instagram_business_account.id</strong> sebagai <strong>META_IG_USER_ID</strong>.</li>
+              <li>Simpan nilai <strong>access_token</strong> sebagai <strong>META_IG_ACCESS_TOKEN</strong>.</li>
+              <li>Jangan memakai username Instagram atau Facebook Page ID sebagai Instagram User ID.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="ig-guide-step">
+          <span class="ig-guide-step-no">6</span>
+          <div>
+            <h3>Simpan konfigurasi di Vercel</h3>
+            <ol>
+              <li>Buka project <strong>jualbeliusupolmed</strong> di Vercel.</li>
+              <li>Masuk ke <strong>Settings → Environment Variables</strong>.</li>
+              <li>Tambahkan variabel untuk environment <strong>Production</strong>:</li>
+            </ol>
+            <div class="ig-guide-code">META_IG_USER_ID
+META_IG_ACCESS_TOKEN
+NEXT_PUBLIC_SITE_URL=https://www.jualbeliusupolmed.web.id
+CRON_SECRET</div>
+            <p>Setelah menyimpan environment variable, lakukan <strong>Redeploy</strong>. Nilai baru tidak diterapkan ke deployment lama.</p>
+          </div>
+        </article>
+      </div>
+
+      <aside class="ig-guide-callout safe">
+        <strong>Aturan keamanan</strong>
+        <p>Jangan kirim token lewat chat, screenshot, GitHub, atau kode sumber. Jangan beri nama token dengan awalan <strong>NEXT_PUBLIC_</strong> karena token hanya boleh dibaca server. Untuk produksi jangka panjang, ganti token tes dengan long-lived token atau System User token.</p>
+      </aside>
+    </section>
+
+    <section class="ig-guide-section">
+      <div class="ig-guide-section-head">
+        <p class="ig-guide-kicker">Pengujian</p>
+        <h2>Pastikan posting benar-benar terbit</h2>
+        <p>Gunakan satu Menfess pengujian yang tidak mengandung data pribadi atau konten sensitif.</p>
+      </div>
+      <div class="ig-guide-grid">
+        <article class="ig-guide-card">
+          <span class="ig-guide-status">1 · Website</span>
+          <h3>Buat Menfess pengujian</h3>
+          <p>Kirim satu Menfess dari website dan pastikan posting muncul normal di Mading beserta gambar Instagram 1080 × 1350.</p>
+        </article>
+        <article class="ig-guide-card">
+          <span class="ig-guide-status">2 · Admin</span>
+          <h3>Tekan “Terbitkan IG”</h3>
+          <p>Buka Admin Mading, cari posting pengujian, lalu tekan tombol sekali. Tunggu status berubah dari antre menjadi diproses dan akhirnya terbit.</p>
+        </article>
+        <article class="ig-guide-card">
+          <span class="ig-guide-status">3 · Instagram</span>
+          <h3>Periksa hasilnya</h3>
+          <p>Pastikan gambar, caption, identitas anonim, dan akun tujuan benar. Jangan menekan tombol berulang selama status masih diproses.</p>
+        </article>
+        <article class="ig-guide-card">
+          <span class="ig-guide-status">4 · Operasional</span>
+          <h3>Perhatikan status gagal</h3>
+          <p>Jika gagal, perbaiki token, izin, atau hubungan aset terlebih dahulu. Setelah penyebab selesai, baru lakukan percobaan ulang.</p>
+        </article>
+      </div>
+      <aside class="ig-guide-callout">
+        <strong>Status sistem saat ini</strong>
+        <p>Gambar dan jalur publikasi Instagram sudah tersedia. Pemicu produksi saat ini masih tombol <strong>Terbitkan IG</strong> pada Admin Mading. Auto-post langsung saat pengguna mengirim Menfess adalah tahap aktivasi terpisah dan tidak boleh dianggap aktif sebelum diuji di akun tujuan.</p>
+      </aside>
+    </section>
+
+    <section class="ig-guide-section">
+      <div class="ig-guide-section-head">
+        <p class="ig-guide-kicker">Jika gagal</p>
+        <h2>Diagnosis cepat</h2>
+      </div>
+      <div class="ig-guide-table-wrap">
+        <table class="ig-guide-table">
+          <thead><tr><th>Pesan atau gejala</th><th>Penyebab yang paling mungkin</th><th>Yang diperiksa</th></tr></thead>
+          <tbody>
+            <tr><td>Application does not have permission</td><td>Izin token atau akses aplikasi belum lengkap.</td><td>Periksa empat permission, role pengguna aplikasi, serta akses membuat konten pada Page dan Instagram.</td></tr>
+            <tr><td>Invalid Instagram User ID</td><td>Yang dipakai adalah username atau Facebook Page ID.</td><td>Ambil kembali nilai <strong>instagram_business_account.id</strong> dari Graph API Explorer.</td></tr>
+            <tr><td>OAuth token expired</td><td>Token pengujian sudah kedaluwarsa atau akses akun dicabut.</td><td>Buat token baru, lalu perbarui Vercel dan redeploy.</td></tr>
+            <tr><td>Meta tidak dapat mengambil gambar</td><td>URL gambar tidak publik, bukan HTTPS, atau deployment memakai domain yang salah.</td><td>Periksa <strong>NEXT_PUBLIC_SITE_URL</strong> dan buka URL gambar melalui jendela incognito.</td></tr>
+            <tr><td>Status terus diproses</td><td>Meta belum menyelesaikan media container atau terjadi kegagalan sementara.</td><td>Tunggu sebentar, periksa status admin dan log teredaksi; jangan membuat posting duplikat.</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
-    <h2 id="pasang">Sebelum mulai</h2>
-    <section class="guide-grid">
-      <article class="guide-step"><span class="step-no">1</span><h3>Akun Professional</h3><p>Ubah akun Instagram khusus Menfess menjadi akun Professional dan hubungkan ke Facebook Page yang dikelola admin.</p></article>
-      <article class="guide-step"><span class="step-no">2</span><h3>Akses Meta</h3><p>Buat akses publikasi lewat Meta untuk memperoleh ID akun Instagram dan access token dengan izin publikasi konten.</p></article>
-      <article class="guide-step"><span class="step-no">3</span><h3>Domain publik</h3><p>Pastikan domain website aktif via HTTPS. Instagram harus dapat mengambil gambar Menfess yang dibuat sistem.</p></article>
+    <section class="ig-guide-section">
+      <div class="ig-guide-section-head">
+        <p class="ig-guide-kicker">Dua akun tujuan</p>
+        <h2>Pisahkan Menfess dan Katalog</h2>
+        <p>Jangan menukar ID maupun token kedua akun karena konten dapat terbit ke akun yang salah.</p>
+      </div>
+      <div class="ig-guide-grid">
+        <article class="ig-guide-card">
+          <span class="ig-guide-status">Menfess</span>
+          <h3>Akun khusus cerita anonim</h3>
+          <p>Menggunakan <strong>META_IG_USER_ID</strong> dan <strong>META_IG_ACCESS_TOKEN</strong>. Jalur gambar dan publikasinya sudah tersedia pada Admin Mading.</p>
+        </article>
+        <article class="ig-guide-card">
+          <span class="ig-guide-status">Katalog · berikutnya</span>
+          <h3>Akun khusus barang dan jasa</h3>
+          <p>Siapkan akun Professional, Page, ID, dan token yang berbeda. Jangan mengisi token Katalog ke variabel Menfess sebelum jalur publikasi Katalog selesai dipasang dan diuji.</p>
+        </article>
+      </div>
     </section>
 
-    <h2>Pasang konfigurasi di server</h2>
-    <section class="admin-note">
-      <h3>Simpan rahasia hanya di environment server</h3>
-      <ol>
-        <li>Di Vercel, isi <strong>META_IG_ACCESS_TOKEN</strong> dan <strong>META_IG_USER_ID</strong> untuk akun Menfess. Jangan masukkan nilainya ke kode, GitHub, atau halaman ini.</li>
-        <li>Pastikan <strong>NEXT_PUBLIC_SITE_URL</strong> mengarah ke domain produksi agar gambar posting dapat diakses Meta.</li>
-        <li>Jalankan migrasi Supabase yang membuat antrean publikasi Instagram, lalu deploy versi website terbaru.</li>
-      </ol>
-      <p>Untuk keamanan, satu akun Instagram sebaiknya memakai token dan ID akun sendiri. Jangan memakai token yang sama untuk akun Menfess dan Katalog.</p>
-    </section>
-
-    <h2>Alur auto-post</h2>
-    <section class="guide-grid">
-      <article class="guide-step"><span class="step-no">1</span><h3>Menfess masuk</h3><p>Menfess yang melewati validasi sistem langsung masuk antrean akun Instagram Menfess.</p></article>
-      <article class="guide-step"><span class="step-no">2</span><h3>Iklan menjadi aktif</h3><p>Listing jual yang aktif langsung masuk antrean akun <strong>Katalog USU Polmed</strong>.</p></article>
-      <article class="guide-step"><span class="step-no">3</span><h3>Sistem menerbitkan</h3><p>Sistem membuat gambar, mengirimnya ke akun tujuan, dan mencatat status terbit atau gagal pada panel admin.</p></article>
-    </section>
-
-    <section class="admin-note">
-      <h3>Untuk tiga akun Instagram</h3>
-      <p><strong>USU Polmed Update</strong> untuk konten umum yang dikurasi manual; <strong>akun Menfess</strong> untuk post Mading yang disetujui; dan <strong>Katalog USU Polmed</strong> untuk iklan jual aktif. Masing-masing perlu koneksi Meta dan riwayat publikasinya sendiri agar konten tidak tertukar.</p>
-    </section>
+    <footer class="ig-guide-footer">
+      <h2>Sudah selesai sampai Vercel?</h2>
+      <p>Lakukan satu posting pengujian dari Admin Mading. Jika status gagal, catat hanya pesan errornya—jangan pernah menyalin token ke laporan.</p>
+      <a class="ig-guide-button primary" href="https://www.jualbeliusupolmed.web.id/admin/mading">Uji dari Admin Mading</a>
+    </footer>
   </main>
 </body>
 </html>
