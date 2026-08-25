@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Setup Auto-post Instagram — USU Polmed Update</title>
-  <meta name="description" content="Panduan admin menghubungkan akun Instagram Menfess USU Polmed ke Meta dan Vercel dengan aman.">
+  <title>Setup Instagram Menfess &amp; Katalog — USU Polmed</title>
+  <meta name="description" content="Panduan admin menghubungkan Instagram Menfess dan Katalog USU Polmed ke Meta dan Vercel dengan aman.">
   <meta name="robots" content="index,follow">
   <meta name="theme-color" content="#5426a8">
   <link rel="canonical" href="https://bot.jualbeliusupolmed.web.id/tutor">
@@ -228,18 +228,18 @@
   <main class="ig-guide">
     <header class="ig-guide-hero">
       <span class="ig-guide-eyebrow">Panduan admin · Instagram</span>
-      <h1>Hubungkan Menfess ke Instagram</h1>
-      <p>Ikuti urutan ini satu kali untuk menghubungkan akun Instagram Professional, Meta Developer, dan server produksi. Nilai token tidak pernah ditulis di kode maupun halaman ini.</p>
+      <h1>Hubungkan Menfess &amp; Katalog ke Instagram</h1>
+      <p>Satu aplikasi Meta mengelola dua akun tujuan: Menfess otomatis ke <strong>@usupolmedmenfess</strong> dan iklan aktif ke <strong>@katalogusupolmed</strong>. Akun umum <strong>@usupolmedupdate</strong> tidak disentuh sistem otomatis.</p>
       <div class="ig-guide-actions">
         <a class="ig-guide-button primary" href="#langkah">Mulai dari langkah 1</a>
-        <a class="ig-guide-button" href="https://www.jualbeliusupolmed.web.id/admin/mading">Buka Admin Mading</a>
+        <a class="ig-guide-button" href="https://www.jualbeliusupolmed.web.id/admin/mading">Buka Admin Instagram</a>
       </div>
     </header>
 
     <section class="ig-guide-summary" aria-label="Ringkasan setup">
-      <div><small>Yang disiapkan</small><strong>Instagram Professional + Facebook Page</strong></div>
-      <div><small>Yang disimpan di server</small><strong>Instagram User ID + access token</strong></div>
-      <div><small>Cara uji saat ini</small><strong>Tombol “Terbitkan IG” di Admin Mading</strong></div>
+      <div><small>Yang disiapkan</small><strong>2 Instagram Professional + 2 Facebook Page</strong></div>
+      <div><small>Yang disimpan di server</small><strong>2 pasangan Instagram User ID + token</strong></div>
+      <div><small>Alur produksi</small><strong>Auto-post + antrean retry + kontrol admin</strong></div>
     </section>
 
     <section class="ig-guide-section" id="langkah">
@@ -253,9 +253,9 @@
         <article class="ig-guide-step">
           <span class="ig-guide-step-no">1</span>
           <div>
-            <h3>Ubah akun Menfess menjadi Instagram Professional</h3>
+            <h3>Ubah kedua akun menjadi Instagram Professional</h3>
             <ol>
-              <li>Buka akun Instagram khusus Menfess.</li>
+              <li>Kerjakan langkah ini pada <strong>@usupolmedmenfess</strong>, lalu ulangi pada <strong>@katalogusupolmed</strong>.</li>
               <li>Masuk ke <strong>Settings and privacy → Account type and tools</strong>.</li>
               <li>Pilih <strong>Switch to professional account → Business</strong>.</li>
               <li>Pastikan akun bersifat publik, bukan private.</li>
@@ -268,10 +268,10 @@
           <div>
             <h3>Hubungkan ke Facebook Page</h3>
             <ol>
-              <li>Buat Facebook Page khusus, misalnya <strong>USU Polmed Menfess</strong>.</li>
+              <li>Buat dua Page terpisah, misalnya <strong>USU Polmed Menfess</strong> dan <strong>Katalog USU Polmed</strong>.</li>
               <li>Buka <a href="https://business.facebook.com/" target="_blank" rel="noopener noreferrer">Meta Business Suite</a>.</li>
-              <li>Masuk ke <strong>Settings → Business assets</strong>, lalu tambahkan Page dan akun Instagram tadi.</li>
-              <li>Hubungkan keduanya dan berikan admin akses untuk membuat konten.</li>
+              <li>Masuk ke <strong>Settings → Business assets</strong>, lalu tambahkan kedua Page dan kedua akun Instagram.</li>
+              <li>Pasangkan satu akun Instagram ke Page yang sesuai dan berikan admin akses membuat konten.</li>
             </ol>
             <p>Backend saat ini menggunakan Instagram API melalui Facebook Login, sehingga hubungan Page dan Instagram Professional diperlukan.</p>
           </div>
@@ -285,7 +285,7 @@
               <li>Buka <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer">Meta for Developers → My Apps</a>.</li>
               <li>Pilih <strong>Create App</strong> dengan tipe <strong>Business</strong>.</li>
               <li>Gunakan nama seperti <strong>USU Polmed Auto Publisher</strong>.</li>
-              <li>Hubungkan aplikasi ke Business Portfolio yang memiliki Page dan Instagram Menfess.</li>
+              <li>Hubungkan aplikasi ke Business Portfolio yang memiliki seluruh aset Menfess dan Katalog.</li>
               <li>Tambahkan produk <strong>Instagram API with Facebook Login</strong>.</li>
             </ol>
           </div>
@@ -315,8 +315,8 @@ pages_read_engagement</div>
             </ol>
             <div class="ig-guide-code">GET /me/accounts?fields=id,name,access_token,instagram_business_account</div>
             <ul>
-              <li>Simpan nilai <strong>instagram_business_account.id</strong> sebagai <strong>META_IG_USER_ID</strong>.</li>
-              <li>Simpan nilai <strong>access_token</strong> sebagai <strong>META_IG_ACCESS_TOKEN</strong>.</li>
+              <li>Cocokkan nama Page. Untuk Page Menfess, simpan ID sebagai <strong>META_MENFESS_IG_USER_ID</strong> dan token Page-nya sebagai <strong>META_MENFESS_IG_ACCESS_TOKEN</strong>.</li>
+              <li>Untuk Page Katalog, simpan ID sebagai <strong>META_KATALOG_IG_USER_ID</strong> dan token Page-nya sebagai <strong>META_KATALOG_IG_ACCESS_TOKEN</strong>.</li>
               <li>Jangan memakai username Instagram atau Facebook Page ID sebagai Instagram User ID.</li>
             </ul>
           </div>
@@ -331,8 +331,11 @@ pages_read_engagement</div>
               <li>Masuk ke <strong>Settings → Environment Variables</strong>.</li>
               <li>Tambahkan variabel untuk environment <strong>Production</strong>:</li>
             </ol>
-            <div class="ig-guide-code">META_IG_USER_ID
-META_IG_ACCESS_TOKEN
+            <div class="ig-guide-code">META_GRAPH_API_VERSION=v24.0
+META_MENFESS_IG_USER_ID
+META_MENFESS_IG_ACCESS_TOKEN
+META_KATALOG_IG_USER_ID
+META_KATALOG_IG_ACCESS_TOKEN
 NEXT_PUBLIC_SITE_URL=https://www.jualbeliusupolmed.web.id
 CRON_SECRET</div>
             <p>Setelah menyimpan environment variable, lakukan <strong>Redeploy</strong>. Nilai baru tidak diterapkan ke deployment lama.</p>
@@ -350,33 +353,33 @@ CRON_SECRET</div>
       <div class="ig-guide-section-head">
         <p class="ig-guide-kicker">Pengujian</p>
         <h2>Pastikan posting benar-benar terbit</h2>
-        <p>Gunakan satu Menfess pengujian yang tidak mengandung data pribadi atau konten sensitif.</p>
+        <p>Gunakan satu Menfess aman dan satu iklan uji. Jangan memakai data pribadi atau produk sungguhan sebelum akun tujuan diverifikasi.</p>
       </div>
       <div class="ig-guide-grid">
         <article class="ig-guide-card">
           <span class="ig-guide-status">1 · Website</span>
-          <h3>Buat Menfess pengujian</h3>
-          <p>Kirim satu Menfess dari website dan pastikan posting muncul normal di Mading beserta gambar Instagram 1080 × 1350.</p>
+          <h3>Buat dua konten uji</h3>
+          <p>Kirim satu Menfess, lalu aktifkan satu iklan uji. Keduanya otomatis membuat JPEG Instagram 1080 × 1350 dan masuk antrean akun masing-masing.</p>
         </article>
         <article class="ig-guide-card">
           <span class="ig-guide-status">2 · Admin</span>
-          <h3>Tekan “Terbitkan IG”</h3>
-          <p>Buka Admin Mading, cari posting pengujian, lalu tekan tombol sekali. Tunggu status berubah dari antre menjadi diproses dan akhirnya terbit.</p>
+          <h3>Periksa status admin</h3>
+          <p>Buka Admin Mading untuk Menfess dan detail Admin Listing untuk katalog. Normalnya status berubah Antrean → Diproses → Terbit tanpa persetujuan manual.</p>
         </article>
         <article class="ig-guide-card">
           <span class="ig-guide-status">3 · Instagram</span>
           <h3>Periksa hasilnya</h3>
-          <p>Pastikan gambar, caption, identitas anonim, dan akun tujuan benar. Jangan menekan tombol berulang selama status masih diproses.</p>
+          <p>Pastikan Menfess hanya muncul di @usupolmedmenfess dan iklan hanya di @katalogusupolmed. Pastikan @usupolmedupdate tidak menerima keduanya.</p>
         </article>
         <article class="ig-guide-card">
           <span class="ig-guide-status">4 · Operasional</span>
           <h3>Perhatikan status gagal</h3>
-          <p>Jika gagal, perbaiki token, izin, atau hubungan aset terlebih dahulu. Setelah penyebab selesai, baru lakukan percobaan ulang.</p>
+          <p>Jika gagal, perbaiki token, izin, atau hubungan aset. Gunakan tombol Proses/Coba Lagi pada admin; container lama dipakai ulang agar tidak menggandakan post.</p>
         </article>
       </div>
       <aside class="ig-guide-callout">
         <strong>Status sistem saat ini</strong>
-        <p>Gambar dan jalur publikasi Instagram sudah tersedia. Pemicu produksi saat ini masih tombol <strong>Terbitkan IG</strong> pada Admin Mading. Auto-post langsung saat pengguna mengirim Menfess adalah tahap aktivasi terpisah dan tidak boleh dianggap aktif sebelum diuji di akun tujuan.</p>
+        <p>Setelah migration dan environment produksi aktif, Menfess baru serta iklan yang berubah menjadi aktif langsung mencoba auto-post. Kegagalan Meta tidak membatalkan posting di website: antrean mencoba ulang maksimal tiga kali dan cron menjadi cadangan. Tombol admin berfungsi sebagai kontrol retry.</p>
       </aside>
     </section>
 
@@ -409,20 +412,20 @@ CRON_SECRET</div>
         <article class="ig-guide-card">
           <span class="ig-guide-status">Menfess</span>
           <h3>Akun khusus cerita anonim</h3>
-          <p>Menggunakan <strong>META_IG_USER_ID</strong> dan <strong>META_IG_ACCESS_TOKEN</strong>. Jalur gambar dan publikasinya sudah tersedia pada Admin Mading.</p>
+          <p>Menggunakan <strong>META_MENFESS_IG_USER_ID</strong> dan <strong>META_MENFESS_IG_ACCESS_TOKEN</strong>. Teks dan lampiran foto dirender menjadi kartu 4:5 tanpa identitas internal pengirim.</p>
         </article>
         <article class="ig-guide-card">
-          <span class="ig-guide-status">Katalog · berikutnya</span>
+          <span class="ig-guide-status">Katalog · aktif</span>
           <h3>Akun khusus barang dan jasa</h3>
-          <p>Siapkan akun Professional, Page, ID, dan token yang berbeda. Jangan mengisi token Katalog ke variabel Menfess sebelum jalur publikasi Katalog selesai dipasang dan diuji.</p>
+          <p>Menggunakan <strong>META_KATALOG_IG_USER_ID</strong> dan <strong>META_KATALOG_IG_ACCESS_TOKEN</strong>. Foto, judul, harga, lokasi, dan link detail dibuat otomatis tanpa menampilkan nomor WA.</p>
         </article>
       </div>
     </section>
 
     <footer class="ig-guide-footer">
       <h2>Sudah selesai sampai Vercel?</h2>
-      <p>Lakukan satu posting pengujian dari Admin Mading. Jika status gagal, catat hanya pesan errornya—jangan pernah menyalin token ke laporan.</p>
-      <a class="ig-guide-button primary" href="https://www.jualbeliusupolmed.web.id/admin/mading">Uji dari Admin Mading</a>
+      <p>Lakukan satu pengujian Menfess dan Katalog. Jika status gagal, catat hanya pesan errornya—jangan pernah menyalin token ke laporan atau screenshot.</p>
+      <a class="ig-guide-button primary" href="https://www.jualbeliusupolmed.web.id/admin/mading">Uji Menfess dari Admin</a>
     </footer>
   </main>
 </body>
