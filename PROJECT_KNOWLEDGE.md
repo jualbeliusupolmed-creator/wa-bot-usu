@@ -1766,6 +1766,42 @@ Dua hal yang perlu diingat kalau menambah gambar lagi:
 
 Berkas asli tidak disimpan di repo; ia ada di scratchpad sesi ini saja.
 
+### Rute yang ditinggalkan setengah jalan — 28 Agustus 2026
+
+Pemindahan `/demo` (25 Agu) menyisakan empat kerusakan yang semuanya baru
+kelihatan dengan **mengetuk alamatnya lewat HTTP**, bukan dengan membaca diff.
+
+| Alamat | Sebelum | Sesudah |
+|---|---|---|
+| `/infrastruktur` | 404 walau tombolnya sudah ada di `/home` dan `/dashboard` | 302 ke `/masuk` |
+| `/future` | 404 walau sudah disebut di `/lomba` | 302 ke `/masuk` |
+| `/bot-demo` | mode demo mati → panggil endpoint sungguhan → 401 | data karangan, tanpa jaringan |
+| komentar rute `/jalankan` | kepalanya terpotong, sisa kalimat menggantung | dikembalikan |
+
+**Yang paling mudah terulang** adalah yang ketiga. `dashboard.html` mengenali
+dirinya sedang jadi demo dari `location.pathname`:
+
+```js
+const DEMO = location.pathname.replace(/\/+$/, '') === '/bot-demo';
+```
+
+Rutenya pindah di `web.routes.js`, baris ini tidak. Halaman yang menentukan
+perilakunya dari alamatnya sendiri **ikut pindah atau ikut rusak** — dan
+gagalnya sunyi: build tetap sukses, sintaks tetap benar, halamannya tetap 200.
+
+**`/infrastruktur` sengaja tidak `sendFile` polos.** Berkasnya di-`.gitignore`
+(isinya kredensial teks polos), jadi VPS yang baru di-deploy tidak punya
+salinannya — persis seperti `catatan/temuan-keamanan.md`. Rutenya memeriksa
+`fs.existsSync` dan menjawab satu kalimat. Dua penjaganya harus tetap berdiri:
+berkasnya di `halaman/` (bukan `public/`, yang dilayani `express.static` tanpa
+gerbang), dan `requireAuthPage` di rutenya.
+
+**Nomor pelanggan di komentar `index.js`.** Satu nomor WhatsApp sungguhan
+tersimpan sebagai bukti kasus pesan hilang 21 Agustus. Sekarang disamarkan.
+Yang tidak bisa diperbaiki: **riwayat git lama masih memuatnya**, dan menulis
+ulang riwayat tidak bisa dikerjakan dari sini. Aturannya sederhana — bukti
+insiden ditulis tanpa nomornya.
+
 ### Sebelum audit ini
 Riwayat perubahan lengkap kedua repo ada di **`/update`**, dirakit langsung dari
 git — bukan ditulis tangan, jadi tidak bisa ketinggalan.

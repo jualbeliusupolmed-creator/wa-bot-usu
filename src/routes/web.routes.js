@@ -136,6 +136,12 @@ module.exports = function pasangRuteHalaman(app, ctx) {
         res.sendFile(path.join(AKAR, 'halaman', 'update.html'));
     });
 
+    // Peta kerja produk. Bergerbang karena isinya rencana yang belum diputuskan
+    // pemilik — dan halamannya sendiri sudah noindex,nofollow.
+    app.get('/future', requireAuthPage, (req, res) => {
+        res.sendFile(path.join(AKAR, 'halaman', 'future.html'));
+    });
+
     // ── Halaman audit (butuh sandi) ──────────────────────────────────────────────
     // Dua halaman, dua sudut pandang atas audit yang sama. Dua-duanya BERGERBANG,
     // dan itu bukan kehati-hatian berlebihan: isinya menyebut endpoint yang belum
@@ -165,6 +171,22 @@ module.exports = function pasangRuteHalaman(app, ctx) {
         res.type('text/plain; charset=utf-8').send(fs.readFileSync(berkas, 'utf8'));
     });
 
+    // ── Peta infrastruktur & kredensial (butuh sandi) ─────────────────────────
+    // Halaman ini memuat kredensial dalam teks polos: token Vercel, service-role
+    // Supabase, kunci pembayaran, kunci privat VAPID. Dua hal yang menjaganya, dan
+    // keduanya harus tetap begitu: berkasnya di halaman/ (bukan public/, yang
+    // dilayani express.static tanpa gerbang), dan ia di-.gitignore — repo ini publik
+    // dan push-ke-github.sh memakai --force.
+    app.get('/infrastruktur', requireAuthPage, (req, res) => {
+        const berkas = path.join(AKAR, 'halaman', 'infrastruktur.html');
+        // VPS yang baru di-deploy tidak punya salinannya — sama seperti catatan/.
+        if (!fs.existsSync(berkas)) {
+            return res.status(404).type('text/plain; charset=utf-8')
+                .send('Halaman infrastruktur tidak ada di server ini (sengaja tidak ikut git).');
+        }
+        res.sendFile(berkas);
+    });
+
     app.get('/lomba', (req, res) => {
         res.sendFile(path.join(AKAR, 'public', 'lomba.html'));
     });
@@ -175,24 +197,17 @@ module.exports = function pasangRuteHalaman(app, ctx) {
         res.sendFile(path.join(AKAR, 'public', 'tutor.html'));
     });
 
-    // ── Panel bot versi demo (public) ────────────────────────────────────────────
-    // Berkas yang SAMA dengan /dashboard — bukan salinan.
-    //
-    // Panel ini bagian yang paling banyak menjelaskan cara kerja bot, dan ia justru
-    // yang paling tidak bisa diperlihatkan: bergerbang sandi, dan isinya nomor serta
-    // isi percakapan orang sungguhan. Jadi yang dibuka kembarannya: halaman yang
-    // sama, data karangan.
-    //
-    // Yang membuatnya aman ada di halamannya, bukan di sini. Saat dibuka lewat
-    // /demo, api() dan post() di dashboard.html tidak pernah memanggil jaringan —
-    // jawabannya dirakit di dalam halaman. Jadi tidak ada satu pun endpoint bot yang
-    // bisa disentuh dari sana, bahkan dari konsol peramban. Gerbang requireAuth di
-    // endpoint-endpoint itu pun tetap berdiri seperti biasa, sebagai lapis kedua.
+    // ── Pusat Tutorial & Demo Sistem (Public) ──────────────────────────────────
     app.get('/demo', (req, res) => {
+        res.sendFile(path.join(AKAR, 'public', 'demo.html'));
+    });
+
+    // ── Panel bot versi demo (standalone mock dashboard) ─────────────────────────
+    app.get('/bot-demo', (req, res) => {
         res.sendFile(path.join(AKAR, 'halaman', 'dashboard.html'));
     });
 
-    // ── Migrasi database, siap salin (butuh token) ───────────────────────────────
+    // ── Migrasi database, siap salin (butuh token) ─────────────────────────────
     // Berkas migrasi gabungan itu 1.469 baris; menyalinnya dari terminal atau dari
     // tampilan berkas di GitHub selalu meleset sebagian. Halaman ini menyajikannya
     // dengan satu tombol salin, dan mengambil isinya lewat fetch() saat dibuka

@@ -30,6 +30,7 @@
                 <div id="connection-status" class="status-badge status-offline glass">
                     <div class="status-dot"></div> <span id="status-text">Memuat...</span>
                 </div>
+                <a href="/infrastruktur" class="ghost small" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><i class="fa-solid fa-server"></i> Infrastruktur</a>
                 <button class="ghost small" onclick="bukaLaporan()"><i class="fa-solid fa-clipboard-list"></i> Laporan</button>
                 <button class="ghost small" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Keluar</button>
             </div>
@@ -328,9 +329,14 @@
         /* ── mode demo ───────────────────────────────────────────────────
          * Berkas ini dilayani di DUA alamat:
          *
-         *   /dashboard  — panel sungguhan, bergerbang sandi, data sungguhan
-         *   /demo       — salinan terbuka, data karangan, tombol yang tidak
+         *   /           — panel sungguhan, bergerbang sandi, data sungguhan
+         *   /bot-demo   — salinan terbuka, data karangan, tombol yang tidak
          *                 mengerjakan apa pun
+         *
+         * Alamat demonya pindah dari /demo ke /bot-demo pada 25 Agustus 2026,
+         * karena /demo sekarang dipakai pusat tutorial (public/demo.html).
+         * Baris DEMO di bawah ikut pindah — kalau tidak, halaman demo akan
+         * memanggil endpoint sungguhan dan berakhir 401.
          *
          * Satu berkas, bukan dua. Salinan kedua akan berbeda dalam hitungan
          * minggu, dan yang dilihat orang untuk mempelajari bot ini justru
@@ -341,7 +347,7 @@
          * permintaan yang bisa lolos ke endpoint bot, bahkan dari konsol
          * peramban — jawabannya dirakit di sini, di halaman ini.
          */
-        const DEMO = location.pathname.replace(/\/+$/, '') === '/demo';
+        const DEMO = location.pathname.replace(/\/+$/, '') === '/bot-demo';
 
         const nomorDemo = (n) => '6280000' + String(n).padStart(6, '0') + '@s.whatsapp.net';
         const lalu = (menit) => Date.now() - menit * 60000;

@@ -1,0 +1,21 @@
+# Akhiran baris dipaksa LF di dalam repo, apa pun sistem yang menulisnya.
+#
+# Alasannya bukan selera. Pada 24 Agustus 2026 sebuah editor Windows menyimpan
+# ulang lima berkas dengan CRLF, dan git membacanya sebagai "2.205 baris berubah"
+# di halaman/dashboard.html padahal yang benar-benar berubah SATU baris tautan.
+# Commit seperti itu membunuh `git blame`: setiap baris halaman akan menunjuk ke
+# commit yang sebenarnya tidak menyentuhnya.
+#
+# text=auto eol=lf berarti: git menormalkan ke LF saat menyimpan, dan checkout
+# tetap LF. Editor Windows boleh menulis CRLF sesukanya di disk — yang masuk
+# riwayat tetap bersih.
+* text=auto eol=lf
+
+# Berkas biner: jangan disentuh sama sekali.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.pdf  binary

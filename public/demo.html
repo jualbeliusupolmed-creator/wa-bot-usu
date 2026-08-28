@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tutorial &amp; Demo Penggunaan — Jual Beli USU Polmed</title>
+  <meta name="description" content="Pusat tutorial dan live demo interaktif sistem informasi marketplace & bot WhatsApp mahasiswa Jual Beli USU Polmed.">
+  <meta name="theme-color" content="#5926a9">
+  <link rel="canonical" href="https://bot.jualbeliusupolmed.web.id/demo">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/assets/ui.css?v=20260825">
+  <script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script src="/assets/ui.js?v=20260825" defer></script>
+  <style>
+    :root {
+      --brand-purple: #5926a9;
+      --brand-purple-dark: #37146e;
+      --brand-purple-light: #7a46d2;
+      --brand-emerald: #059669;
+      --font-mono: "JetBrains Mono", monospace;
+    }
+    body {
+      background-color: var(--ground);
+      color: var(--ink);
+      font-family: var(--sans);
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+    .demo-wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 20px 80px;
+    }
+    /* Hero Header */
+    .demo-hero {
+      background: linear-gradient(135deg, var(--brand-purple-dark) 0%, var(--brand-purple) 60%, var(--brand-purple-light) 100%);
+      color: #fff;
+      border-radius: 24px;
+      padding: clamp(28px, 5vw, 48px);
+      box-shadow: 0 20px 50px rgba(89, 38, 169, 0.25);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 36px;
+    }
+    .demo-hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      bottom: -80px;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+    }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .demo-hero h1 {
+      font-family: var(--display);
+      font-size: clamp(2rem, 4.5vw, 3.2rem);
+      line-height: 1.1;
+      margin: 14px 0 12px;
+      letter-spacing: -0.03em;
+    }
+    .demo-hero p {
+      font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+      max-width: 720px;
+      color: rgba(255, 255, 255, 0.88);
+      margin: 0 0 24px;
+    }
+    .hero-btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      position: relative;
+      z-index: 2;
+    }
+    .h-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .h-btn:hover {
+      transform: translateY(-2px);
+      text-decoration: none;
+    }
+    .h-btn.white {
+      background: #fff;
+      color: var(--brand-purple-dark);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    }
+    .h-btn.outline {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+    }
+    .h-btn.emerald {
+      background: var(--brand-emerald);
+      color: #fff;
+    }
+
+    /* Link Hub Card */
+    .hub-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .hub-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hub-card:hover {
+      border-color: var(--brand-purple-light);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      transform: translateY(-2px);
+    }
+    .hub-card .icon-box {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      margin-bottom: 12px;
+    }
+    .hub-card h3 {
+      font-family: var(--display);
+      font-size: 1.15rem;
+      margin: 0 0 6px;
+    }
+    .hub-card p {
+      font-size: 0.85rem;
+      color: var(--ink-soft);
+      margin: 0 0 16px;
+      flex-grow: 1;
+    }
+    .hub-card .card-link {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--brand-purple);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Section Styling */
+    .sec-title {
+      font-family: var(--display);
+      font-size: 1.6rem;
+      margin: 36px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sec-title .step-badge {
+      background: var(--brand-purple);
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.95rem;
+    }
+
+    /* Interactive Simulator */
+    .sim-container {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      overflow: hidden;
+      margin-bottom: 40px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    }
+    .sim-tabs {
+      display: flex;
+      background: var(--sunk);
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+    }
+    .sim-tab-btn {
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: var(--ink-soft);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+    }
+    .sim-tab-btn.active {
+      color: var(--brand-purple);
+      background: var(--surface);
+      border-bottom-color: var(--brand-purple);
+    }
+    .sim-panel {
+      padding: 24px;
+      display: none;
+    }
+    .sim-panel.active {
+      display: block;
+    }
+
+    /* Chat Simulator Widget */
+    .chat-simulator {
+      max-width: 480px;
+      margin: 0 auto;
+      background: #efeae2;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+      border: 1px solid #d1d7db;
+    }
+    .chat-sim-header {
+      background: #075e54;
+      color: #fff;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .chat-sim-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #25d366;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+    .chat-sim-body {
+      height: 340px;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background-image: radial-gradient(#d1d7db 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+    .chat-msg {
+      max-width: 85%;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 0.84rem;
+      line-height: 1.4;
+      position: relative;
+    }
+    .chat-msg.bot {
+      background: #fff;
+      align-self: flex-start;
+      border-top-left-radius: 2px;
+    }
+    .chat-msg.user {
+      background: #d9fdd3;
+      align-self: flex-end;
+      border-top-right-radius: 2px;
+    }
+    .chat-msg .time {
+      font-size: 0.68rem;
+      color: #888;
+      float: right;
+      margin-left: 8px;
+      margin-top: 4px;
+    }
+    .chat-sim-input {
+      display: flex;
+      padding: 8px;
+      background: #f0f2f5;
+      gap: 8px;
+    }
+    .chat-sim-input input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #d1d7db;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .chat-sim-input button {
+      background: #00a884;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    /* Step Guides Grid */
+    .step-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 22px;
+      position: relative;
+    }
+    .step-num {
+      position: absolute;
+      top: -12px;
+      left: 18px;
+      background: var(--brand-purple);
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.75rem;
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+    .step-card h4 {
+      font-family: var(--display);
+      font-size: 1.1rem;
+      margin: 6px 0 8px;
+    }
+    .step-card p {
+      font-size: 0.85rem;
+      color: var(--ink-soft);
+      margin: 0 0 12px;
+    }
+    .code-pill {
+      display: inline-block;
+      background: var(--sunk);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--brand-purple);
+      font-weight: 600;
+    }
+
+    /* Admin Demo Mock Cards */
+    .admin-mock-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .admin-mock-stat {
+      background: var(--sunk);
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+    }
+    .admin-mock-stat .val {
+      font-family: var(--display);
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--brand-purple);
+    }
+    .admin-mock-stat .lbl {
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+      font-weight: 600;
+    }
+
+    /* Copy Link Box */
+    .copy-box {
+      background: var(--sunk);
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .copy-box code {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      color: var(--brand-purple);
+    }
+  </style>
+</head>
+<body>
+
+<div class="demo-wrap">
+
+  <!-- ══ HERO BANNER ═════════════════════════════════════════════════════ -->
+  <section class="demo-hero">
+    <span class="badge-pill">✨ Pusat Demo &amp; Panduan Penggunaan Sistem</span>
+    <h1>Jual Beli USU Polmed</h1>
+    <p>Marketplace komunitas mahasiswa yang menghubungkan web aplikasi pintar dengan bot WhatsApp berbasis serverless &amp; socket database Supabase.</p>
+    <div class="hero-btn-group">
+      <a href="https://www.jualbeliusupolmed.web.id" target="_blank" rel="noreferrer" class="h-btn white">
+        🌐 Buka Website Utama
+      </a>
+      <a href="https://wa.me/6285141094056?text=.MENU" target="_blank" rel="noreferrer" class="h-btn emerald">
+        💬 Coba WhatsApp Bot
+      </a>
+      <a href="#simulator" class="h-btn outline">
+        🧪 Simulator &amp; Panel Demo
+      </a>
+    </div>
+  </section>
+
+  <!-- ══ QUICK ACCESS LIVE LINKS ═════════════════════════════════════════ -->
+  <h2 class="sec-title"><span class="step-badge">🔗</span> Tautan Langsung Pengujian (Live Endpoints)</h2>
+  <div class="hub-grid">
+    <div class="hub-card">
+      <div>
+        <div class="icon-box" style="background: rgba(89, 38, 169, 0.1); color: #5926a9;">🌐</div>
+        <h3>Web Marketplace</h3>
+        <p>Aplikasi utama Next.js 14 untuk pencarian barang, jasa tugas, kos, curhat Menfess, dan Swipe Cari Teman.</p>
+      </div>
+      <a href="https://www.jualbeliusupolmed.web.id" target="_blank" rel="noreferrer" class="card-link">
+        Kunjungi Website &rarr;
+      </a>
+    </div>
+
+    <div class="hub-card">
+      <div>
+        <div class="icon-box" style="background: rgba(5, 150, 105, 0.1); color: #059669;">🤖</div>
+        <h3>WhatsApp Bot Engine</h3>
+        <p>Bot otomatis Baileys untuk pasang iklan via foto WhatsApp, cek masa aktif, dan auto-post katalog IG.</p>
+      </div>
+      <a href="https://wa.me/6285141094056?text=.MENU" target="_blank" rel="noreferrer" class="card-link">
+        Chat Bot (+62 851-4109-4056) &rarr;
+      </a>
+    </div>
+
+    <div class="hub-card">
+      <div>
+        <div class="icon-box" style="background: rgba(225, 29, 72, 0.1); color: #e11d48;">🛡️</div>
+        <h3>Panel Admin Web</h3>
+        <p>Panel moderasi terpusat untuk kurasi postingan menfess, iklan marketplace, laporan scam, dan broadcast.</p>
+      </div>
+      <a href="https://www.jualbeliusupolmed.web.id/admin" target="_blank" rel="noreferrer" class="card-link">
+        Buka Admin Web &rarr;
+      </a>
+    </div>
+
+    <div class="hub-card">
+      <div>
+        <div class="icon-box" style="background: rgba(217, 119, 6, 0.1); color: #d97706;">📸</div>
+        <h3>Instagram Auto-Poster</h3>
+        <p>Jalur otomatisasi publikasi katalog ke @katalogusupolmed dan menfess ke @usupolmedmenfess.</p>
+      </div>
+      <a href="https://instagram.com/katalogusupolmed" target="_blank" rel="noreferrer" class="card-link">
+        Lihat Instagram &rarr;
+      </a>
+    </div>
+  </div>
+
+  <!-- ══ INTERACTIVE LIVE SIMULATOR & DEMO PANEL ═════════════════════════ -->
+  <h2 class="sec-title" id="simulator"><span class="step-badge">🧪</span> Simulator Interaktif &amp; Panel Demo</h2>
+  <div class="sim-container">
+    <div class="sim-tabs">
+      <button class="sim-tab-btn active" onclick="switchTab(this, 'tab-wa-sim')">📱 Simulator WA Bot</button>
+      <button class="sim-tab-btn" onclick="switchTab(this, 'tab-admin-sim')">📊 Demo Panel Admin Bot</button>
+      <button class="sim-tab-btn" onclick="switchTab(this, 'tab-flow-sim')">🔄 Diagram Alur Data</button>
+    </div>
+
+    <!-- Tab 1: WA Simulator -->
+    <div id="tab-wa-sim" class="sim-panel active">
+      <p style="font-size: 0.88rem; color: var(--ink-soft); margin-top: 0;">
+        Coba kirim perintah ke simulator di bawah untuk melihat bagaimana WhatsApp bot merespons perintah secara cerdas.
+        Contoh perintah cepat: <span class="code-pill" style="cursor:pointer" onclick="fillChat('.MENU')">.MENU</span>, 
+        <span class="code-pill" style="cursor:pointer" onclick="fillChat('.JUAL')">.JUAL</span>, 
+        <span class="code-pill" style="cursor:pointer" onclick="fillChat('.CARI laptop')">.CARI laptop</span>, 
+        <span class="code-pill" style="cursor:pointer" onclick="fillChat('.MENFESS')">.MENFESS</span>
+      </p>
+
+      <div class="chat-simulator">
+        <div class="chat-sim-header">
+          <div class="chat-sim-avatar">JB</div>
+          <div>
+            <strong style="font-size: 0.9rem; display: block;">Bot Jual Beli USU Polmed</strong>
+            <span style="font-size: 0.72rem; color: rgba(255,255,255,0.8);">Online · Baileys Socket Engine</span>
+          </div>
+        </div>
+        <div class="chat-sim-body" id="chat-stream">
+          <div class="chat-msg bot">
+            Halo! Selamat datang di <strong>Jual Beli USU Polmed</strong>. 🎓<br><br>
+            Ketik <strong>.MENU</strong> untuk melihat daftar layanan atau <strong>.JUAL</strong> untuk pasang iklan.
+            <span class="time">09:41</span>
+          </div>
+        </div>
+        <div class="chat-sim-input">
+          <input type="text" id="chat-input" placeholder="Ketik .MENU, .JUAL, atau .CARI..." onkeydown="if(event.key==='Enter')sendSimChat()">
+          <button type="button" onclick="sendSimChat()">➤</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Admin Dashboard Mock -->
+    <div id="tab-admin-sim" class="sim-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0; font-family: var(--display);">📊 Panel Monitoring Real-Time Bot</h3>
+        <span class="badge-pill" style="background: rgba(5,150,105,0.1); color:#059669; border-color: rgba(5,150,105,0.3);">
+          ● VPS Live Status: UP
+        </span>
+      </div>
+
+      <div class="admin-mock-stat-grid">
+        <div class="admin-mock-stat">
+          <div class="val">1.240+</div>
+          <div class="lbl">Total Iklan Terbit</div>
+        </div>
+        <div class="admin-mock-stat">
+          <div class="val">8.450+</div>
+          <div class="lbl">Interaksi Chat Masuk</div>
+        </div>
+        <div class="admin-mock-stat">
+          <div class="val">99.8%</div>
+          <div class="lbl">Socket Uptime</div>
+        </div>
+        <div class="admin-mock-stat">
+          <div class="val">0.4 detik</div>
+          <div class="lbl">Rata-rata Respon Bot</div>
+        </div>
+      </div>
+
+      <div style="background: var(--sunk); border-radius: 12px; padding: 16px; border: 1px solid var(--line);">
+        <h4 style="margin: 0 0 10px; font-size: 0.95rem;">📋 Log Aktivitas Sistem Terakhir (Simulasi)</h4>
+        <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-soft); line-height: 1.7;">
+          <div><span style="color: var(--brand-emerald);">[SUCCESS]</span> Auto-publish Instagram @katalogusupolmed · ID: 7f3b8a1c (Laptop ASUS)</div>
+          <div><span style="color: var(--brand-purple);">[WEBHOOK]</span> Verification QRIS Rp5.000 · Seller: 0852****9120 · Status: ACTIVE</div>
+          <div><span style="color: var(--brand-emerald);">[MODERASI]</span> Filter kata kasar lolos: Menfess #4190 Fakultas Teknik</div>
+          <div><span style="color: var(--info);">[SYS-SYNC]</span> Supabase Realtime synchronized with Next.js edge ISR</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Flowchart -->
+    <div id="tab-flow-sim" class="sim-panel">
+      <div style="background: var(--sunk); border: 1px solid var(--line); border-radius: 14px; padding: 20px; text-align: center;">
+        <h4 style="margin: 0 0 12px; font-family: var(--display);">Arsitektur Dual-Gateway: Satu Database Dua Pintu</h4>
+        <p style="font-size: 0.85rem; color: var(--ink-soft); max-width: 650px; margin: 0 auto 16px;">
+          Pengguna dapat memilih bertransaksi melalui antarmuka web modern (Next.js 14) atau sepenuhnya melalui chat WhatsApp tanpa perlu membuka peramban.
+        </p>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; font-family: var(--font-mono); font-size: 0.8rem;">
+          <div style="background: #fff; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line);">📱 Penjual (WhatsApp)</div>
+          <div style="align-self: center; font-weight: bold;">➔</div>
+          <div style="background: #fff; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line);">🤖 Baileys VPS Gateway</div>
+          <div style="align-self: center; font-weight: bold;">➔</div>
+          <div style="background: var(--brand-purple); color: #fff; padding: 10px 16px; border-radius: 8px;">🗄️ Supabase Postgres</div>
+          <div style="align-self: center; font-weight: bold;">➔</div>
+          <div style="background: #fff; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line);">🌐 Next.js Marketplace Web</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TUTORIAL PENGGUNAAN BERDASARKAN PERAN ═══════════════════════════ -->
+  <h2 class="sec-title"><span class="step-badge">📖</span> Panduan Lengkap Penggunaan (Tutorial Step-by-Step)</h2>
+
+  <!-- Alur 1: Pembeli -->
+  <h3 style="font-family: var(--display); font-size: 1.25rem; margin: 20px 0 12px; color: var(--brand-purple);">
+    A. Alur Mahasiswa / Pembeli (Mencari Barang &amp; Berinteraksi)
+  </h3>
+  <div class="step-grid">
+    <div class="step-card">
+      <span class="step-num">Langkah 1</span>
+      <h4>Cari Barang / Jasa di Kampus</h4>
+      <p>Buka <a href="https://www.jualbeliusupolmed.web.id" target="_blank">jualbeliusupolmed.web.id</a>. Gunakan bilah pencarian atau filter kampus (USU / Polmed) dan kategori (Elektronik, Buku, Kos, Jasa).</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">Langkah 2</span>
+      <h4>Hubungi Penjual Instan</h4>
+      <p>Klik tombol <strong>"Chat WhatsApp"</strong> pada produk untuk langsung membuka obrolan ke penjual tanpa perlu menyimpan nomor manual.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">Langkah 3</span>
+      <h4>Kirim Menfess &amp; Cari Teman</h4>
+      <p>Akses menu <strong>Menfess</strong> untuk berbagi info/curhat anonim, atau tab <strong>Swipe</strong> untuk berkenalan dengan sesama mahasiswa.</p>
+    </div>
+  </div>
+
+  <!-- Alur 2: Penjual -->
+  <h3 style="font-family: var(--display); font-size: 1.25rem; margin: 20px 0 12px; color: var(--brand-purple);">
+    B. Alur Penjual (Pasang Iklan Tanpa Ribet)
+  </h3>
+  <div class="step-grid">
+    <div class="step-card">
+      <span class="step-num">Opsi 1 (Web)</span>
+      <h4>Pasang Lewat Web</h4>
+      <p>Klik tombol <strong>+ Jual</strong> di website, isi judul, harga, deskripsi, unggah foto barang, dan verifikasi OTP nomor WhatsApp.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">Opsi 2 (WA)</span>
+      <h4>Pasang Lewat WA Bot</h4>
+      <p>Kirim foto barang beserta keterangan ke nomor bot WhatsApp. Bot akan mengekstrak judul, harga, dan kategori secara otomatis.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">Verifikasi</span>
+      <h4>Iklan Langsung Tayang</h4>
+      <p>Setelah pembayaran QRIS diverifikasi, iklan otomatis tayang di web, terindeks di pencarian bot, dan dijadwalkan ke Instagram.</p>
+    </div>
+  </div>
+
+  <!-- Alur 3: Admin -->
+  <h3 style="font-family: var(--display); font-size: 1.25rem; margin: 20px 0 12px; color: var(--brand-purple);">
+    C. Alur Pengelola &amp; Moderasi Sistem (Admin)
+  </h3>
+  <div class="step-grid">
+    <div class="step-card">
+      <span class="step-num">Fitur 1</span>
+      <h4>Moderasi Konten &amp; Menfess</h4>
+      <p>Admin dapat meninjau postingan menfess yang masuk, menghapus postingan melanggar hukum/SARA, dan memblokir nomor pelaku spam.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">Fitur 2</span>
+      <h4>Otomasi Instagram Queue</h4>
+      <p>Sistem memantau antrean publikasi otomatis menggunakan Graph API Meta ke akun Instagram @katalogusupolmed dan @usupolmedmenfess.</p>
+    </div>
+    <div class="step-card">
+      <span class="step-num">Fitur 3</span>
+      <h4>Pesan Siaran (Broadcast)</h4>
+      <p>Mengirim pesan peringatan keselamatan bertransaksi (hindari penipuan transfer) secara massal ke pengguna bot yang terdaftar.</p>
+    </div>
+  </div>
+
+  <!-- ══ INFO LINK UNTUK SUBMISI ═════════════════════════════════════════ -->
+  <div class="copy-box">
+    <div>
+      <strong style="display: block; font-size: 0.9rem; margin-bottom: 2px;">📋 Format Teks Siap Salin untuk Formulir Lomba / Laporan:</strong>
+      <code>https://bot.jualbeliusupolmed.web.id/demo (Tutorial Interaktif, Demo Web, WA Bot &amp; Admin Panel)</code>
+    </div>
+    <button class="h-btn white" style="border: 1px solid var(--line); font-size: 0.8rem; padding: 6px 14px;" onclick="copyInfoLink()">
+      Salin Teks Link
+    </button>
+  </div>
+
+</div>
+
+<script>
+  function switchTab(btn, tabId) {
+    document.querySelectorAll('.sim-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.sim-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  function fillChat(cmd) {
+    document.getElementById('chat-input').value = cmd;
+    sendSimChat();
+  }
+
+  function sendSimChat() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const stream = document.getElementById('chat-stream');
+    const now = new Date();
+    const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+    // Add user message
+    const userDiv = document.createElement('div');
+    userDiv.className = 'chat-msg user';
+    userDiv.innerHTML = escapeHtml(text) + `<span class="time">${timeStr}</span>`;
+    stream.appendChild(userDiv);
+    input.value = '';
+
+    // Scroll
+    stream.scrollTop = stream.scrollHeight;
+
+    // Simulate Bot typing & reply
+    setTimeout(() => {
+      let botReply = '';
+      const upper = text.toUpperCase();
+
+      if (upper === '.MENU') {
+        botReply = `📌 *MENU UTAMA JUAL BELI USU POLMED*<br><br>` +
+          `• <strong>.JUAL</strong> : Pasang iklan barang/jasa baru<br>` +
+          `• <strong>.CARI [kata]</strong> : Cari barang di katalog<br>` +
+          `• <strong>.CEK</strong> : Cek status & views iklan saya<br>` +
+          `• <strong>.MENFESS</strong> : Kirim curhat/info anonim kampus<br>` +
+          `• <strong>.ADMIN</strong> : Hubungi admin pengelola`;
+      } else if (upper === '.JUAL') {
+        botReply = `📷 <strong>Formulir Pasang Iklan Cepat</strong><br><br>` +
+          `Silakan kirimkan <strong>Foto Barang</strong> beserta caption dengan format:<br>` +
+          `<em>Judul Barang / Harga / Kondisi / Deskripsi singkat</em>.<br><br>` +
+          `AI kami akan otomatis merapikan data iklanmu! 🚀`;
+      } else if (upper.startsWith('.CARI')) {
+        const query = text.replace(/^\.CARI\s*/i, '') || 'barang';
+        botReply = `🔍 <em>Hasil pencarian untuk "${escapeHtml(query)}":</em><br><br>` +
+          `1. <strong>Laptop ASUS Vivobook 14</strong> - Rp4.200.000 (Fakultas Teknik)<br>` +
+          `2. <strong>Buku Kalkulus Purcel Edisi 9</strong> - Rp45.000 (FMIPA)<br><br>` +
+          `👉 Buka foto lengkap di: <a href="https://www.jualbeliusupolmed.web.id" target="_blank">jualbeliusupolmed.web.id</a>`;
+      } else if (upper === '.MENFESS') {
+        botReply = `💌 <strong>Kirim Menfess / Info Kampus</strong><br><br>` +
+          `Ketik pesanmu. Privasi terjamin 100% anonim dengan hash identitas tanpa menyimpan nomor.`;
+      } else {
+        botReply = `Perintah <strong>"${escapeHtml(text)}"</strong> diterima. Ketik <strong>.MENU</strong> untuk melihat daftar panduan lengkap.`;
+      }
+
+      const botDiv = document.createElement('div');
+      botDiv.className = 'chat-msg bot';
+      botDiv.innerHTML = botReply + `<span class="time">${timeStr}</span>`;
+      stream.appendChild(botDiv);
+      stream.scrollTop = stream.scrollHeight;
+    }, 600);
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function copyInfoLink() {
+    const txt = "https://bot.jualbeliusupolmed.web.id/demo (Tutorial Interaktif, Demo Web, WA Bot & Admin Panel)";
+    navigator.clipboard.writeText(txt).then(() => {
+      alert("Tautan demo berhasil disalin ke clipboard!");
+    });
+  }
+</script>
+
+</body>
+</html>

@@ -141,6 +141,73 @@ setelah deal, iklan gratis untuk pemilik toko) dan mengakui apa yang selama ini 
 begitu faktanya: bukan "6 jam", melainkan <b>501, 907, dan 360 menit</b> pada 18–19 Agustus —
 hampir 30 jam — dan ketiganya <b>diumumkan botnya sendiri</b> begitu hidup lagi.</p>
 
+<p class="muted"><b>25 Agustus 2026</b> — <code>/lomba</code> dan <code>/projek</code> dihitung
+ulang lagi, dan kali ini bukan karena halamannya bertengkar dengan dirinya sendiri, melainkan
+karena <b>angkanya benar-benar sudah basi</b>. Seluruhnya diukur ulang dari nol: kedua repo diklon
+segar, basis datanya ditanyai langsung, tanpa membaca satu pun catatan sebelumnya. Hasilnya
+delapan angka besar berubah, semuanya naik: <b>53.373</b> baris situs (dari 40.288) ·
+<b>12.871</b> baris bot (11.454) · <b>459</b> commit (375) · <b>106</b> API situs (78) ·
+<b>75</b> alamat bot (71) · <b>62</b> halaman (50) · <b>81</b> komponen (66) · <b>50</b> tabel
+(32). Sebabnya satu: <b>123 dari 139 commit Agustus jatuh setelah tanggal 21</b>.</p>
+
+<p class="muted">Yang lebih penting dari angka: halaman lomba <b>tidak menyebut sama sekali</b>
+tiga fitur yang lahir 23–24 Agustus dan sekarang berdiri di beranda — <b>mading menfess</b>,
+<b>obrolan di dalam situs</b> (82 ruang, 248 pesan dalam tiga hari), dan <b>cari teman</b>.
+Berandanya sendiri sudah berganti nama jadi <em>Kampus Hub</em>. Ditambah satu slide baru
+("Yang tumbuh sesudahnya", deck jadi <b>14 slide</b>), tiga kartu fitur, empat belas tabel baru di
+panel basis data, dan dua babak baru di linimasa.</p>
+
+<p class="muted"><b>Satu tarif yang ditulis di sana sudah tidak berlaku, dan itu yang paling
+berbahaya.</b> Komisi setelah deal (10% di bawah Rp100rb, 5% di atasnya) <b>sudah dimatikan</b>:
+<code>settings.pricing.soldTiers</code> di database sekarang array kosong, dan
+<code>/daftar-harga</code> sendiri menulis "sedang tidak ada biaya transaksi". Halaman lomba masih
+menagihkannya di dua tempat — slide dan blok deskripsi yang disalin ke formulir pendaftaran.
+Sudah diperbaiki. Pelajarannya: <b>tarif tinggal di database, jadi ia bisa berubah tanpa satu pun
+commit</b> — halaman yang menyalinnya ke HTML akan selalu ketinggalan.</p>
+
+<p class="muted">Tiga hal yang ikut dicatat apa adanya, bukan dipoles. <b>Enam dari 50 tabel masih
+kosong</b> — <code>verified_sellers</code> dan <code>offers</code> karena memang tidak terpakai
+(utang), tapi <code>seller_ratings</code>, <code>search_logs</code>,
+<code>keyword_subscriptions</code>, dan <code>pwa_installs</code> karena <em>belum ada yang
+memakainya</em>; klaim "penilaian pembeli" dilunakkan di dua tempat. <b>10 dari 13 profil Cari
+Teman adalah profil contoh</b> yang diisi sendiri supaya deck tidak kosong di hari peluncuran —
+ditulis terang-terangan, bukan dihitung sebagai pengguna. Dan <b>dari 540 tagihan QRIS, 58 yang
+benar-benar dibayar</b> — corong itu ikut ditampilkan.</p>
+
+<p class="muted">Yang <b>belum</b> dikerjakan dan ada di tangan pemilik: kedua nomor WhatsApp
+masih <code>terkunci</code> per 25 Agustus (bot menjawab <code>ok:false</code> di
+<code>/health</code>), jadi pintu WhatsApp sedang tertutup walaupun situsnya jalan normal.
+Formulir lomba juga <b>tinggal sehari</b> — tenggatnya 26 Agustus 2026.</p>
+
+<p class="muted"><b>28 Agustus 2026</b> — pemindahan <code>/demo</code> tiga hari sebelumnya
+ternyata <b>ditinggalkan setengah jalan</b>, dan yang menemukannya bukan membaca kode melainkan
+mengetuk alamatnya satu per satu. Tiga halaman menjawab <b>404</b>:
+<code>/infrastruktur</code> — yang justru sudah dipasang tombolnya di beranda panel dan di
+kepala dashboard — <code>/future</code>, yang sudah disebut di <code>/lomba</code> sebagai satu
+dari 21 halaman, dan keduanya memang punya berkasnya, cuma tidak punya rutenya.</p>
+
+<p class="muted">Yang keempat lebih halus dan lebih berbahaya: panel bot tiruan pindah alamat ke
+<code>/bot-demo</code>, tapi baris yang menyalakan mode demo di dalam halamannya masih mengunci
+ke <code>/demo</code>. Artinya halaman demo yang terbuka untuk umum itu <b>berhenti memakai data
+karangan</b> dan mulai memanggil endpoint bot yang sungguhan — bukan kebocoran, karena gerbang
+<code>requireAuth</code> di endpoint-endpoint itu tetap berdiri dan menjawab 401, tapi
+demonstrasi yang isinya kosong melompong. Pelajarannya: <b>memindahkan rute tidak selesai di
+berkas rute</b>; halaman yang mengenali dirinya dari <code>location.pathname</code> ikut pindah
+atau ikut rusak.</p>
+
+<p class="muted">Rute <code>/infrastruktur</code> dipasang bergerbang sandi, dan sengaja tidak
+memakai <code>sendFile</code> polos: kalau berkasnya tidak ada — VPS yang baru di-deploy memang
+tidak akan punya, karena halaman itu <b>di-.gitignore</b> — ia menjawab satu kalimat, bukan
+melempar galat. Isinya kredensial teks polos, jadi dua hal harus tetap seperti sekarang:
+berkasnya tinggal di <code>halaman/</code> (bukan <code>public/</code>, yang dilayani
+<code>express.static</code> tanpa gerbang mana pun), dan ia tidak pernah ikut git.</p>
+
+<p class="muted">Satu hal lagi yang ikut dibereskan, dan ini yang paling tidak enak: sebuah
+komentar di <code>index.js</code> menyimpan <b>nomor WhatsApp pelanggan sungguhan</b> — bukti
+kasus pesan hilang 21 Agustus. Repo ini publik. Nomornya sekarang disamarkan, tapi jujur saja:
+<b>riwayat git lama masih memuatnya</b>, dan menulis ulang riwayat tidak bisa dikerjakan dari
+sini. Yang bisa dilakukan cuma berhenti menambah, dan itu sudah dilakukan.</p>
+
 <p class="muted"><b>Dua catatan sesi sebelumnya ternyata salah, dan itu ketahuan justru karena
 diperiksa ke alurnya, bukan ke teksnya.</b> Pertama: alur bayar <em>tidak</em> pindah ke QRIS
 otomatis. <code>/api/listings</code> membuat tagihan berstatus <code>pending</code> lalu
@@ -681,13 +748,6 @@ admin yang sudah dirotasi — di enam tempat.</p>
       repo terpisah bernama <code>jualbelimedan</code> — jadi kemungkinan besar itu merek induk
       yang memang disengaja, bukan salah ketik. Yang perlu diputuskan: pengguna situs ini
       seharusnya menerima OTP atas nama siapa?
-    </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
-      <strong>Instagram mana yang benar?</strong> Sapaan bot menaut
-      <code>instagram.com/usulovepolmed</code>, sementara catatan menyebut akun yang aktif
-      <code>usupolmedupdate</code>. Instagram menolak diperiksa tanpa login, jadi tautannya
-      sengaja <b>tidak diubah</b> — sebutkan yang benar dan perbaikannya satu baris.
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>

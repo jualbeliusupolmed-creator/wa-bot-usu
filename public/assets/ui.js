@@ -50,7 +50,14 @@
     key:          '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2M17 6l2 2M14 9l2 2"/>',
     gear:         '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
     sun:          '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
-    moon:         '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'
+    moon:         '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+    'chevron-down':'<path d="m6 9 6 6 6-6"/>',
+    shield:       '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    server:       '<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>',
+    'file-text':   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/>',
+    trophy:       '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34M18 4H6v7a6 6 0 0 0 12 0V4z"/>',
+    bars:         '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+    xmark:        '<path d="M18 6 6 18M6 6l12 12"/>'
   };
 
   /* Nama Font Awesome yang tidak punya gambar sendiri diarahkan ke yang mirip. */
@@ -100,28 +107,49 @@
     return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   }
 
-  /* ── 3. bilah navigasi ─────────────────────────────────────────────── */
-  var HALAMAN = [
-    { u: '/',         t: 'Dashboard' },
-    { u: '/home',     t: 'Panel' },
-    { u: '/antrean',  t: 'Antrean' },
-    { u: '/laporan',  t: 'Laporan' },
-    { u: '/update',   t: 'Perubahan' },
-    { u: '/progres',  t: 'Progres' },
-    { u: '/progres-claude', t: 'Audit' },
-    { u: '/projek',   t: 'Proyek' },
-    { u: '/lomba',    t: 'Lomba' }
+  /* ── 3. struktur navigasi terkelompok (minimalis & rapi) ─────────────── */
+  var STRUKTUR_NAV = [
+    {
+      kategori: 'Operasi',
+      ikon: 'gauge',
+      items: [
+        { u: '/',             t: 'Dashboard',         d: 'Status real-time, chat & broadcast', ic: 'gauge' },
+        { u: '/home',         t: 'Panel Kontrol',     d: 'Sakelar, fungsi & data JSON',        ic: 'gear' },
+        { u: '/antrean',      t: 'Antrean Outbox',    d: 'Pesan tertunda / kirim manual',      ic: 'inbox' },
+        { u: '/laporan',      t: 'Laporan Bot',       d: 'Ringkasan kesehatan harian',         ic: 'clipboard-list' }
+      ]
+    },
+    {
+      kategori: 'Server & Infra',
+      ikon: 'server',
+      items: [
+        { u: '/infrastruktur', t: 'Infrastruktur & Kunci', d: 'VPS, SSH, Vercel, Supabase & Token', ic: 'key' },
+        { u: '/jalankan',      t: 'Migrasi Database',      d: 'SQL migrasi siap salin',              ic: 'database' }
+      ]
+    },
+    {
+      kategori: 'Dokumen & Audit',
+      ikon: 'shield',
+      items: [
+        { u: '/progres',        t: 'Progres Proyek',    d: 'Roadmap & pencapaian sistem',         ic: 'chart-column' },
+        { u: '/progres-claude', t: 'Audit Keamanan',    d: 'Laporan temuan & mitigasi celah',     ic: 'shield' },
+        { u: '/update',         t: 'Catatan Perubahan', d: 'Riwayat komit & perbaikan fitur',     ic: 'file-text' },
+        { u: '/projek',         t: 'Arsitektur Proyek', d: 'Cerita & blueprint teknis',           ic: 'diagram-project' }
+      ]
+    },
+    {
+      kategori: 'Lomba',
+      ikon: 'trophy',
+      u: '/lomba',
+      badge: 'Publik'
+    }
   ];
 
-  /* /lomba adalah SATU-SATUNYA halaman yang bisa dibuka tanpa sandi, dan yang
-     membukanya orang luar (juri lomba). Menyodorkan menu berisi enam halaman
-     yang semuanya berakhir di layar "Masukkan sandi" membuat situsnya terasa
-     rusak. Di halaman itu menunya diganti tautan yang memang bisa mereka buka. */
   var HALAMAN_TAMU = [
-    { u: 'https://www.jualbeliusupolmed.web.id', t: 'Situs utama' },
-    { u: '#presentasi', t: 'Presentasi' },
-    { u: '#demo',       t: 'Demo' },
-    { u: 'https://github.com/jualbeliusupolmed-creator', t: 'Kode' }
+    { u: 'https://www.jualbeliusupolmed.web.id', t: 'Situs utama', ic: 'link' },
+    { u: '#presentasi', t: 'Presentasi', ic: 'clipboard-list' },
+    { u: '#demo',       t: 'Demo',       ic: 'gauge' },
+    { u: 'https://github.com/jualbeliusupolmed-creator', t: 'Kode', ic: 'terminal' }
   ];
 
   function nav() {
@@ -129,33 +157,116 @@
     var jalur = location.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
     if (jalur === '/dashboard') jalur = '/';
     var tamu = jalur === '/lomba' || jalur === '/tutor';
-    var daftar = tamu ? HALAMAN_TAMU : HALAMAN;
     var rumahTamu = jalur === '/tutor' ? '/tutor' : '/lomba';
+
     var el = document.createElement('nav');
     el.className = 'nav';
-    var h = '<div class="nav-in"><a class="nav-brand" href="' + (tamu ? rumahTamu : '/') + '"><span class="nav-mark">JB</span>' +
-            '<span>' + (tamu ? 'Jual Beli USU&nbsp;Polmed' : 'Bot USU&nbsp;Polmed') + '</span></a><div class="nav-links">';
-    for (var i = 0; i < daftar.length; i++) {
-      var p = daftar[i];
-      h += '<a href="' + p.u + '"' + (p.u === jalur ? ' aria-current="page"' : '') + '>' + p.t + '</a>';
+
+    var h = '<div class="nav-in">';
+    h += '<a class="nav-brand" href="' + (tamu ? rumahTamu : '/') + '"><span class="nav-mark">JB</span>' +
+         '<span>' + (tamu ? 'Jual Beli USU&nbsp;Polmed' : 'Bot USU&nbsp;Polmed') + '</span></a>';
+
+    h += '<div class="nav-links">';
+    if (tamu) {
+      for (var i = 0; i < HALAMAN_TAMU.length; i++) {
+        var tm = HALAMAN_TAMU[i];
+        h += '<a href="' + tm.u + '">' + svg(tm.ic) + ' ' + tm.t + '</a>';
+      }
+    } else {
+      for (var g = 0; g < STRUKTUR_NAV.length; g++) {
+        var grp = STRUKTUR_NAV[g];
+        if (grp.u) {
+          // Link tunggal (seperti Lomba)
+          var isActive = grp.u === jalur;
+          h += '<a href="' + grp.u + '"' + (isActive ? ' aria-current="page"' : '') + '>' +
+               svg(grp.ikon) + ' ' + grp.kategori + (grp.badge ? ' <span class="nav-badge-accent">' + grp.badge + '</span>' : '') + '</a>';
+        } else {
+          // Dropdown Group
+          var adaAktif = grp.items.some(function(it) { return it.u === jalur; });
+          h += '<div class="nav-group">';
+          h += '<button type="button" class="nav-btn' + (adaAktif ? ' is-active' : '') + '">' +
+               svg(grp.ikon) + ' ' + grp.kategori + ' ' + svg('chevron-down', 'chevron') + '</button>';
+          h += '<div class="nav-dropdown">';
+          for (var k = 0; k < grp.items.length; k++) {
+            var item = grp.items[k];
+            var itAktif = item.u === jalur;
+            h += '<a href="' + item.u + '" class="nav-item' + (itAktif ? ' active' : '') + '">' +
+                 '<div class="nav-item-icon">' + svg(item.ic) + '</div>' +
+                 '<div class="nav-item-text"><div class="nav-item-title">' + item.t + '</div><div class="nav-item-desc">' + item.d + '</div></div>' +
+                 '</a>';
+          }
+          h += '</div></div>';
+        }
+      }
     }
-    h += '</div><div class="nav-end">' +
-         '<button class="nav-toggle" type="button" title="Ganti terang/gelap" aria-label="Ganti terang/gelap"></button>' +
-         '</div></div>';
+    h += '</div>';
+
+    // Sisi kanan: Theme Toggle + Mobile Menu Toggle
+    h += '<div class="nav-end">' +
+         '<button class="nav-toggle" type="button" title="Ganti tema" aria-label="Ganti tema"></button>' +
+         '<button class="nav-mobile-toggle" type="button" aria-label="Menu">' + svg('bars') + '</button>' +
+         '</div>';
+
+    h += '</div>';
+
+    // Mobile Drawer
+    h += '<div class="nav-mobile-drawer">';
+    if (tamu) {
+      h += '<div class="nav-mob-list">';
+      for (var i = 0; i < HALAMAN_TAMU.length; i++) {
+        var tm = HALAMAN_TAMU[i];
+        h += '<a href="' + tm.u + '" class="nav-item"><div class="nav-item-icon">' + svg(tm.ic) + '</div><div class="nav-item-title">' + tm.t + '</div></a>';
+      }
+      h += '</div>';
+    } else {
+      for (var g = 0; g < STRUKTUR_NAV.length; g++) {
+        var grp = STRUKTUR_NAV[g];
+        if (grp.u) {
+          h += '<div style="margin-top:4px;"><a href="' + grp.u + '" class="nav-item' + (grp.u === jalur ? ' active' : '') + '">' +
+               '<div class="nav-item-icon">' + svg(grp.ikon) + '</div><div class="nav-item-title">' + grp.kategori + '</div></a></div>';
+        } else {
+          h += '<div><div class="nav-mob-cat">' + grp.kategori + '</div><div class="nav-mob-list">';
+          for (var k = 0; k < grp.items.length; k++) {
+            var itm = grp.items[k];
+            h += '<a href="' + itm.u + '" class="nav-item' + (itm.u === jalur ? ' active' : '') + '">' +
+                 '<div class="nav-item-icon">' + svg(itm.ic) + '</div>' +
+                 '<div class="nav-item-text"><div class="nav-item-title">' + itm.t + '</div><div class="nav-item-desc">' + itm.d + '</div></div></a>';
+          }
+          h += '</div></div>';
+        }
+      }
+    }
+    h += '</div>';
+
     el.innerHTML = h;
     document.body.insertBefore(el, document.body.firstChild);
     document.body.classList.add('has-nav');
-    var b = el.querySelector('.nav-toggle');
-    b.innerHTML = svg(gelap() ? 'sun' : 'moon');
-    b.addEventListener('click', function () { setTema(gelap() ? 'light' : 'dark'); });
+
+    // Bind event
+    var bTema = el.querySelector('.nav-toggle');
+    bTema.innerHTML = svg(gelap() ? 'sun' : 'moon');
+    bTema.addEventListener('click', function () { setTema(gelap() ? 'light' : 'dark'); });
+
+    var bMob = el.querySelector('.nav-mobile-toggle');
+    var drawer = el.querySelector('.nav-mobile-drawer');
+    bMob.addEventListener('click', function () {
+      var isOpen = drawer.classList.toggle('open');
+      bMob.innerHTML = svg(isOpen ? 'xmark' : 'bars');
+    });
+
+    // Mobile drawer auto-close saat link diklik
+    drawer.querySelectorAll('a').forEach(function (a) {
+      a.addEventListener('click', function () {
+        drawer.classList.remove('open');
+        bMob.innerHTML = svg('bars');
+      });
+    });
   }
 
   /* ── jalan ─────────────────────────────────────────────────────────── */
   function mulai() {
     nav();
     ikon(document);
-    /* Halaman seperti dashboard menambah ikon lewat JavaScript setelah muat,
-       jadi yang baru datang ikut ditukar tanpa halaman perlu memanggil apa pun. */
     if (window.MutationObserver) {
       new MutationObserver(function (m) {
         for (var i = 0; i < m.length; i++) if (m[i].addedNodes.length) { ikon(document); return; }

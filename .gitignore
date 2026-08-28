@@ -61,3 +61,24 @@ halaman/progres.html
 # tanpa penjelasan. Barisnya sengaja ditinggal sebagai jaring: kalau berkasnya
 # dibuat lagi oleh siapa pun, ia tetap tidak ikut ter-commit.
 rahasia.env
+
+# Peta infrastruktur & kredensial. Repo ini PUBLIK dan push-ke-github.sh memakai
+# --force; satu `git add -A` sudah cukup untuk menerbitkan seluruhnya.
+#
+# Isinya bukan "beberapa setelan": PAT GitHub, access + refresh token Vercel,
+# service-role key Supabase, sandi database, kunci DOKU/iPaymu/KlikQRIS yang
+# ketiganya production:true, kunci OpenAI, kunci PRIVAT VAPID, token API bot,
+# dan sandi dashboard. Semuanya teks polos.
+#
+# Diperiksa 25 Agustus 2026: `git log -S` untuk tiga rahasia -> 0 commit. Belum
+# pernah bocor. Dua baris di bawah ini yang menjaga agar tetap begitu.
+#
+# Berkas .md-nya juga menutup jalur kedua: repo situs menyalin repo ini ke
+# bot-wa/ dengan HANYA berkas yang dilacak git (lihat catatan monorepo). Yang
+# tidak dilacak tidak ikut tersalin.
+#
+# Halamannya sendiri tetap disajikan — /infrastruktur dan /kredensial di
+# web.routes.js, bergerbang requireAuthPage, dan tinggal di halaman/ bukan
+# public/ supaya express.static tidak menyajikannya diam-diam.
+INFRASTRUKTUR_DAN_KREDENSIAL.md
+halaman/infrastruktur.html

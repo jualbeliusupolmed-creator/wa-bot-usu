@@ -82,32 +82,35 @@ melonggarkan gerbang bisa diambil berdasarkan data, bukan firasat.</p>
 <h2><span class="no">04</span>Ukuran pekerjaannya</h2>
 <div class="card">
   <div class="stats">
-    <div class="stat"><div class="n">40.288</div><div class="l">baris kode website</div></div>
-    <div class="stat"><div class="n">12.605</div><div class="l">baris kode bot</div></div>
-    <div class="stat"><div class="n">375</div><div class="l">commit repo situs</div></div>
-    <div class="stat"><div class="n">78</div><div class="l">rute API web</div></div>
-    <div class="stat"><div class="n">71</div><div class="l">rute bot</div></div>
-    <div class="stat"><div class="n">24</div><div class="l">halaman untuk pengguna</div></div>
-    <div class="stat"><div class="n">66</div><div class="l">komponen React</div></div>
-    <div class="stat"><div class="n">32</div><div class="l">tabel database</div></div>
+    <div class="stat"><div class="n">53.373</div><div class="l">baris kode website</div></div>
+    <div class="stat"><div class="n">12.871</div><div class="l">baris kode bot</div></div>
+    <div class="stat"><div class="n">459</div><div class="l">commit repo situs</div></div>
+    <div class="stat"><div class="n">106</div><div class="l">rute API web</div></div>
+    <div class="stat"><div class="n">75</div><div class="l">rute bot</div></div>
+    <div class="stat"><div class="n">33</div><div class="l">halaman untuk pengguna</div></div>
+    <div class="stat"><div class="n">81</div><div class="l">komponen React</div></div>
+    <div class="stat"><div class="n">50</div><div class="l">tabel database</div></div>
   </div>
 </div>
-<p>Sebarannya sendiri bercerita. Dari 375 commit, <strong>298 di antaranya jatuh di bulan
+<p>Sebarannya sendiri bercerita. Dari 459 commit, <strong>298 di antaranya jatuh di bulan
 Juni</strong> — kira-kira dua puluh hari kerja yang sangat padat untuk membangun seluruh sisi
 website. Juli melambat jadi 22 commit, karena perhatian pindah ke bot WhatsApp, yang dibangun
-terpisah mulai pertengahan Juli. Agustus menambah 55 lagi, hampir semuanya perbaikan setelah
-sistemnya benar-benar dipakai orang.</p>
-<p class="small">Angka di atas dihitung ulang <strong>22 Agustus 2026</strong> dari klon segar
+terpisah mulai pertengahan Juli. Agustus menambah 139 lagi — dan <strong>123 dari 139 itu jatuh
+setelah tanggal 21</strong>, saat marketplace-nya melahirkan mading menfess, obrolan dalam situs,
+dan cari teman. Empat hari terakhir bulan ini adalah bagian terpadat sepanjang proyek.</p>
+<p class="small">Angka di atas dihitung ulang <strong>25 Agustus 2026</strong> dari klon segar
 kedua repo, dan cara menghitungnya ditulis supaya bisa diperiksa: <em>baris kode website</em> =
 seluruh berkas <code>.js</code>/<code>.jsx</code>/<code>.css</code> di <code>src/</code> repo
 situs; <em>baris kode bot</em> = semua berkas <code>.js</code>, <code>.html</code>, dan
 <code>.css</code> yang dilacak git di repo bot — <code>index.js</code> (3.050), tujuh modul
-<code>src/</code> hasil refactor 22 Agustus (2.024), halaman-halaman panelnya, dan berkas rupa
-bersamanya; berkas SQL migrasi tidak ikut. <em>Rute</em> = alamat unik, bukan jumlah metode:
-78 berkas rute situs sebenarnya memuat 98 metode GET/POST/PUT/PATCH/DELETE. <em>Halaman</em>
-di sini yang dipakai pengguna saja (24); kalau panel admin dan 12 halaman
-<code>/admin-demo/*</code> ikut dihitung, jumlahnya 50. <em>Commit</em> cuma repo situs, karena
-riwayat repo bot pernah dimulai ulang pada Agustus 2026.</p>
+<code>src/</code> hasil refactor 22 Agustus (2.038), halaman-halaman panelnya, dan berkas rupa
+bersamanya; berkas SQL migrasi tidak ikut. Repo situs sekarang juga menyimpan salinan repo bot di
+folder <code>bot-wa/</code> — salinan itu tidak ikut dihitung, supaya tidak ada baris yang
+dihitung dua kali. <em>Rute</em> = alamat unik, bukan jumlah metode: 106 berkas rute situs
+sebenarnya memuat 134 metode GET/POST/PUT/PATCH/DELETE, dan 75 alamat bot memuat 82 pasangan
+metode+alamat. <em>Halaman</em> di sini yang dipakai pengguna saja (33); kalau 17 halaman panel
+admin dan 12 halaman <code>/admin-demo/*</code> ikut dihitung, jumlahnya 62. <em>Commit</em> cuma
+repo situs, karena riwayat repo bot pernah dimulai ulang pada Agustus 2026.</p>
 
 <p class="small">Halaman <a href="/lomba">/lomba</a> menyebut angka yang sama persis. Itu bukan
 kebetulan: dua halaman ini pernah dua kali mengaku angka berbeda untuk hal yang sama — pertama

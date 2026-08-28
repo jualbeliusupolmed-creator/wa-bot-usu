@@ -193,7 +193,7 @@ const DEFAULT_GREETING = process.env.GREETING_TEXT || [
     '*Lihat Barang* jualbeliusupolmed.web.id',
     '*Jual Barang* jualbeliusupolmed.web.id/jual',
     '*Cari Barang* jualbeliusupolmed.web.id/dicari',
-    '*Instagram* instagram.com/usulovepolmed',
+    '*Instagram* instagram.com/usupolmedupdate',
     '',
     'Terima kasih 🙏',
 ].join('\n');
@@ -726,7 +726,9 @@ async function processQueue() {
     // itu melempar "Cannot read properties of undefined (reading 'id')" — dan
     // karena itu dihitung sebagai percobaan gagal, tiga kali kejadian cukup untuk
     // MEMBUANG pesan pelanggan. Sudah pernah terjadi: 21 Agu 2026, satu pesan ke
-    // 6288211366083 hilang persis begitu, beberapa detik setelah sesi direset.
+    // 628821xxxxxxx hilang persis begitu, beberapa detik setelah sesi direset.
+    // (Nomornya disamarkan: repo ini publik. Riwayat git lama masih memuatnya —
+    // menulis ulang riwayat tidak bisa dilakukan dari sini.)
     if (!botSiap()) { scheduleQueue(1000); return; }               // belum login → tahan, jangan buang
     // Kepala antrean sedang dicoba lewat perangkat kedua (lihat notifyOwner):
     // tunggu percobaan itu selesai supaya alarm yang sama tidak berangkat dari
