@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
-<link rel="stylesheet" href="/assets/ui.css?v=20260822">
+<link rel="stylesheet" href="/assets/ui.css?v=20260829">
 <script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 <script src="/assets/ui.js?v=20260822" defer></script>
 </head>
@@ -177,7 +177,8 @@ benar-benar dibayar</b> — corong itu ikut ditampilkan.</p>
 <p class="muted">Yang <b>belum</b> dikerjakan dan ada di tangan pemilik: kedua nomor WhatsApp
 masih <code>terkunci</code> per 25 Agustus (bot menjawab <code>ok:false</code> di
 <code>/health</code>), jadi pintu WhatsApp sedang tertutup walaupun situsnya jalan normal.
-Formulir lomba juga <b>tinggal sehari</b> — tenggatnya 26 Agustus 2026.</p>
+Formulir lomba juga <b>tinggal sehari</b> — tenggatnya 26 Agustus 2026.
+<b>Sudah tidak berlaku</b> — lihat catatan 29 Agustus di akhir bagian ini.</p>
 
 <p class="muted"><b>28 Agustus 2026</b> — pemindahan <code>/demo</code> tiga hari sebelumnya
 ternyata <b>ditinggalkan setengah jalan</b>, dan yang menemukannya bukan membaca kode melainkan
@@ -654,8 +655,56 @@ ke rupa pil biasa), penyaji markdown di halaman itu tidak mengenal tabel sehingg
 12 baris tampil sebagai prosa penuh tanda pipa, dan halaman audit lama masih mengutip sandi
 admin yang sudah dirotasi — di enam tempat.</p>
 
+<p class="muted"><b>29 Agustus 2026 — pintunya terbuka sendiri, dan yang tersisa justru
+mengetuknya.</b> Tiga hari daftar ini menulis "kedua nomor WhatsApp masih terkunci". Yang
+memeriksanya hari ini bukan membaca catatan itu melainkan mengetuk <code>/health</code>:
+bot pertama menjawab <code>ok:true</code>, <code>terkunci:false</code>, tersambung sebagai
+<b>62895429126232</b> dan sedang mengantre kiriman ke empat grup. Statistik hariannya bukan
+nol — 28 Agustus mencatat 30 pesan masuk, 38 keluar, 12 sapaan, dan <em>tidak satu pun</em>
+<code>sesi_terkunci</code>. Pembatasan nomor itu memang lepas sendiri; tidak ada commit yang
+bisa mengklaimnya.</p>
+
+<p class="muted">Dua baris di daftar bawah ikut larut karena itu, dan keduanya larut oleh
+kejadian yang sama. Nomor yang dipajang situs (<code>…26232</code>) dan nomor yang menjawab
+sekarang <b>nomor yang sama</b> — pertanyaan "situsnya yang menyesuaikan atau botnya yang
+pindah" terjawab oleh botnya sendiri. Dan <code>backupAdmin</code> yang dulu kembar dengan
+nomor bot pertama sekarang berbeda dengannya, jadi <code>/kontak-admin</code> tidak lagi
+menunjuk ke nomor yang ikut padam.</p>
+
+<p class="muted"><b>Tapi membaca <code>creds.json</code> kedua bot berdampingan membatalkan
+sebuah premis yang sudah lama ditulis di sini sebagai fakta.</b> "Bot kedua" bukan nomor
+kedua: kedua proses menyimpan <code>62895429126232</code>, cuma beda slot perangkat —
+<code>:13</code> di bot pertama, <code>:7</code> di bot kedua. Slot :7 itulah yang ditolak
+401 pada 23 Agustus, dan sejak itu ia <b>mencoba login tiap 60 menit</b> ke nomor yang
+sekarang menopang seluruh pintu WhatsApp usaha ini. Logikanya berbalik: yang dulu dicatat
+sebagai "tinggal satu langkah pairing" ternyata satu-satunya hal yang masih mengetuk nomor
+sehat dengan kredensial yang sudah dicabut. Itu jadi baris pertama di daftar bawah.</p>
+
+<p class="muted">Yang membuat premis lama bertahan selama itu: semua yang menyebut "bot
+kedua" — nama proses, folder, port, kartu di dashboard — konsisten menyiratkan nomor kedua,
+dan tidak satu pun dari nama-nama itu menyimpan nomornya. <b>Nomornya cuma ada di
+<code>creds.json</code></b>, dan tidak ada yang membukanya sampai hari ini. Penamaan yang
+rapi tidak pernah jadi bukti tentang isi.</p>
+
 <div class="card">
   <ul class="todo">
+    <li><span class="kotak siapa"></span><span>
+      <span class="siapa-l">Perlu pemilik</span><br>
+      <strong>Hentikan <code>wa-bot-2</code> — ia mengetuk nomor yang sedang dipakai bot
+      pertama.</strong> Kedua proses menyimpan nomor yang sama (<code>…26232</code>), cuma beda
+      slot perangkat: bot pertama <code>:13</code> (hidup, <code>ok:true</code>), bot kedua
+      <code>:7</code> (ditolak 401 sejak 23 Agustus, <code>terkunci:true</code>). Slot yang
+      sudah dicabut dari HP tidak akan pulih dengan menunggu, jadi yang tersisa cuma satu
+      percobaan login gagal <b>tiap 60 menit</b> — pada nomor yang sekarang menopang seluruh
+      pintu WhatsApp usaha ini. Percobaan gagal beruntun itu persis alasan yang dipakai
+      WhatsApp untuk membatasi sebuah nomor, dan bot pertama baru saja lepas dari pembatasan
+      itu. Tidak ada yang hilang kalau dihentikan: antreannya kosong dan arah keluar sudah
+      dipegang bot pertama.
+      <pre><code>pm2 stop wa-bot-2 &amp;&amp; pm2 save</code></pre>
+      Sesinya <b>tidak</b> dihapus — folder <code>/root/wa-bot-2/auth_info_baileys</code>
+      tetap di tempatnya, jadi kalau nanti benar-benar ada nomor kedua, yang perlu diganti
+      cuma isinya, bukan seluruh pemasangannya.
+    </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
       <strong>Satu baris di Vercel supaya nomor kedua bisa menerima.</strong> Arah keluar sudah
@@ -676,13 +725,17 @@ admin yang sudah dirotasi — di enam tempat.</p>
       dashboard selama 14 hari — tinggal kirim ulang dari sana. Tidak saya kirim sendiri karena
       itu pesan yang mendarat di grup berisi seribuan orang, jadi keputusannya milik Anda.
     </span></li>
-    <li><span class="kotak siapa"></span><span>
-      <span class="siapa-l">Perlu pemilik</span><br>
+    <li class="beres"><span class="kotak ok"></span><span>
+      <span class="siapa-l ok">Sudah beres — 28 Agu</span><br>
       <strong>Nomor yang disuruh dichat situs bukan nomor yang menjawab.</strong> Situs memajang
       <code>supportPhone</code> yang berakhiran <b>…26232</b>, sementara bot pertama tertaut ke
       nomor yang berakhiran <b>…2594</b>. Siapa pun yang mengikuti nomor di situs mengetuk nomor
       yang tidak ada botnya. Yang perlu diputuskan: situsnya yang menyesuaikan, atau botnya yang
       pindah ke nomor itu lagi.
+      <span class="tutup"><b>Beres tanpa perlu diputuskan.</b> Bot pertama kembali tertaut ke
+      <b>62895429126232</b> — nomor yang dipajang situs — dan sudah melayani lalu lintas
+      sungguhan sejak 28 Agustus (30 pesan masuk, 38 keluar, 12 sapaan hari itu). Pilihan kedua
+      yang terjadi: botnya yang pindah balik.</span>
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
@@ -691,6 +744,12 @@ admin yang sudah dirotasi — di enam tempat.</p>
       <code>backupAdmin</code> di <code>settings.json</code> sekarang berisi nomor yang sama
       dengan yang dipakai bot pertama, jadi jalan pulangnya menunjuk ke nomor yang ikut padam.
       Isi <code>backupAdmin</code> dengan nomor manusia yang benar-benar berbeda.
+      <span class="tutup"><b>Setengahnya larut sendiri, setengahnya masih berdiri.</b>
+      <code>backupAdmin</code> tetap <b>…2594</b>, tapi bot pertama sekarang di <b>…26232</b> —
+      jadi jalan pulangnya sudah <em>bukan</em> nomor yang sama lagi (<code>/kontak-admin</code>
+      menjawab <code>{"sehat":true,"cadangan":"6289502472594"}</code>). Yang belum terjawab
+      tinggal satu: apakah ada <b>manusia</b> yang membalas di …2594. Nomor yang berbeda tapi
+      tidak ada yang mengangkat bukan jalan pulang.</span>
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>
@@ -700,6 +759,13 @@ admin yang sudah dirotasi — di enam tempat.</p>
       langkah yang memang harus dilakukan dengan HP di tangan: kartu <b>Perangkat 2</b> di
       dashboard → "Minta Kode", lalu di HP buka WhatsApp → Perangkat tertaut → Tautkan dengan
       nomor telepon, dan ketik kodenya sebelum kedaluwarsa.
+      <span class="tutup"><b>Koreksi 29 Agustus — premisnya keliru sejak awal.</b>
+      <code>creds.json</code> kedua bot dibaca berdampingan, dan keduanya menyimpan nomor yang
+      <b>sama</b>: <code>62895429126232:13</code> di bot pertama, <code>62895429126232:7</code>
+      di bot kedua. Jadi "bot kedua" tidak pernah jadi nomor kedua — ia perangkat tertaut kedua
+      pada satu nomor yang sama, dan slot :7 itulah yang ditolak WhatsApp 401 pada 23 Agustus.
+      Kalimat "nomornya sama dengan nomor admin cadangan" di atas <b>tidak pernah benar di
+      disk</b>; yang menautkannya waktu itu memindai dari HP yang sama.</span>
     </span></li>
     <li><span class="kotak siapa"></span><span>
       <span class="siapa-l">Perlu pemilik</span><br>

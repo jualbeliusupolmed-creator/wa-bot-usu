@@ -1802,6 +1802,54 @@ Yang tidak bisa diperbaiki: **riwayat git lama masih memuatnya**, dan menulis
 ulang riwayat tidak bisa dikerjakan dari sini. Aturannya sederhana — bukti
 insiden ditulis tanpa nomornya.
 
+### Dua bot, satu nomor — 29 Agustus 2026
+
+Pemeriksaan keadaan yang berangkat dari satu kalimat di `/update`: *"kedua nomor
+WhatsApp masih terkunci per 25 Agustus"*. Kalimat itu sudah tidak benar, dan yang
+membuktikannya bukan membaca catatan melainkan mengetuk `/health`.
+
+| | bot pertama | bot kedua |
+|---|---|---|
+| proses | `wa-bot-usu`, port 3000 | `wa-bot-2`, port 3001 |
+| `/health` | `ok:true`, `terkunci:false` | `ok:false`, `terkunci:true` |
+| nomor di `creds.json` | `62895429126232:13` | `62895429126232:7` |
+
+**Nomornya sama.** Yang berbeda cuma slot perangkat tertaut. "Bot kedua" tidak
+pernah jadi nomor kedua — ia perangkat kedua pada satu nomor, dan slot `:7`
+itulah yang ditolak 401 pada 23 Agustus (`wa-bot-2-error__2026-08-24`).
+
+Ini membatalkan premis yang sudah lama ditulis sebagai fakta di `/update`:
+*"nomornya sudah ditentukan — sama dengan nomor admin cadangan"*. Tidak pernah
+benar di disk. Yang menautkannya waktu itu memindai dari HP yang sama.
+
+**Kenapa premis itu bertahan berhari-hari.** Semua yang menyebut "bot kedua" —
+nama proses, folder `/root/wa-bot-2`, port 3001, kartu "Perangkat 2" di
+dashboard — konsisten menyiratkan nomor kedua, dan **tidak satu pun dari nama
+itu menyimpan nomornya**. Nomornya cuma ada di `creds.json`. Penamaan yang rapi
+bukan bukti tentang isi; kalau sebuah fakta hanya hidup di nama, ia belum
+diverifikasi.
+
+**Akibat yang berbalik arah.** Yang dulu dicatat sebagai "tinggal satu langkah
+pairing" sekarang satu-satunya hal yang berbahaya: slot `:7` mencoba login
+**tiap 60 menit** (`KUNCI_RETRY_MINUTES=60`) memakai kredensial yang sudah
+dicabut, ke nomor yang sekarang menopang seluruh pintu WhatsApp usaha ini —
+dan yang baru saja lepas dari pembatasan. Percobaan login gagal beruntun persis
+alasan yang dipakai WhatsApp untuk membatasi sebuah nomor. Rekomendasi ke
+pemilik: `pm2 stop wa-bot-2 && pm2 save`, sesi **tidak** dihapus.
+
+**Bot pertama pulih tanpa satu pun commit.** Tersambung sejak ~18:03 UTC
+28 Agustus sebagai `62895429126232`; `stats.json` hari itu mencatat 30 masuk,
+38 keluar, 12 sapaan, dan nol `sesi_terkunci`. Dua baris di daftar `/update`
+larut karena itu: nomor yang dipajang situs (`…26232`) dan nomor yang menjawab
+kini sama, dan `backupAdmin` (`…2594`) tidak lagi kembar dengan nomor bot
+pertama — jadi `/kontak-admin` berhenti menunjuk ke nomor yang ikut padam.
+Yang belum terjawab: apakah ada **manusia** di `…2594`.
+
+**Pelajaran yang dibawa keluar:** keadaan runtime — nomor tertaut, sesi
+terkunci, pembatasan nomor — berubah **tanpa commit**, jadi catatan yang
+menyalinnya akan selalu ketinggalan. Yang bisa dipercaya cuma `/health`,
+`creds.json`, dan `stats.json`, dibaca ulang tiap kali, bukan diingat.
+
 ### Sebelum audit ini
 Riwayat perubahan lengkap kedua repo ada di **`/update`**, dirakit langsung dari
 git — bukan ditulis tangan, jadi tidak bisa ketinggalan.

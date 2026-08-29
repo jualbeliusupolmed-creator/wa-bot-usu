@@ -482,6 +482,13 @@ td.num, .num-cell { font-family: var(--mono); font-variant-numeric: tabular-nums
   font-family: var(--mono); font-size: .68rem; color: var(--warn);
   font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
 }
+/* Temuan yang sudah beres TIDAK dihapus dari daftar — yang dihapus akan
+   ditemukan lagi oleh audit berikutnya sebagai hal baru. Ia cuma berganti
+   warna, dan kalimat aslinya tetap terbaca di bawah penutupnya. */
+.todo .kotak.ok { border-color: var(--ok); background: var(--ok-t); }
+.todo .siapa-l.ok { color: var(--ok); }
+.todo li.beres > span:last-child > strong { text-decoration: line-through; text-decoration-color: var(--line); }
+.todo .tutup { display: block; margin-top: 6px; color: var(--ok); font-size: .88rem; }
 /* Perintah yang memang harus disalin utuh: menggulung mendatar, bukan
    dilipat. Baris shell yang terlipat menyembunyikan di mana barisnya putus. */
 .todo pre {
