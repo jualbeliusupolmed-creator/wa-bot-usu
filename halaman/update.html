@@ -686,6 +686,34 @@ dan tidak satu pun dari nama-nama itu menyimpan nomornya. <b>Nomornya cuma ada d
 <code>creds.json</code></b>, dan tidak ada yang membukanya sampai hari ini. Penamaan yang
 rapi tidak pernah jadi bukti tentang isi.</p>
 
+<p class="muted"><b>Di sisi situs, satu migrasi yang sudah tiga hari diparkir akhirnya
+dijalankan.</b> Ia ditulis 28 Agustus dengan kepala berbunyi "BELUM diterapkan — menunggu
+persetujuan pemilik", dan isinya dua peringatan Performance Advisor Supabase. Yang pertama:
+<code>listings</code> punya <b>dua indeks unik yang definisinya persis sama</b> atas
+<code>listing_code</code>, jadi setiap satu iklan masuk atau disunting, dua pohon B-tree
+identik ikut dipelihara. Yang kedua: satu kebijakan RLS di <code>buyer_contacts</code>
+memanggil <code>auth.role()</code> sekali per <em>baris</em>, bukan sekali per query.
+Keduanya sekarang beres, tercatat sebagai versi <code>20260829021232</code>.</p>
+
+<p class="muted">Sebelum indeksnya dibuang, dipastikan dulu ke <code>pg_constraint</code>
+mana dari dua kembar itu yang menopang jaminan UNIQUE — lalu sesudahnya dipastikan lagi
+bahwa constraint-nya masih berdiri dengan satu indeks pendukung. Keunikan kode iklan tidak
+melonggar sedetik pun. <b>Satu angka nyaris menipu di tengah jalan:</b> indeks lepas yang
+dibuang itu justru tercatat dipakai <b>12 kali</b>, sementara indeks yang menopang
+constraint baru <b>2 kali</b>. Godaannya membalik keputusan — padahal di antara dua indeks
+identik perencana memang bebas memilih salah satu, dan angka pemakaian salinan bukan bukti
+salinan itu dibutuhkan. Pekerjaannya pindah, bukan hilang. Kalau ternyata perlu dibalik,
+satu baris <code>CREATE UNIQUE INDEX</code> mengembalikannya.</p>
+
+<p class="muted">Sesudahnya Advisor diperiksa ulang, bukan diasumsikan: <b>nol peringatan
+performa</b> tersisa — yang tinggal 22 catatan tingkat INFO "indeks belum pernah terpakai",
+dan itu sengaja dibiarkan karena hampir semuanya milik tabel fitur berumur seminggu.
+Membuang indeks di tabel yang belum ramai berarti membuangnya tepat sebelum ia mulai
+dibutuhkan. Security Advisor juga bersih dari temuan baru, dan dua peringatan lama pada
+fungsi <code>process_teman_swipe</code> yang dulu dicatat "harus ditangani terpisah" sudah
+tidak muncul lagi. Dicatat di sini karena, seperti biasa, <b>menjalankan SQL tidak
+meninggalkan satu commit pun</b> di linimasa mana pun.</p>
+
 <div class="card">
   <ul class="todo">
     <li><span class="kotak siapa"></span><span>
