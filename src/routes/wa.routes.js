@@ -40,8 +40,8 @@ module.exports = function pasangRuteWa(app, K) {
             return res.status(503).json({ error: 'Bot not connected' });
         }
         try {
-            const chats = await K.waSocket.groupFetchAllParticipating();
-            const groups = Object.entries(chats).map(([jid, meta]) => ({
+            const chats = await K.waSocket.groupFetchAllParticipating().catch(() => ({}));
+            let groups = Object.entries(chats).map(([jid, meta]) => ({
                 jid,
                 name: meta.subject || 'Tanpa Nama',
                 participants: meta.participants?.length || 0,
@@ -49,6 +49,20 @@ module.exports = function pasangRuteWa(app, K) {
                     p.id === K.waSocket.user?.id && (p.admin === 'admin' || p.admin === 'superadmin')
                 ) || false,
             }));
+
+            if (groups.length === 0 && K.chatMap) {
+                for (const [jid, chat] of K.chatMap.entries()) {
+                    if (jid.endsWith('@g.us')) {
+                        groups.push({
+                            jid,
+                            name: chat.name || 'Tanpa Nama',
+                            participants: 0,
+                            isAdmin: false,
+                        });
+                    }
+                }
+            }
+
             K.groupsCache = { at: Date.now(), data: groups };
             res.json({ groups, cached: false });
         } catch (err) {
