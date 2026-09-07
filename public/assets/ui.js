@@ -115,6 +115,7 @@
       items: [
         { u: '/',             t: 'Dashboard',         d: 'Status real-time, chat & broadcast', ic: 'gauge' },
         { u: '/home',         t: 'Panel Kontrol',     d: 'Sakelar, fungsi & data JSON',        ic: 'gear' },
+        { u: '/broadcast_grup', t: 'Broadcast Grup',  d: 'Kirim japri massal ke anggota grup', ic: 'bullhorn' },
         { u: '/antrean',      t: 'Antrean Outbox',    d: 'Pesan tertunda / kirim manual',      ic: 'inbox' },
         { u: '/laporan',      t: 'Laporan Bot',       d: 'Ringkasan kesehatan harian',         ic: 'clipboard-list' }
       ]
