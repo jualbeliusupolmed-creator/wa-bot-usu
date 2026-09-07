@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Broadcast Grup - WA Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
+<link rel="stylesheet" href="/assets/ui.css?v=20260829">
+<script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<script src="/assets/ui.js?v=20260822" defer></script>
+<style>
+    .input { width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-alt); color: var(--fg); font-family: inherit; font-size: 14px; margin-top: 8px; box-sizing: border-box; }
+    .input:disabled { opacity: 0.7; cursor: not-allowed; }
+    .btn { display: inline-block; padding: 12px 24px; background: var(--fg); color: var(--bg); font-weight: 600; border: none; border-radius: 8px; cursor: pointer; text-align: center; font-family: 'Outfit', sans-serif; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .checkbox-item { display: flex; align-items: center; padding: 8px 12px; border: 1px solid var(--border); margin-bottom: 8px; border-radius: 6px; }
+    .checkbox-item input { margin-right: 12px; }
+    #log-container { background: var(--bg-alt); padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; }
+</style>
+</head>
+<body>
+
+    <div id="auth-screen">
+        <div class="auth-card glass">
+            <h2><i class="fa-brands fa-whatsapp"></i> Broadcast Grup</h2>
+            <p class="muted" style="margin-bottom: 24px;">Masukkan sandi panel untuk masuk</p>
+            <input type="password" id="token-input" placeholder="Sandi panel" onkeydown="if(event.key==='Enter')login()">
+            <button class="wide" onclick="login()">Masuk</button>
+        </div>
+    </div>
+
+    <div id="dashboard" style="display:none; max-width: 800px; margin: 40px auto; padding: 20px;">
+        <div class="header">
+            <h1>Broadcast Japri Anggota Grup</h1>
+            <div class="row">
+                <a href="/home" class="ghost small" style="text-decoration:none;"><i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard</a>
+                <button class="ghost small" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Keluar</button>
+            </div>
+        </div>
+
+        <div class="card glass">
+            <div style="margin-bottom: 20px;">
+                <div class="flex-between">
+                    <label class="muted" style="font-weight:600;">1. Pilih Grup WhatsApp</label>
+                    <button class="ghost small" onclick="fetchGroups()">🔄 Segarkan Grup</button>
+                </div>
+                <select id="group-select" class="input" onchange="handleGroupChange()">
+                    <option value="">-- Pilih Grup --</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div class="flex-between">
+                    <label class="muted" style="font-weight:600;">2. Pilih Anggota</label>
+                    <button class="ghost small" onclick="toggleSelectAll()">Pilih/Batal Semua</button>
+                </div>
+                <div id="members-container" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 8px;">
+                    <div class="muted">Silakan pilih grup terlebih dahulu</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label class="muted" style="font-weight:600;">3. Pesan Broadcast</label>
+                <textarea id="message-input" class="input" rows="5" placeholder="Ketik pesan broadcast di sini..."></textarea>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label class="muted" style="font-weight:600;">URL Gambar (Opsional)</label>
+                <input type="text" id="image-url" class="input" placeholder="https://contoh.com/gambar.jpg">
+            </div>
+
+            <button id="btn-send" class="btn" style="width:100%;" onclick="startBroadcast()">🚀 Mulai Broadcast</button>
+        </div>
+
+        <div class="card glass" style="margin-top: 20px;">
+            <div class="card-header"><i class="fa-solid fa-terminal"></i> Log Pengiriman</div>
+            <div id="log-container">Menunggu dimulai...</div>
+        </div>
+    </div>
+
+    <script>
+        let allGroups = [];
+        let groupMembers = [];
+        let selectedMembers = new Set();
+        let isSending = false;
+        
+        const T = () => localStorage.getItem('token');
+        const H = () => ({ 'Authorization': 'Bearer ' + T(), 'Content-Type': 'application/json' });
+
+        function addLog(text) {
+            const lc = document.getElementById('log-container');
+            const time = new Date().toLocaleTimeString();
+            lc.innerText = `[${time}] ${text}\n` + lc.innerText;
+        }
+
+        async function login() {
+            const pwd = document.getElementById('token-input').value;
+            localStorage.setItem('token', pwd);
+            const res = await fetch('/status', { headers: H() });
+            if (res.ok) {
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                fetchGroups();
+            } else {
+                alert('Sandi salah!');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            location.reload();
+        }
+
+        async function fetchGroups() {
+            try {
+                addLog('Memuat daftar grup...');
+                const res = await fetch('/groups?fresh=1', { headers: H() });
+                const data = await res.json();
+                if (res.ok && data.groups) {
+                    allGroups = data.groups;
+                    addLog(`✅ Memuat ${allGroups.length} grup.`);
+                    if(allGroups.length === 0) addLog("⚠️ Daftar grup kosong.");
+                    
+                    const sel = document.getElementById('group-select');
+                    sel.innerHTML = '<option value="">-- Pilih Grup --</option>';
+                    allGroups.forEach(g => {
+                        sel.innerHTML += `<option value="${g.jid}">${g.name} (${g.participants} anggota)</option>`;
+                    });
+                } else {
+                    addLog(`❌ Gagal: ${data.error || res.statusText}`);
+                }
+            } catch (err) {
+                addLog(`❌ Error: ${err.message}`);
+            }
+        }
+
+        async function handleGroupChange() {
+            const jid = document.getElementById('group-select').value;
+            const mc = document.getElementById('members-container');
+            selectedMembers.clear();
+            
+            if (!jid) {
+                mc.innerHTML = '<div class="muted">Silakan pilih grup terlebih dahulu</div>';
+                groupMembers = [];
+                return;
+            }
+            
+            try {
+                addLog('Memuat anggota grup...');
+                mc.innerHTML = '<div class="muted">Memuat anggota...</div>';
+                const res = await fetch(`/groups/${encodeURIComponent(jid)}`, { headers: H() });
+                const data = await res.json();
+                if (res.ok && data.participants) {
+                    groupMembers = data.participants;
+                    addLog(`✅ Memuat ${groupMembers.length} anggota grup.`);
+                    renderMembers();
+                } else {
+                    mc.innerHTML = '<div class="muted">Gagal memuat anggota</div>';
+                    addLog(`❌ Gagal: ${data.error || res.statusText}`);
+                }
+            } catch (err) {
+                addLog(`❌ Error: ${err.message}`);
+                mc.innerHTML = '<div class="muted">Error memuat anggota</div>';
+            }
+        }
+
+        function renderMembers() {
+            const mc = document.getElementById('members-container');
+            mc.innerHTML = '';
+            groupMembers.forEach(m => {
+                const checked = selectedMembers.has(m.id) ? 'checked' : '';
+                const role = m.admin ? ` <span style="font-size:10px;background:#e5e7eb;color:#374151;padding:2px 6px;border-radius:4px;">${m.admin}</span>` : '';
+                mc.innerHTML += `
+                    <label class="checkbox-item">
+                        <input type="checkbox" value="${m.id}" ${checked} onchange="toggleMember('${m.id}', this.checked)" ${isSending ? 'disabled' : ''}>
+                        <span style="font-size:14px;color:var(--fg);">${m.id.split('@')[0]}${role}</span>
+                    </label>
+                `;
+            });
+        }
+
+        function toggleMember(id, isChecked) {
+            if (isChecked) selectedMembers.add(id);
+            else selectedMembers.delete(id);
+        }
+
+        function toggleSelectAll() {
+            if (isSending) return;
+            if (selectedMembers.size === groupMembers.length && groupMembers.length > 0) {
+                selectedMembers.clear();
+            } else {
+                groupMembers.forEach(m => selectedMembers.add(m.id));
+            }
+            renderMembers();
+        }
+
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        async function startBroadcast() {
+            const msg = document.getElementById('message-input').value.trim();
+            const img = document.getElementById('image-url').value.trim();
+            const targets = Array.from(selectedMembers);
+
+            if (!msg && !img) return alert("Pesan atau gambar tidak boleh kosong!");
+            if (targets.length === 0) return alert("Pilih minimal 1 anggota grup!");
+            if (!confirm(`Kirim ke ${targets.length} nomor?`)) return;
+
+            isSending = true;
+            document.getElementById('btn-send').disabled = true;
+            document.getElementById('group-select').disabled = true;
+            document.getElementById('message-input').disabled = true;
+            document.getElementById('image-url').disabled = true;
+            renderMembers(); // disable checkboxes
+
+            addLog(`🚀 Memulai pengiriman ke ${targets.length} nomor...`);
+
+            for (let i = 0; i < targets.length; i++) {
+                if (!isSending) break;
+                const target = targets[i];
+                addLog(`⏳ [${i+1}/${targets.length}] Mengirim ke ${target.split('@')[0]}...`);
+                
+                try {
+                    const payload = { target, message: msg };
+                    if (img) payload.url = img;
+                    
+                    const res = await fetch('/send', {
+                        method: 'POST',
+                        headers: H(),
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (res.ok) {
+                        addLog(`✅ Berhasil mengirim ke ${target.split('@')[0]}`);
+                    } else {
+                        const data = await res.json().catch(()=>({}));
+                        addLog(`❌ Gagal ke ${target.split('@')[0]}: ${data.error || res.statusText}`);
+                    }
+                } catch (e) {
+                    addLog(`❌ Error ke ${target.split('@')[0]}: ${e.message}`);
+                }
+
+                if (i < targets.length - 1) {
+                    addLog(`Menunggu 6 detik (rate limit 10/menit)...`);
+                    await sleep(6000);
+                }
+            }
+
+            addLog("🎉 Broadcast selesai!");
+            isSending = false;
+            document.getElementById('btn-send').disabled = false;
+            document.getElementById('group-select').disabled = false;
+            document.getElementById('message-input').disabled = false;
+            document.getElementById('image-url').disabled = false;
+            renderMembers(); // re-enable checkboxes
+        }
+
+        // Auto login check
+        if (T()) login();
+    </script>
+</body>
+</html>

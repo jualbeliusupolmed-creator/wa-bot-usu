@@ -136,6 +136,10 @@ module.exports = function pasangRuteHalaman(app, ctx) {
         res.sendFile(path.join(AKAR, 'halaman', 'update.html'));
     });
 
+    app.get('/broadcast_grup', requireAuthPage, (req, res) => {
+        res.sendFile(path.join(AKAR, 'halaman', 'broadcast_grup.html'));
+    });
+
     // Peta kerja produk. Bergerbang karena isinya rencana yang belum diputuskan
     // pemilik — dan halamannya sendiri sudah noindex,nofollow.
     app.get('/future', requireAuthPage, (req, res) => {
