@@ -180,6 +180,131 @@ module.exports = function pasangRuteWa(app, K) {
         });
     });
 
+    // ── Bulk send (broadcast japri grup) ─────────────────────────────────────────
+    // Solusi untuk masalah "broadcast berhenti saat tab di-minimize":
+    // Semua target diserahkan ke sini SEKALI, lalu serverlah yang mengulang
+    // dan memberikan jeda — bukan loop di browser yang bisa dibekukan sistem.
+    //
+    // Payload: { targets: string[], message: string, url?: string, delaySec?: number }
+    // Response: { ok, jobId, total, queued }
+    //
+    // Status bisa di-poll lewat GET /send-bulk/status/:jobId
+    const bulkJobs = new Map(); // jobId → { total, sent, failed, done, log[] }
+
+    app.post('/send-bulk', requireAuth, (req, res) => {
+        const targets  = Array.isArray(req.body?.targets) ? req.body.targets : [];
+        const message  = String(req.body?.message || '').trim();
+        const urlGbr   = String(req.body?.url || '').trim();
+        const delaySec = Math.max(3, Math.min(120, Number(req.body?.delaySec) || 6));
+
+        if (!message && !urlGbr) {
+            return res.status(400).json({ error: 'Pesan atau URL gambar wajib diisi.' });
+        }
+        if (!targets.length) {
+            return res.status(400).json({ error: 'Pilih minimal satu penerima.' });
+        }
+        if (targets.length > 500) {
+            return res.status(400).json({ error: 'Maksimal 500 target sekali broadcast.' });
+        }
+
+        const jobId = `bc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const job = {
+            total    : targets.length,
+            sent     : 0,
+            failed   : 0,
+            done     : false,
+            stopped  : false,
+            startedAt: Date.now(),
+            log      : [],
+        };
+        bulkJobs.set(jobId, job);
+
+        // Bersihkan job lama (> 2 jam) agar Map tidak tumbuh tak terbatas.
+        const DUA_JAM = 2 * 60 * 60 * 1000;
+        for (const [id, j] of bulkJobs.entries()) {
+            if (j.done && Date.now() - j.startedAt > DUA_JAM) bulkJobs.delete(id);
+        }
+
+        // Jalankan loop di server — pakai setInterval per langkah agar tidak
+        // memblokir event loop dan bisa dihentikan via flag `stopped`.
+        let idx = 0;
+        const tick = setInterval(() => {
+            if (job.stopped || idx >= targets.length) {
+                clearInterval(tick);
+                job.done = true;
+                const label = job.stopped ? 'Dihentikan oleh pengguna' : 'Selesai';
+                job.log.push({ ts: Date.now(), status: 'done', msg: `${label}: ${job.sent} berhasil, ${job.failed} gagal.` });
+                console.log(`[send-bulk] Job ${jobId} ${label.toLowerCase()}. Berhasil: ${job.sent}, Gagal: ${job.failed}.`);
+                return;
+            }
+
+            const target = targets[idx++];
+            const phone  = String(target || '').split('@')[0];
+
+            if (messageQueue.length >= OUTBOX_MAX) {
+                // Antrean penuh: tunda satu siklus dan coba lagi nanti.
+                idx--; // mundur satu agar target yang sama dicoba lagi
+                return;
+            }
+
+            try {
+                const jid  = toJid(target);
+                const msg  = enrichDicariMessage(swapLegacyGreeting(message, jid), jid);
+                messageQueue.push({ jid, message: msg, url: urlGbr || undefined, ts: Date.now(), ttl: OUTBOX_TTL_MS });
+                simpanOutbox();
+                kickQueue();
+                job.sent++;
+                job.log.push({ ts: Date.now(), status: 'ok', phone, msg: `Diantrekan ke ${phone}` });
+            } catch (err) {
+                job.failed++;
+                job.log.push({ ts: Date.now(), status: 'err', phone, msg: `Gagal antrekan ${phone}: ${err.message}` });
+            }
+
+            // Log tiap 10 pesan agar tidak membanjiri konsol.
+            if (job.sent % 10 === 0 || idx === targets.length) {
+                console.log(`[send-bulk] Job ${jobId}: ${job.sent}/${targets.length} diantrekan.`);
+            }
+        }, delaySec * 1000);
+
+        bump('send_bulk_started');
+        console.log(`[send-bulk] Job ${jobId} dimulai: ${targets.length} target, jeda ${delaySec}d.`);
+
+        return res.json({
+            ok     : true,
+            jobId,
+            total  : targets.length,
+            delaySec,
+            estimasiMenitSelesai: Math.ceil((targets.length * delaySec) / 60),
+        });
+    });
+
+    // Poll status job broadcast. Log dibatasi 100 entri terakhir agar
+    // respons tetap ringan untuk jumlah target yang besar.
+    app.get('/send-bulk/status/:jobId', requireAuth, (req, res) => {
+        const job = bulkJobs.get(req.params.jobId);
+        if (!job) return res.status(404).json({ error: 'Job tidak ditemukan atau sudah kedaluwarsa.' });
+        const log = job.log.slice(-100);
+        res.json({
+            jobId  : req.params.jobId,
+            total  : job.total,
+            sent   : job.sent,
+            failed : job.failed,
+            done   : job.done,
+            stopped: job.stopped,
+            pct    : Math.round(((job.sent + job.failed) / job.total) * 100),
+            log,
+        });
+    });
+
+    // Hentikan job yang sedang berjalan.
+    app.post('/send-bulk/stop/:jobId', requireAuth, (req, res) => {
+        const job = bulkJobs.get(req.params.jobId);
+        if (!job) return res.status(404).json({ error: 'Job tidak ditemukan.' });
+        if (job.done) return res.json({ ok: true, msg: 'Job sudah selesai.' });
+        job.stopped = true;
+        res.json({ ok: true, msg: 'Sinyal berhenti dikirim. Job akan berhenti setelah pengiriman saat ini selesai.' });
+    });
+
     app.get('/broadcast/targets', requireAuth, (req, res) => {
         const list = broadcastTargets();
         res.json({ targets: list, count: list.length, max: BROADCAST_MAX });

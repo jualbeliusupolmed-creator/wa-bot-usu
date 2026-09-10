@@ -226,7 +226,6 @@
         let groupMembers = [];
         let selectedMembers = new Set();
         let isSending = false;
-        let shouldStop = false;
 
         const $ = (id) => document.getElementById(id);
         const getStoredToken = () => localStorage.getItem('bot_api_token') || localStorage.getItem('token') || '';
@@ -475,13 +474,30 @@
             $('selected-stat').textContent = `${selectedMembers.size} dari ${groupMembers.length} dipilih`;
         }
 
-        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        // ── State broadcast server-side ────────────────────────────────────────────
+        let activeJobId = null;
+        let pollTimer   = null;
+        let lastLogIdx  = 0;
 
+        function setBroadcastRunning(running) {
+            isSending = running;
+            $('btn-start').style.display = running ? 'none' : 'inline-block';
+            $('btn-stop').style.display  = running ? 'inline-block' : 'none';
+            $('group-select').disabled   = running;
+            $('message-input').disabled  = running;
+            $('image-url').disabled      = running;
+            $('delay-sec').disabled      = running;
+            renderMembers();
+        }
+
+        // ── Mulai Broadcast — server-side loop ─────────────────────────────────────
+        // Browser hanya mengirim SATU request ke /send-bulk. Server yang mengurus
+        // loop dan delay via setInterval. Broadcast tetap berjalan walau tab ditutup.
         async function startBroadcast() {
-            const msg = $('message-input').value.trim();
-            const img = $('image-url').value.trim();
+            const msg      = $('message-input').value.trim();
+            const img      = $('image-url').value.trim();
             const delaySec = Math.max(3, parseInt($('delay-sec').value, 10) || 6);
-            const targets = Array.from(selectedMembers);
+            const targets  = Array.from(selectedMembers);
 
             if (!msg && !img) {
                 alert('Pesan teks atau tautan gambar harus diisi!');
@@ -493,88 +509,104 @@
                 return;
             }
 
-            const confirmMsg = `Kirim pesan broadcast ke ${targets.length} nomor terpilih?\n\nJeda per pesan: ${delaySec} detik\nPerkiraan selesai: ~${Math.ceil((targets.length * delaySec) / 60)} menit.`;
+            const confirmMsg =
+                `Kirim pesan broadcast ke ${targets.length} nomor terpilih?\n\n` +
+                `Jeda per pesan : ${delaySec} detik\n` +
+                `Perkiraan selesai: ~${Math.ceil((targets.length * delaySec) / 60)} menit\n\n` +
+                `✅ Broadcast berjalan di SERVER — aman ditinggal / tab boleh ditutup.`;
             if (!confirm(confirmMsg)) return;
 
-            isSending = true;
-            shouldStop = false;
+            setBroadcastRunning(true);
+            activeJobId = null;
+            lastLogIdx  = 0;
 
-            $('btn-start').style.display = 'none';
-            $('btn-stop').style.display = 'inline-block';
-            $('group-select').disabled = true;
-            $('message-input').disabled = true;
-            $('image-url').disabled = true;
-            $('delay-sec').disabled = true;
-            renderMembers();
+            log(`🚀 Menyerahkan job broadcast ke server (${targets.length} nomor, jeda ${delaySec}d)...`, 'warn');
 
-            log(`🚀 Memulai pengiriman broadcast ke ${targets.length} nomor...`, 'warn');
-            let successCount = 0;
-            let failCount = 0;
+            try {
+                const res  = await fetch('/send-bulk', {
+                    method : 'POST',
+                    headers: apiHeaders(),
+                    body   : JSON.stringify({ targets, message: msg, url: img || undefined, delaySec }),
+                });
+                const data = await res.json().catch(() => ({}));
 
-            for (let i = 0; i < targets.length; i++) {
-                if (shouldStop) {
-                    log('Pengiriman dihentikan oleh pengguna.', 'warn');
-                    break;
+                if (!res.ok) {
+                    log('Gagal memulai broadcast: ' + (data.error || res.statusText), 'err');
+                    setBroadcastRunning(false);
+                    return;
                 }
 
-                const target = targets[i];
-                const phone = target.split('@')[0];
-                const currentNum = i + 1;
+                activeJobId = data.jobId;
+                log(`✅ Server menerima job! ID: ${activeJobId}`, 'ok');
+                log(`📦 ${data.total} target · jeda ${data.delaySec}d · ~${data.estimasiMenitSelesai} menit`, 'ok');
+                log('ℹ️ Kamu boleh menutup atau meminimalkan tab ini — pengiriman tetap berjalan di server.', 'info');
 
-                // Update Progress UI
-                const pct = Math.round((currentNum / targets.length) * 100);
-                $('progress-fill').style.width = pct + '%';
-                $('progress-text').textContent = `${currentNum} / ${targets.length} (${pct}%)`;
+                // Polling status tiap 3 detik
+                pollTimer = setInterval(pollJobStatus, 3000);
 
-                log(`[${currentNum}/${targets.length}] Mengirim ke ${phone}...`);
-
-                try {
-                    const payload = { target, message: msg };
-                    if (img) payload.url = img;
-
-                    const res = await fetch('/send', {
-                        method: 'POST',
-                        headers: apiHeaders(),
-                        body: JSON.stringify(payload),
-                    });
-
-                    const resData = await res.json().catch(() => ({}));
-                    if (res.ok) {
-                        successCount++;
-                        log(`Berhasil terkirim ke ${phone}`, 'ok');
-                    } else {
-                        failCount++;
-                        log(`Gagal ke ${phone}: ${resData.error || res.statusText}`, 'err');
-                    }
-                } catch (err) {
-                    failCount++;
-                    log(`Error koneksi ke ${phone}: ${err.message}`, 'err');
-                }
-
-                if (i < targets.length - 1 && !shouldStop) {
-                    log(`Menunggu ${delaySec} detik sebelum pengiriman berikutnya...`);
-                    await sleep(delaySec * 1000);
-                }
+            } catch (err) {
+                log('Error memulai broadcast: ' + err.message, 'err');
+                setBroadcastRunning(false);
             }
-
-            log(`🎉 Broadcast selesai! Total: ${successCount} berhasil, ${failCount} gagal.`, 'ok');
-
-            isSending = false;
-            $('btn-start').style.display = 'inline-block';
-            $('btn-stop').style.display = 'none';
-            $('group-select').disabled = false;
-            $('message-input').disabled = false;
-            $('image-url').disabled = false;
-            $('delay-sec').disabled = false;
-            renderMembers();
         }
 
-        function stopBroadcast() {
-            if (!isSending) return;
-            if (confirm('Apakah Anda yakin ingin menghentikan pengiriman broadcast sekarang?')) {
-                shouldStop = true;
-                log('Mengirim sinyal berhenti... Menunggu pesan saat ini selesai.', 'warn');
+        // ── Polling status job ─────────────────────────────────────────────────────
+        async function pollJobStatus() {
+            if (!activeJobId) return;
+            try {
+                const res  = await fetch(`/send-bulk/status/${activeJobId}`, { headers: apiHeaders() });
+                const data = await res.json().catch(() => null);
+                if (!data) return;
+
+                // Update progress bar UI
+                $('progress-fill').style.width = data.pct + '%';
+                $('progress-text').textContent  = `${data.sent + data.failed} / ${data.total} (${data.pct}%)`;
+
+                // Tampilkan log baru (hanya entri sejak poll terakhir)
+                const newEntries = data.log.slice(lastLogIdx);
+                lastLogIdx += newEntries.length;
+                for (const entry of newEntries) {
+                    const type = entry.status === 'ok' ? 'ok'
+                               : entry.status === 'err' ? 'err'
+                               : entry.status === 'done' ? 'warn' : 'info';
+                    log(entry.msg, type);
+                }
+
+                if (data.done) {
+                    clearInterval(pollTimer);
+                    pollTimer   = null;
+                    activeJobId = null;
+                    setBroadcastRunning(false);
+
+                    const label = data.stopped ? '⏹️ Broadcast dihentikan' : '🎉 Broadcast selesai';
+                    log(`${label}! Total: ${data.sent} berhasil, ${data.failed} gagal.`, 'ok');
+                    $('progress-fill').style.width = '100%';
+                    $('progress-text').textContent  = `${data.total} / ${data.total} (100%)`;
+                }
+            } catch (err) {
+                // Gangguan jaringan sementara — jangan hentikan polling
+                log('Cek status gagal (akan dicoba lagi): ' + err.message, 'warn');
             }
+        }
+
+        // ── Hentikan Broadcast ─────────────────────────────────────────────────────
+        async function stopBroadcast() {
+            if (!isSending) return;
+            if (!confirm('Apakah Anda yakin ingin menghentikan pengiriman broadcast sekarang?')) return;
+            log('Mengirim sinyal berhenti ke server...', 'warn');
+            if (activeJobId) {
+                try {
+                    const res  = await fetch(`/send-bulk/stop/${activeJobId}`, {
+                        method : 'POST',
+                        headers: apiHeaders(),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    log(data.msg || 'Sinyal berhenti terkirim.', 'warn');
+                } catch (err) {
+                    log('Gagal mengirim sinyal berhenti: ' + err.message, 'err');
+                }
+            }
+            // Polling tetap berjalan — ia yang mendeteksi job.done = true
         }
 
         // Inisialisasi awal saat halaman dibuka
