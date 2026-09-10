@@ -12,17 +12,107 @@
  * soketnya diganti tiap kali bot menyambung ulang; salinan yang diambil saat
  * modul dimuat akan menunjuk ke soket yang sudah mati.
  */
+const path = require('path');
+const fs   = require('fs');
 const { toJid, dgnBatas } = require('../lib/utils');
 
+// ── Broadcast State (persistent) ─────────────────────────────────────────────
+// Disimpan ke disk agar tahan restart: kalau bot mati di tengah broadcast 1500
+// orang, sesi berikutnya melanjutkan dari JID yang belum terkirim.
+let _bcStateFile = null;   // diisi sekali saat pasangRuteWa dipanggil
+let _bcState = null;       // null = belum dimuat atau tidak ada broadcast aktif
+
+function _getBcFile(K) {
+    if (!_bcStateFile) _bcStateFile = path.join(K.AKAR, '..', 'wa-bot-usu', 'broadcast-state.json').replace(/\/wa-bot-usu\/\.\.\/wa-bot-usu\//g, '/wa-bot-usu/');
+    // fallback: pakai DATA_DIR jika ada di K
+    if (!_bcStateFile) _bcStateFile = path.join(process.env.DATA_DIR || '.', 'broadcast-state.json');
+    return _bcStateFile;
+}
+
+function bcStateFile(K) {
+    if (_bcStateFile) return _bcStateFile;
+    // K.AKAR adalah __dirname bot (direktori wa-bot-usu)
+    _bcStateFile = path.join(K.AKAR, 'broadcast-state.json');
+    return _bcStateFile;
+}
+
+function simpanBcState(K) {
+    if (!_bcState) {
+        // Kosongkan file kalau tidak ada state aktif
+        try { fs.unlinkSync(bcStateFile(K)); } catch (_) {}
+        return;
+    }
+    try {
+        const tmp = bcStateFile(K) + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(_bcState), { mode: 0o600 });
+        fs.renameSync(tmp, bcStateFile(K));
+    } catch (e) {
+        console.error('[bc-state] gagal simpan:', e.message);
+    }
+}
+
+function muatBcState(K) {
+    try {
+        const f = bcStateFile(K);
+        if (!fs.existsSync(f)) return null;
+        const raw = JSON.parse(fs.readFileSync(f, 'utf8'));
+        if (!raw || !raw.id || raw.selesai) return null;
+        _bcState = raw;
+        return raw;
+    } catch (_) { return null; }
+}
+
+// Dipanggil dari processQueue setelah kirim berhasil
+function catatBcTerkirim(jid) {
+    if (!_bcState || _bcState.selesai) return;
+    if (!_bcState.terkirim.includes(jid)) _bcState.terkirim.push(jid);
+    const sisa = _bcState.jids.filter(j => !_bcState.terkirim.includes(j) && !_bcState.gagal.some(g => g.jid === j));
+    if (sisa.length === 0) {
+        _bcState.selesai = true;
+        _bcState.selesaiAt = Date.now();
+        console.log(`[broadcast] Selesai! Terkirim: ${_bcState.terkirim.length}, Gagal: ${_bcState.gagal.length}`);
+    }
+    // Throttle simpan: maks sekali per 3 detik agar tidak I/O intensif
+    if (!catatBcTerkirim._timer) {
+        catatBcTerkirim._timer = setTimeout(() => {
+            catatBcTerkirim._timer = null;
+            simpanBcState(K_ref);
+        }, 3000);
+    }
+}
+
+function catatBcGagal(jid, sebab) {
+    if (!_bcState || _bcState.selesai) return;
+    if (!_bcState.gagal.some(g => g.jid === jid)) {
+        _bcState.gagal.push({ jid, sebab: String(sebab || '').slice(0, 200), at: Date.now() });
+    }
+    catatBcTerkirim(jid);  // trigger cek selesai
+}
+
+let K_ref = null;  // referensi K agar catatBcTerkirim/Gagal bisa simpan
+
 module.exports = function pasangRuteWa(app, K) {
+    K_ref = K;  // simpan referensi untuk catatBcTerkirim/Gagal
+    // Ekspos fungsi broadcast state ke K agar processQueue bisa memanggilnya
+    K.catatBcTerkirim = catatBcTerkirim;
+    K.catatBcGagal    = catatBcGagal;
+    K.muatBcState     = (suppressLog) => {
+        const st = muatBcState(K);
+        if (st && !suppressLog) {
+            const sisa = st.jids.filter(j => !st.terkirim.includes(j) && !st.gagal.some(g => g.jid === j));
+            console.log(`[broadcast] Resume dari state: ${st.terkirim.length} terkirim, ${st.gagal.length} gagal, ${sisa.length} sisa.`);
+        }
+        return st;
+    };
+    K.bcStateAktif = () => _bcState && !_bcState.selesai ? _bcState : null;
+
     const { requireAuth, requireAuthPage, requireRelink, requirePemulihan } = K;
     // Yang stabil diambil sekali di sini; yang berubah sepanjang bot hidup
     // TIDAK — itu dibaca lewat K.<nama> supaya selalu nilai terbaru.
     const {
         BROADCAST_MAX, GROUPS_TTL_MS, OUTBOX_MAX, OUTBOX_TTL_MS,
-        bot2Siap, botSiap, broadcastTargets, bump,         enrichDicariMessage, getSavedStatuses, kickQueue, messageQueue,
+        bot2Siap, botSiap, broadcastTargets, bump, enrichDicariMessage, getSavedStatuses, kickQueue, messageQueue,
         saveLidResolutionMap, saveStatus, simpanOutbox, swapLegacyGreeting,
-        
     } = K;
 
     app.get('/groups', requireAuth, async (req, res) => {
@@ -40,8 +130,8 @@ module.exports = function pasangRuteWa(app, K) {
             return res.status(503).json({ error: 'Bot not connected' });
         }
         try {
-            const chats = await K.waSocket.groupFetchAllParticipating().catch(() => ({}));
-            let groups = Object.entries(chats).map(([jid, meta]) => ({
+            const chats = await K.waSocket.groupFetchAllParticipating();
+            const groups = Object.entries(chats).map(([jid, meta]) => ({
                 jid,
                 name: meta.subject || 'Tanpa Nama',
                 participants: meta.participants?.length || 0,
@@ -49,20 +139,6 @@ module.exports = function pasangRuteWa(app, K) {
                     p.id === K.waSocket.user?.id && (p.admin === 'admin' || p.admin === 'superadmin')
                 ) || false,
             }));
-
-            if (groups.length === 0 && K.chatMap) {
-                for (const [jid, chat] of K.chatMap.entries()) {
-                    if (jid.endsWith('@g.us')) {
-                        groups.push({
-                            jid,
-                            name: chat.name || 'Tanpa Nama',
-                            participants: 0,
-                            isAdmin: false,
-                        });
-                    }
-                }
-            }
-
             K.groupsCache = { at: Date.now(), data: groups };
             res.json({ groups, cached: false });
         } catch (err) {
@@ -180,131 +256,6 @@ module.exports = function pasangRuteWa(app, K) {
         });
     });
 
-    // ── Bulk send (broadcast japri grup) ─────────────────────────────────────────
-    // Solusi untuk masalah "broadcast berhenti saat tab di-minimize":
-    // Semua target diserahkan ke sini SEKALI, lalu serverlah yang mengulang
-    // dan memberikan jeda — bukan loop di browser yang bisa dibekukan sistem.
-    //
-    // Payload: { targets: string[], message: string, url?: string, delaySec?: number }
-    // Response: { ok, jobId, total, queued }
-    //
-    // Status bisa di-poll lewat GET /send-bulk/status/:jobId
-    const bulkJobs = new Map(); // jobId → { total, sent, failed, done, log[] }
-
-    app.post('/send-bulk', requireAuth, (req, res) => {
-        const targets  = Array.isArray(req.body?.targets) ? req.body.targets : [];
-        const message  = String(req.body?.message || '').trim();
-        const urlGbr   = String(req.body?.url || '').trim();
-        const delaySec = Math.max(3, Math.min(120, Number(req.body?.delaySec) || 6));
-
-        if (!message && !urlGbr) {
-            return res.status(400).json({ error: 'Pesan atau URL gambar wajib diisi.' });
-        }
-        if (!targets.length) {
-            return res.status(400).json({ error: 'Pilih minimal satu penerima.' });
-        }
-        if (targets.length > 500) {
-            return res.status(400).json({ error: 'Maksimal 500 target sekali broadcast.' });
-        }
-
-        const jobId = `bc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const job = {
-            total    : targets.length,
-            sent     : 0,
-            failed   : 0,
-            done     : false,
-            stopped  : false,
-            startedAt: Date.now(),
-            log      : [],
-        };
-        bulkJobs.set(jobId, job);
-
-        // Bersihkan job lama (> 2 jam) agar Map tidak tumbuh tak terbatas.
-        const DUA_JAM = 2 * 60 * 60 * 1000;
-        for (const [id, j] of bulkJobs.entries()) {
-            if (j.done && Date.now() - j.startedAt > DUA_JAM) bulkJobs.delete(id);
-        }
-
-        // Jalankan loop di server — pakai setInterval per langkah agar tidak
-        // memblokir event loop dan bisa dihentikan via flag `stopped`.
-        let idx = 0;
-        const tick = setInterval(() => {
-            if (job.stopped || idx >= targets.length) {
-                clearInterval(tick);
-                job.done = true;
-                const label = job.stopped ? 'Dihentikan oleh pengguna' : 'Selesai';
-                job.log.push({ ts: Date.now(), status: 'done', msg: `${label}: ${job.sent} berhasil, ${job.failed} gagal.` });
-                console.log(`[send-bulk] Job ${jobId} ${label.toLowerCase()}. Berhasil: ${job.sent}, Gagal: ${job.failed}.`);
-                return;
-            }
-
-            const target = targets[idx++];
-            const phone  = String(target || '').split('@')[0];
-
-            if (messageQueue.length >= OUTBOX_MAX) {
-                // Antrean penuh: tunda satu siklus dan coba lagi nanti.
-                idx--; // mundur satu agar target yang sama dicoba lagi
-                return;
-            }
-
-            try {
-                const jid  = toJid(target);
-                const msg  = enrichDicariMessage(swapLegacyGreeting(message, jid), jid);
-                messageQueue.push({ jid, message: msg, url: urlGbr || undefined, ts: Date.now(), ttl: OUTBOX_TTL_MS });
-                simpanOutbox();
-                kickQueue();
-                job.sent++;
-                job.log.push({ ts: Date.now(), status: 'ok', phone, msg: `Diantrekan ke ${phone}` });
-            } catch (err) {
-                job.failed++;
-                job.log.push({ ts: Date.now(), status: 'err', phone, msg: `Gagal antrekan ${phone}: ${err.message}` });
-            }
-
-            // Log tiap 10 pesan agar tidak membanjiri konsol.
-            if (job.sent % 10 === 0 || idx === targets.length) {
-                console.log(`[send-bulk] Job ${jobId}: ${job.sent}/${targets.length} diantrekan.`);
-            }
-        }, delaySec * 1000);
-
-        bump('send_bulk_started');
-        console.log(`[send-bulk] Job ${jobId} dimulai: ${targets.length} target, jeda ${delaySec}d.`);
-
-        return res.json({
-            ok     : true,
-            jobId,
-            total  : targets.length,
-            delaySec,
-            estimasiMenitSelesai: Math.ceil((targets.length * delaySec) / 60),
-        });
-    });
-
-    // Poll status job broadcast. Log dibatasi 100 entri terakhir agar
-    // respons tetap ringan untuk jumlah target yang besar.
-    app.get('/send-bulk/status/:jobId', requireAuth, (req, res) => {
-        const job = bulkJobs.get(req.params.jobId);
-        if (!job) return res.status(404).json({ error: 'Job tidak ditemukan atau sudah kedaluwarsa.' });
-        const log = job.log.slice(-100);
-        res.json({
-            jobId  : req.params.jobId,
-            total  : job.total,
-            sent   : job.sent,
-            failed : job.failed,
-            done   : job.done,
-            stopped: job.stopped,
-            pct    : Math.round(((job.sent + job.failed) / job.total) * 100),
-            log,
-        });
-    });
-
-    // Hentikan job yang sedang berjalan.
-    app.post('/send-bulk/stop/:jobId', requireAuth, (req, res) => {
-        const job = bulkJobs.get(req.params.jobId);
-        if (!job) return res.status(404).json({ error: 'Job tidak ditemukan.' });
-        if (job.done) return res.json({ ok: true, msg: 'Job sudah selesai.' });
-        job.stopped = true;
-        res.json({ ok: true, msg: 'Sinyal berhenti dikirim. Job akan berhenti setelah pengiriman saat ini selesai.' });
-    });
-
     app.get('/broadcast/targets', requireAuth, (req, res) => {
         const list = broadcastTargets();
         res.json({ targets: list, count: list.length, max: BROADCAST_MAX });
@@ -313,33 +264,129 @@ module.exports = function pasangRuteWa(app, K) {
     app.post('/broadcast', requireAuth, (req, res) => {
         const message = String(req.body?.message || '').trim();
         const jids = Array.isArray(req.body?.jids) ? req.body.jids : [];
+        // delayMs: jeda antar penerima dalam milidetik, dikirim dari halaman broadcast_grup.
+        // Disebarkan lewat offset ts tiap item sehingga processQueue (yang membaca
+        // nextSendAt) secara alami mengantarkan pesan dengan jeda tersebut.
+        // Dibatasi antara 1 detik–5 menit untuk menghindari input ekstrem.
+        const delayMs = Math.min(300_000, Math.max(1_000, Number(req.body?.delayMs) || 5_000));
+
         if (!message) return res.status(400).json({ error: 'Pesan tidak boleh kosong' });
         if (!jids.length) return res.status(400).json({ error: 'Pilih minimal satu tujuan' });
-        if (jids.length > BROADCAST_MAX) {
-            return res.status(400).json({ error: `Maksimal ${BROADCAST_MAX} tujuan sekali kirim` });
-        }
-        if (messageQueue.length > 100) {
-            return res.status(503).json({ error: 'Antrean sedang panjang, coba lagi nanti' });
-        }
-        const allowed = new Set(broadcastTargets().map(t => t.jid));
+        // Batas 500 hanya untuk non-broadcast (pesan manual / notif satu-satu).
+        // Broadcast grup bisa 1500+ — batasnya sendiri ada di frontend (BROADCAST_MAX).
+        // Kita cek messageQueue hanya kalau bukan broadcast (tidak ada delayMs besar).
+
+        // Validasi format JID — pastikan bentuknya valid WhatsApp individual/LID,
+        // bukan grup. Tidak ada pembatasan "harus pernah chat" untuk broadcast grup.
         const accepted = [], rejected = [];
         for (const raw of jids) {
-            const jid = String(raw || '');
-            if (allowed.has(jid)) accepted.push(jid); else rejected.push(jid);
+            const jid = String(raw || '').trim();
+            if (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid')) {
+                accepted.push(jid);
+            } else {
+                rejected.push(jid);   // abaikan JID grup atau format aneh
+            }
         }
         if (!accepted.length) {
-            return res.status(400).json({
-                error: 'Tidak ada tujuan yang valid. Hanya kontak yang pernah chat bot yang bisa dikirimi.',
-                rejected,
-            });
+            return res.status(400).json({ error: 'Tidak ada JID individual yang valid.', rejected });
         }
-        // Lewat antrean yang sama dengan balasan biasa, jadi jeda antar kontak berbeda
-        // (GAP_OTHER_*) tetap berlaku — kiriman menyebar, bukan burst.
-        for (const jid of accepted) messageQueue.push({ jid, message, ts: Date.now() });
+
+        // Batalkan broadcast lama yang belum selesai sebelum mulai yang baru
+        if (_bcState && !_bcState.selesai) {
+            console.log(`[broadcast] Broadcast lama (${_bcState.id}) dibatalkan oleh broadcast baru.`);
+        }
+
+        // Buat state baru dan simpan ke disk SEBELUM masuk ke messageQueue.
+        // Dengan begitu, restart bot di tengah jalan bisa resume dari sini.
+        const bcId = `bc-${Date.now()}`;
+        _bcState = {
+            id: bcId,
+            pesan: message,
+            jids: accepted,
+            terkirim: [],
+            gagal: [],
+            delayMs,
+            mulaiAt: Date.now(),
+            selesai: false,
+        };
+        simpanBcState(K);
+
+        // Beri TTL 48 jam khusus untuk broadcast supaya tidak dibuang bahkan
+        // untuk 1500 pesan × 75 detik = ~31 jam.
+        const now = Date.now();
+        const ttlBroadcast = 48 * 60 * 60 * 1000;
+        accepted.forEach(jid => messageQueue.push({
+            jid, message, ts: now, ttl: ttlBroadcast, delayMs,
+            bcId,  // tag broadcast agar processQueue bisa update state
+        }));
         kickQueue();
         bump('broadcast', accepted.length);
-        console.log(`[broadcast] ${accepted.length} tujuan diantrekan${rejected.length ? `, ${rejected.length} ditolak (bukan kontak yang pernah chat)` : ''}.`);
-        res.json({ ok: true, queued: accepted.length, rejected });
+        const etaSec = Math.round(accepted.length * delayMs / 1000);
+        console.log(`[broadcast-grup] ${accepted.length} anggota diantrekan, jeda ${delayMs}ms/pesan, ETA ~${etaSec}s${rejected.length ? `, ${rejected.length} dilewati (bukan JID individual)` : ''}.`);
+        res.json({ ok: true, queued: accepted.length, rejected, delayMs, etaSec, bcId });
+    });
+
+    // ── Broadcast: Status Progress Real-Time ──────────────────────────────────────
+    // Mengembalikan state broadcast aktif lengkap: terkirim, gagal, sisa, ETA.
+    // UI polling endpoint ini setiap 5 detik untuk tampilkan progress bar.
+    app.get('/broadcast/status', requireAuth, (req, res) => {
+        const st = _bcState;
+        if (!st) {
+            return res.json({ aktif: false });
+        }
+        const total   = st.jids.length;
+        const terkirim = st.terkirim.length;
+        const gagal    = st.gagal.length;
+        // Tertunda = yang belum terkirim dan belum gagal
+        const sudahDiproses = new Set([...st.terkirim, ...st.gagal.map(g => g.jid)]);
+        const tertunda = st.jids.filter(j => !sudahDiproses.has(j)).length;
+        const pct = total > 0 ? Math.round((terkirim + gagal) / total * 100) : 0;
+        const etaMs = tertunda * (st.delayMs || 5000);
+        // Juga sertakan berapa yg masih di messageQueue (real-time)
+        const antreanAktif = messageQueue.filter(t => t.bcId === st.id).length;
+        res.json({
+            aktif: !st.selesai,
+            selesai: st.selesai || false,
+            id: st.id,
+            pesan: st.pesan ? st.pesan.slice(0, 80) : '',
+            total,
+            terkirim,
+            gagal: gagal,
+            gagalList: st.gagal.slice(0, 50),  // max 50 untuk UI
+            gagalTotal: gagal,
+            tertunda,
+            antreanAktif,   // jumlah di messageQueue saat ini
+            delayMs: st.delayMs,
+            mulaiAt: st.mulaiAt,
+            selesaiAt: st.selesaiAt || null,
+            pct,
+            etaMs,
+        });
+    });
+
+    // ── Broadcast: Batalkan ───────────────────────────────────────────────────────
+    app.post('/broadcast/batal', requireAuth, (req, res) => {
+        if (!_bcState || _bcState.selesai) {
+            return res.json({ ok: true, pesan: 'Tidak ada broadcast aktif.' });
+        }
+        const bcId = _bcState.id;
+        const tertundaSebelum = messageQueue.filter(t => t.bcId === bcId).length;
+        // Hapus semua item broadcast ini dari messageQueue
+        const sisa = messageQueue.filter(t => t.bcId !== bcId);
+        messageQueue.length = 0;
+        messageQueue.push(...sisa);
+        // Tandai state sebagai selesai (dibatalkan)
+        _bcState.selesai = true;
+        _bcState.dibatalkan = true;
+        _bcState.selesaiAt = Date.now();
+        simpanBcState(K);
+        console.log(`[broadcast] Dibatalkan. ${tertundaSebelum} pesan dihapus dari antrean.`);
+        res.json({
+            ok: true,
+            pesan: `Broadcast dibatalkan. ${tertundaSebelum} pesan dihapus dari antrean.`,
+            terkirim: _bcState.terkirim.length,
+            gagal: _bcState.gagal.length,
+        });
     });
 
     // ── Profile Bot endpoint ──────────────────────────────────────────────────────

@@ -4,617 +4,702 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Broadcast Japri Anggota Grup — Bot WhatsApp</title>
+    <meta name="robots" content="noindex">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="/assets/ui.css?v=20260829">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
+    <link rel="stylesheet" href="/assets/ui.css?v=20260822">
     <script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
     <script src="/assets/ui.js?v=20260822" defer></script>
     <style>
-        .bc-wrap { max-width: 920px; margin: 0 auto; padding: 24px 16px 80px; }
-        .bc-grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 18px; }
-        @media (min-width: 860px) {
-            .bc-grid { grid-template-columns: 1.15fr 0.85fr; }
-        }
-        .form-label { display: block; font-weight: 600; font-size: 0.88rem; color: var(--ink); margin-bottom: 6px; }
-        .form-hint { font-size: 0.78rem; color: var(--ink-soft); margin-bottom: 10px; line-height: 1.4; }
-        .form-control {
-            width: 100%; padding: 10px 14px; border: 1px solid var(--line);
-            border-radius: var(--radius); background: var(--sunk); color: var(--ink);
-            font-family: inherit; font-size: 0.9rem; box-sizing: border-box; transition: border-color .15s ease;
-        }
-        .form-control:focus { outline: none; border-color: var(--brand); }
-        .form-control:disabled { opacity: 0.6; cursor: not-allowed; }
-        
-        .member-box {
-            border: 1px solid var(--line); border-radius: var(--radius);
-            background: var(--surface); max-height: 280px; overflow-y: auto; padding: 6px;
-        }
-        .member-item {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 8px 10px; border-radius: var(--r-sm); transition: background .12s ease;
-            cursor: pointer; user-select: none; font-size: 0.85rem; border-bottom: 1px solid var(--line-soft);
-        }
-        .member-item:last-child { border-bottom: none; }
-        .member-item:hover { background: var(--sunk); }
-        .member-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-        .member-phone { font-weight: 500; color: var(--ink); font-family: var(--mono); }
-        .tag-badge {
-            font-size: 0.7rem; font-weight: 600; padding: 2px 7px; border-radius: 999px;
-            background: var(--sunk); color: var(--ink-soft); text-transform: uppercase;
-        }
-        .tag-admin { background: var(--brand-tint); color: var(--brand); }
+.bc-page { max-width: 760px; margin: 0 auto; padding: 28px 0 80px; }
+.bc-header { margin-bottom: 20px; }
+.bc-header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 6px; }
+.bc-header .lede { margin-top: 0; }
 
-        .preview-bubble {
-            background: #dcf8c6; color: #111; padding: 12px 14px; border-radius: 10px;
-            font-size: 0.88rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1); border-top-left-radius: 2px;
-            position: relative; max-width: 100%; margin-top: 8px;
-        }
-        [data-theme="dark"] .preview-bubble {
-            background: #005c4b; color: #e9edef;
-        }
-        .preview-img {
-            max-width: 100%; max-height: 180px; border-radius: 8px; margin-bottom: 8px;
-            display: block; object-fit: cover;
-        }
+/* Tab navigasi */
+.bc-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+.bc-tab {
+    padding: 9px 16px; font-size: .875rem; font-weight: 500; color: var(--ink-soft);
+    border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
+    white-space: nowrap; border-radius: var(--r-sm) var(--r-sm) 0 0; display: flex; align-items: center; gap: 6px;
+    transition: color .12s, background .12s;
+}
+.bc-tab:hover { color: var(--ink); background: var(--sunk); }
+.bc-tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+.bc-tab .badge-count {
+    font-size: .7rem; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+    background: var(--brand); color: #fff; min-width: 18px; text-align: center;
+    display: none;
+}
+.bc-tab .badge-count.vis { display: inline; }
 
-        .terminal-box {
-            background: #0d1117; color: #58a6ff; font-family: var(--mono);
-            font-size: 0.78rem; line-height: 1.5; padding: 14px; border-radius: var(--radius);
-            max-height: 320px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
-            border: 1px solid #30363d;
-        }
-        .term-entry { margin-bottom: 4px; }
-        .term-ts { color: #8b949e; }
-        .term-ok { color: #7ee787; }
-        .term-err { color: #ff7b72; }
-        .term-warn { color: #d29922; }
+/* Panel tab */
+.bc-panel { display: none; }
+.bc-panel.active { display: block; }
 
-        .progress-bar-wrap {
-            width: 100%; height: 8px; background: var(--line); border-radius: 999px;
-            overflow: hidden; margin: 12px 0 6px;
-        }
-        .progress-bar-fill {
-            height: 100%; width: 0%; background: var(--brand);
-            transition: width 0.25s ease;
-        }
+/* Nomor langkah */
+.bc-step-label {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--display); font-size: 1rem; font-weight: 600; color: var(--ink);
+    margin-bottom: 14px;
+}
+.bc-step-label .nomor {
+    flex: 0 0 26px; height: 26px; border-radius: 8px;
+    background: var(--brand-tint); color: var(--brand); border: 1px solid var(--brand-line);
+    font-size: .8rem; font-weight: 700; display: grid; place-items: center;
+}
 
-        .chip-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-        .chip-btn {
-            font-size: 0.75rem; padding: 4px 10px; border-radius: 999px;
-            background: var(--sunk); border: 1px solid var(--line); color: var(--ink-soft);
-            cursor: pointer; font-weight: 500; transition: all .12s ease;
-        }
-        .chip-btn:hover { background: var(--line); color: var(--ink); }
+/* Daftar anggota */
+.member-scroll {
+    max-height: 300px; overflow-y: auto;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+}
+.member-scroll::-webkit-scrollbar { width: 6px; }
+.member-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+.member-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-bottom: 1px solid var(--line-soft); cursor: pointer; transition: background .1s;
+}
+.member-item:last-child { border-bottom: 0; }
+.member-item:hover { background: var(--sunk); }
+.member-item input[type=checkbox] { width: 16px; height: 16px; flex: 0 0 16px; accent-color: var(--brand); cursor: pointer; }
+.member-item .mi-info { flex: 1; min-width: 0; }
+.member-item .mi-nm  { font-size: .9rem; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.member-item .mi-jid { font-size: .75rem; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.member-item .badge-admin {
+    font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+    background: var(--brand-tint); color: var(--brand); border: 1px solid var(--brand-line);
+    flex: 0 0 auto; white-space: nowrap;
+}
+
+/* Toolbar */
+.bc-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.bc-toolbar .spacer { flex: 1; }
+.bc-toolbar .hitungan { font-size: .84rem; color: var(--ink-soft); }
+
+/* Hasil kirim */
+.bc-hasil { margin-top: 18px; padding: 14px 18px; border-radius: var(--radius); font-size: .9rem; line-height: 1.55; display: none; }
+.bc-hasil.ok  { background: var(--ok-t);  color: var(--ok);  border: 1px solid transparent; }
+.bc-hasil.err { background: var(--bad-t); color: var(--bad); border: 1px solid transparent; }
+
+/* Empty state */
+.bc-empty { text-align: center; padding: 32px 16px; color: var(--ink-faint); font-size: .9rem; }
+.bc-empty .ic-empty { font-size: 2rem; margin-bottom: 8px; display: block; opacity: .35; }
+
+/* ── Tab Progres ── */
+.pbar-wrap { margin-bottom: 20px; }
+.pbar-label { display: flex; justify-content: space-between; font-size: .85rem; color: var(--ink-soft); margin-bottom: 6px; }
+.pbar-label strong { color: var(--ink); }
+.pbar-track {
+    height: 10px; background: var(--sunk); border-radius: 999px; overflow: hidden;
+    border: 1px solid var(--line);
+}
+.pbar-fill {
+    height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-2));
+    transition: width .5s ease; min-width: 0;
+}
+
+/* Status bot */
+.bot-status { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--radius); font-size: .875rem; margin-bottom: 16px; }
+.bot-status.ok  { background: var(--ok-t);  color: var(--ok); }
+.bot-status.err { background: var(--bad-t); color: var(--bad); }
+.bot-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
+.bot-status.ok  .dot { background: var(--ok);  box-shadow: 0 0 0 3px var(--ok-t); }
+.bot-status.err .dot { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-t); }
+
+/* Antrean item */
+.antrean-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.antrean-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    border-bottom: 1px solid var(--line-soft); font-size: .875rem;
+}
+.antrean-item:last-child { border-bottom: 0; }
+.antrean-item .ai-jid { flex: 1; min-width: 0; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.antrean-item .ai-msg { flex: 2; min-width: 0; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .82rem; }
+.antrean-item .ai-hapus { flex: 0 0 auto; }
+
+/* Item dibuang */
+.dibuang-item {
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px;
+    border-bottom: 1px solid var(--line-soft); font-size: .82rem;
+}
+.dibuang-item:last-child { border-bottom: 0; }
+.dibuang-item .di-info { flex: 1; min-width: 0; }
+.dibuang-item .di-jid { font-weight: 500; color: var(--ink); }
+.dibuang-item .di-sebab { color: var(--bad); margin-top: 2px; }
+
+.pbar-refresh-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.auto-refresh-label { font-size: .82rem; color: var(--ink-soft); }
     </style>
 </head>
-<body>
-    <div class="bc-wrap">
-        <header class="bar" style="margin-bottom: 20px;">
-            <div>
-                <div class="kicker">Operasional Bot WhatsApp</div>
-                <h1 style="font-size: 1.6rem; margin: 4px 0;">📢 Broadcast Japri Anggota Grup</h1>
-                <p class="muted" style="margin: 0;">Kirim pesan japri satu per satu ke anggota grup dengan delay otomatis anti-banned.</p>
-            </div>
-            <div style="display:flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <span id="bot-status-badge" class="badge" style="background:var(--sunk); padding:6px 12px; border-radius:999px; font-size:.8rem; font-weight:600;">
-                    <span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px;"></span>
-                    Memeriksa bot…
-                </span>
-                <a href="/home" class="btn ghost small" style="text-decoration:none;">← Panel Kontrol</a>
-            </div>
-        </header>
+<body class="has-nav">
 
-        <!-- Sesi Expired Banner (Disembunyikan jika aman) -->
-        <div id="auth-alert" class="card" style="display:none; border-color:var(--bad); background:var(--bad-t); margin-bottom:18px;">
-            <b style="color:var(--bad);">⚠️ Sesi login Anda telah berakhir atau belum terautentikasi</b>
-            <p style="margin:6px 0 10px; font-size:.85rem; color:var(--ink);">Silakan masuk terlebih dahulu dengan sandi panel untuk dapat menjalankan broadcast.</p>
-            <a href="/masuk?next=/broadcast_grup" class="btn small" style="background:var(--bad); color:#fff; text-decoration:none; display:inline-block;">Buka Halaman Masuk</a>
+<div class="bc-page wrap">
+
+    <!-- Header -->
+    <div class="bc-header">
+        <h1>📢 Broadcast Japri Anggota Grup</h1>
+        <p class="lede">Kirim pesan japri ke semua atau sebagian anggota grup WhatsApp yang dipilih.</p>
+    </div>
+
+    <!-- Tab navigasi -->
+    <div class="bc-tabs">
+        <button class="bc-tab active" onclick="gantiTab('kirim', this)">
+            <i class="fa-solid fa-bullhorn"></i> Kirim
+        </button>
+        <button class="bc-tab" onclick="gantiTab('progres', this)">
+            <i class="fa-solid fa-chart-column"></i> Progres &amp; Antrean
+            <span class="badge-count" id="badge-antrean">0</span>
+        </button>
+    </div>
+
+    <!-- ══ Panel: Kirim ══════════════════════════════════════════════════════ -->
+    <div class="bc-panel active" id="panel-kirim">
+
+        <!-- Langkah 1 -->
+        <div class="card glass" style="margin-bottom:14px;">
+            <div class="bc-step-label"><span class="nomor">1</span> Pilih Grup</div>
+            <select id="sel-grup" onchange="muatAnggota()" style="margin-bottom:0;">
+                <option value="">— memuat daftar grup… —</option>
+            </select>
         </div>
 
-        <div class="bc-grid">
-            <!-- Kolom Kiri: Form Konfigurasi -->
-            <div>
-                <div class="card" style="margin-bottom: 18px;">
-                    <div class="card-header">1. Pilih Grup Sumber</div>
-                    <label class="form-label" for="group-select">Grup WhatsApp</label>
-                    <div style="display:flex; gap:8px; margin-bottom: 12px;">
-                        <select id="group-select" class="form-control" onchange="handleGroupChange()">
-                            <option value="">-- Memuat daftar grup... --</option>
-                        </select>
-                        <button type="button" class="btn ghost small" onclick="fetchGroups(true)" title="Segarkan grup langsung dari WhatsApp" id="btn-refresh-group">🔄 Segarkan</button>
-                    </div>
-                    <div id="group-info" style="font-size:0.8rem; color:var(--ink-soft); display:none;">
-                        Terdeteksi: <b id="grp-size">0</b> anggota · JID: <code id="grp-jid" style="font-size:.75rem;">-</code>
-                    </div>
+        <!-- Langkah 2 -->
+        <div class="card glass" style="margin-bottom:14px;">
+            <div class="bc-step-label"><span class="nomor">2</span> Pilih Anggota Penerima</div>
+            <div class="bc-toolbar">
+                <button class="btn ghost small" onclick="pilihSemua(true)"  id="btn-pilih-semua" disabled>Pilih Semua</button>
+                <button class="btn ghost small" onclick="pilihSemua(false)" id="btn-batal-semua" disabled>Batal Semua</button>
+                <span class="spacer"></span>
+                <span class="hitungan" id="hitungan">0 dipilih</span>
+            </div>
+            <div class="member-scroll" id="member-list">
+                <div class="bc-empty"><span class="ic-empty">👥</span>Pilih grup terlebih dahulu.</div>
+            </div>
+        </div>
+
+        <!-- Langkah 3 -->
+        <div class="card glass" style="margin-bottom:18px;">
+            <div class="bc-step-label"><span class="nomor">3</span> Tulis Pesan &amp; Pengaturan Jeda</div>
+            <textarea id="pesan" rows="5" placeholder="Tulis pesan yang akan dikirim ke setiap anggota yang dipilih…" style="margin-bottom:14px;"></textarea>
+
+            <label for="jeda-detik" style="margin-bottom:6px;">Jeda antar pesan</label>
+            <div class="row" style="align-items:center;gap:10px;flex-wrap:nowrap;">
+                <input type="number" id="jeda-detik" value="5" min="1" max="300" step="1" style="width:90px;margin-bottom:0;text-align:center;">
+                <span style="color:var(--ink-soft);font-size:.9rem;white-space:nowrap;">detik per pesan</span>
+                <span id="eta-label" class="tiny" style="margin-left:auto;"></span>
+            </div>
+            <p class="tiny" style="margin:8px 0 0;">Rekomendasi minimal 5 detik agar tidak dianggap spam.</p>
+        </div>
+
+        <button id="btn-kirim" onclick="kirim()" style="width:100%;padding:12px 16px;font-size:1rem;justify-content:center;" disabled>
+            <i class="fa-solid fa-bullhorn"></i>&nbsp; Kirim Broadcast
+        </button>
+
+        <div class="bc-hasil" id="bc-hasil"></div>
+    </div>
+
+    <!-- ══ Panel: Progres & Antrean ══════════════════════════════════════════ -->
+    <div class="bc-panel" id="panel-progres">
+
+        <!-- Kontrol refresh -->
+        <div class="pbar-refresh-row">
+            <button class="btn ghost small" onclick="muatAntrean()"><i class="fa-solid fa-spinner"></i> Refresh</button>
+            <label class="auto-refresh-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:0;">
+                <input type="checkbox" id="auto-refresh" checked style="width:auto;margin-bottom:0;">
+                Auto-refresh tiap 5 detik
+            </label>
+            <span class="tiny" id="refresh-label" style="margin-left:auto;"></span>
+        </div>
+
+        <!-- Status bot -->
+        <div id="bot-status-bar" class="bot-status ok" style="display:none;">
+            <span class="dot"></span>
+            <span id="bot-status-text">Memeriksa…</span>
+        </div>
+
+        <!-- Banner broadcast tertunda dari sebelumnya (resume) -->
+        <div id="bc-resume-banner" style="display:none;background:var(--warn-t,#fef3cd);border:1px solid var(--warn,#f59e0b);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:.875rem;">
+            <strong>⚡ Ada broadcast tertunda dari sesi sebelumnya.</strong><br>
+            <span id="bc-resume-info"></span>
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                <span class="tiny" style="color:var(--ink-soft);">Broadcast dilanjutkan otomatis. Pantau progres di bawah.</span>
+                <button class="btn ghost small danger" onclick="batalBroadcast()" style="margin-left:auto;">🛑 Batalkan</button>
+            </div>
+        </div>
+
+        <!-- Progress bar broadcast aktif -->
+        <div class="card glass pbar-wrap" id="progres-card" style="display:none;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
+                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">📊</span> Progres Broadcast</div>
+                <button class="btn ghost small danger" onclick="batalBroadcast()" id="btn-batal-bc" style="display:none;">🛑 Batalkan</button>
+            </div>
+            <!-- Angka eksplisit semua -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px;">
+                <div style="text-align:center;padding:10px;background:var(--sunk);border-radius:var(--radius);">
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--brand);" id="pb-terkirim">0</div>
+                    <div style="font-size:.75rem;color:var(--ink-soft);">Terkirim</div>
                 </div>
-
-                <div class="card" style="margin-bottom: 18px;">
-                    <div class="card-header flex-between" style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>2. Pilih Anggota Penerima</span>
-                        <span id="selected-stat" style="font-size:0.8rem; color:var(--ink-soft); font-weight:normal;">0 dipilih</span>
-                    </div>
-
-                    <div style="margin-bottom: 8px;">
-                        <input type="text" id="member-search" class="form-control" placeholder="🔍 Cari nomor/anggota..." oninput="renderMembers()" style="font-size:0.82rem; padding:7px 12px; margin-bottom:8px;">
-                        <div class="chip-group">
-                            <button type="button" class="chip-btn" onclick="selectFilter('all')">Pilih Semua</button>
-                            <button type="button" class="chip-btn" onclick="selectFilter('none')">Batal Semua</button>
-                            <button type="button" class="chip-btn" onclick="selectFilter('members')">Hanya Member Biasa</button>
-                            <button type="button" class="chip-btn" onclick="selectFilter('admins')">Hanya Admin Grup</button>
-                        </div>
-                    </div>
-
-                    <div class="member-box" id="members-container">
-                        <div class="muted" style="text-align:center; padding: 24px 12px; font-size:0.85rem;">
-                            Pilih grup terlebih dahulu di atas
-                        </div>
-                    </div>
+                <div style="text-align:center;padding:10px;background:var(--sunk);border-radius:var(--radius);">
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--ok);" id="pb-total">0</div>
+                    <div style="font-size:.75rem;color:var(--ink-soft);">Total</div>
                 </div>
-
-                <div class="card">
-                    <div class="card-header">3. Isi Pesan Broadcast</div>
-                    <label class="form-label" for="message-input">Pesan Teks</label>
-                    <div class="form-hint">Dukung format WhatsApp: <code>*tebal*</code>, <code>_miring_</code>, <code>~coret~</code>.</div>
-                    <textarea id="message-input" class="form-control" rows="5" placeholder="Ketik pesan yang akan dikirim ke masing-masing anggota grup..." oninput="updatePreview()"></textarea>
-                    
-                    <div style="margin-top: 14px;">
-                        <label class="form-label" for="image-url">URL Gambar (Opsional)</label>
-                        <input type="url" id="image-url" class="form-control" placeholder="https://contoh.com/gambar.jpg" oninput="updatePreview()">
-                        <div class="form-hint" style="margin-top: 4px;">Pesan akan dikirim sebagai caption gambar jika URL diisi.</div>
-                    </div>
-
-                    <div style="margin-top: 14px;">
-                        <label class="form-label" for="delay-sec">Jeda Antar Pesan</label>
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <input type="number" id="delay-sec" class="form-control" value="6" min="3" max="60" style="width:90px;">
-                            <span style="font-size:0.85rem; color:var(--ink-soft);">detik per nomor (Rekomendasi aman: 6–10 detik)</span>
-                        </div>
-                    </div>
+                <div style="text-align:center;padding:10px;background:var(--sunk);border-radius:var(--radius);">
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--ink-soft);" id="pb-tertunda">0</div>
+                    <div style="font-size:.75rem;color:var(--ink-soft);">Dalam antrean</div>
+                </div>
+                <div style="text-align:center;padding:10px;background:var(--sunk);border-radius:var(--radius);">
+                    <div style="font-size:1.5rem;font-weight:700;color:var(--bad);" id="pb-gagal">0</div>
+                    <div style="font-size:.75rem;color:var(--ink-soft);">Gagal</div>
                 </div>
             </div>
-
-            <!-- Kolom Kanan: Preview, Kontrol & Terminal Log -->
-            <div>
-                <div class="card" style="margin-bottom: 18px;">
-                    <div class="card-header">Pratinjau Pesan (WhatsApp)</div>
-                    <div class="preview-bubble" id="bubble-preview">
-                        <img id="preview-image" class="preview-img" style="display:none;" alt="Pratinjau Gambar" onerror="this.style.display='none'">
-                        <div id="preview-text" style="color:var(--ink-soft); font-style:italic;">(Pesan masih kosong)</div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-bottom: 18px;">
-                    <div class="card-header">Eksekusi Pengiriman</div>
-                    
-                    <div style="margin-bottom: 14px;">
-                        <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:600;">
-                            <span>Progres</span>
-                            <span id="progress-text">0 / 0</span>
-                        </div>
-                        <div class="progress-bar-wrap">
-                            <div class="progress-bar-fill" id="progress-fill"></div>
-                        </div>
-                    </div>
-
-                    <div style="display:flex; gap: 8px;">
-                        <button type="button" id="btn-start" class="btn wide" style="flex:1; background:var(--brand); color:#fff; font-weight:600;" onclick="startBroadcast()">
-                            🚀 Mulai Broadcast
-                        </button>
-                        <button type="button" id="btn-stop" class="btn ghost danger" style="display:none;" onclick="stopBroadcast()">
-                            ⏹️ Hentikan
-                        </button>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header flex-between" style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>Terminal Log</span>
-                        <button type="button" class="btn ghost small" onclick="clearLog()" style="font-size:0.75rem; padding:2px 8px;">Bersihkan</button>
-                    </div>
-                    <div class="terminal-box" id="term-box">
-<div class="term-entry term-ts">[Sistem] Menunggu konfigurasi broadcast...</div>
-                    </div>
-                </div>
+            <div class="pbar-label">
+                <span id="pb-pct" style="color:var(--brand);font-weight:600;">0%</span>
+                <span class="tiny" id="pb-eta-text"></span>
             </div>
+            <div class="pbar-track"><div class="pbar-fill" id="pb-fill" style="width:0%"></div></div>
+            <p class="tiny" style="margin:8px 0 0;color:var(--ink-faint);" id="pb-pesan-preview"></p>
+        </div>
+
+        <!-- Antrean tertunda (live dari messageQueue) -->
+        <div class="card glass" style="margin-bottom:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">⏳</span> Antrean Tertunda</div>
+                <button class="btn ghost small danger" id="btn-hapus-semua" onclick="hapusSemua()" style="display:none;">🗑 Hapus Semua</button>
+            </div>
+            <div id="antrean-box"><div class="bc-empty"><span class="ic-empty">✅</span>Antrean kosong.</div></div>
+        </div>
+
+        <!-- Pesan dibuang -->
+        <div class="card glass">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">❌</span> Pesan Gagal / Dibuang</div>
+                <button class="btn ghost small" id="btn-bersihkan" onclick="bersihkanCatatan()" style="display:none;">🧹 Bersihkan</button>
+            </div>
+            <div id="dibuang-box"><div class="bc-empty"><span class="ic-empty">🎉</span>Tidak ada pesan yang gagal.</div></div>
         </div>
     </div>
 
-    <script>
-        let allGroups = [];
-        let groupMembers = [];
-        let selectedMembers = new Set();
-        let isSending = false;
+</div>
 
-        const $ = (id) => document.getElementById(id);
-        const getStoredToken = () => localStorage.getItem('bot_api_token') || localStorage.getItem('token') || '';
-
-        function apiHeaders() {
-            const h = { 'Content-Type': 'application/json' };
-            const token = getStoredToken();
-            if (token) h['Authorization'] = token;
-            return h;
+<script>
+/* ─── Auth ────────────────────────────────────────────────────────────────── */
+function ambilToken() {
+    return localStorage.getItem('panel_token') || sessionStorage.getItem('panel_token') || '';
+}
+function apiFetch(url, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ambilToken() }, opts.headers || {});
+    return fetch(url, opts).then(function(r) {
+        if (r.status === 401) {
+            window.location.href = '/masuk?next=' + encodeURIComponent(location.pathname);
+            throw new Error('Belum login');
         }
+        return r;
+    });
+}
 
-        function log(msg, type = 'info') {
-            const box = $('term-box');
-            const now = new Date().toLocaleTimeString('id-ID');
-            let cls = 'term-ts';
-            let icon = 'ℹ️';
-            if (type === 'ok') { cls = 'term-ok'; icon = '✅'; }
-            else if (type === 'err') { cls = 'term-err'; icon = '❌'; }
-            else if (type === 'warn') { cls = 'term-warn'; icon = '⚠️'; }
+/* ─── Tab ─────────────────────────────────────────────────────────────────── */
+function gantiTab(nama, elTab) {
+    document.querySelectorAll('.bc-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.bc-panel').forEach(function(p) { p.classList.remove('active'); });
+    elTab.classList.add('active');
+    document.getElementById('panel-' + nama).classList.add('active');
+    if (nama === 'progres') muatAntrean();
+}
 
-            const row = document.createElement('div');
-            row.className = 'term-entry';
-            row.innerHTML = `<span class="term-ts">[${now}]</span> <span class="${cls}">${icon} ${escapeHtml(msg)}</span>`;
-            box.appendChild(row);
-            box.scrollTop = box.scrollHeight;
-        }
+/* ─── State ───────────────────────────────────────────────────────────────── */
+var anggotaCache = [];
+var antreanRefTimer = null;
+var bcStatusCache = null;  // cache terakhir dari /broadcast/status
 
-        function clearLog() {
-            $('term-box').innerHTML = '<div class="term-entry term-ts">[Sistem] Log dibersihkan.</div>';
-        }
-
-        function escapeHtml(str) {
-            return String(str || '').replace(/[&<>"']/g, c => ({
-                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-            }[c]));
-        }
-
-        // Format tampilan WhatsApp ke teks HTML sederhana (*bold*, _italic_, ~strike~)
-        function formatWaText(text) {
-            if (!text) return '';
-            let s = escapeHtml(text);
-            s = s.replace(/\*([^\*]+)\*/g, '<b>$1</b>');
-            s = s.replace(/_([^_]+)_/g, '<i>$1</i>');
-            s = s.replace(/~([^~]+)~/g, '<del>$1</del>');
-            return s;
-        }
-
-        function updatePreview() {
-            const msg = $('message-input').value.trim();
-            const img = $('image-url').value.trim();
-            const pText = $('preview-text');
-            const pImg = $('preview-image');
-
-            if (img) {
-                pImg.src = img;
-                pImg.style.display = 'block';
-            } else {
-                pImg.style.display = 'none';
-                pImg.src = '';
-            }
-
-            if (msg) {
-                pText.innerHTML = formatWaText(msg);
-                pText.style.color = '';
-                pText.style.fontStyle = '';
-            } else {
-                pText.innerHTML = '(Pesan masih kosong)';
-                pText.style.color = 'var(--ink-soft)';
-                pText.style.fontStyle = 'italic';
-            }
-        }
-
-        async function checkStatus() {
-            try {
-                const res = await fetch('/status', { headers: apiHeaders() });
-                if (res.status === 401) {
-                    $('auth-alert').style.display = 'block';
-                    $('bot-status-badge').innerHTML = '<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);margin-right:6px;"></span> Sesi Berakhir';
-                    return false;
-                }
-                const data = await res.json().catch(() => ({}));
-                if (data.connected) {
-                    $('bot-status-badge').innerHTML = '<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;"></span> Bot Terhubung (' + (data.phone || 'Aktif') + ')';
-                    return true;
-                } else {
-                    $('bot-status-badge').innerHTML = '<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px;"></span> Bot Belum Terhubung WA';
-                    return false;
-                }
-            } catch (err) {
-                $('bot-status-badge').innerHTML = '<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);margin-right:6px;"></span> Gagal memuat status';
-                return false;
-            }
-        }
-
-        async function fetchGroups(fresh = false) {
-            const sel = $('group-select');
-            const btnRefresh = $('btn-refresh-group');
-            try {
-                if (btnRefresh) btnRefresh.disabled = true;
-                sel.disabled = true;
-                sel.innerHTML = '<option value="">-- Memuat daftar grup... --</option>';
-                log('Memuat daftar grup WhatsApp' + (fresh ? ' (memaksa sinkronisasi)...' : '...'));
-
-                const url = '/groups' + (fresh ? '?fresh=1' : '');
-                const res = await fetch(url, { headers: apiHeaders() });
-                
-                if (res.status === 401) {
-                    $('auth-alert').style.display = 'block';
-                    log('Autentikasi ditolak (401). Silakan login ulang.', 'err');
-                    return;
-                }
-
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Gagal mengambil grup (HTTP ' + res.status + ')');
-
-                allGroups = Array.isArray(data.groups) ? data.groups : [];
-                log(`Berhasil memuat ${allGroups.length} grup WhatsApp.`, 'ok');
-
-                sel.innerHTML = '<option value="">-- Pilih Salah Satu Grup (' + allGroups.length + ') --</option>';
-                allGroups.forEach(g => {
-                    const opt = document.createElement('option');
-                    opt.value = g.jid;
-                    opt.textContent = `${g.name || 'Grup tanpa nama'} (${g.participants || 0} anggota)${g.isAdmin ? ' ★ [Admin]' : ''}`;
-                    sel.appendChild(opt);
-                });
-            } catch (err) {
-                log('Gagal memuat grup: ' + err.message, 'err');
-                sel.innerHTML = '<option value="">-- Gagal memuat grup --</option>';
-            } finally {
-                sel.disabled = false;
-                if (btnRefresh) btnRefresh.disabled = false;
-            }
-        }
-
-        async function handleGroupChange() {
-            const jid = $('group-select').value;
-            const container = $('members-container');
-            const grpInfo = $('group-info');
-            selectedMembers.clear();
-            updateSelectedCount();
-
-            if (!jid) {
-                grpInfo.style.display = 'none';
-                container.innerHTML = '<div class="muted" style="text-align:center; padding:24px 12px; font-size:0.85rem;">Pilih grup terlebih dahulu di atas</div>';
-                groupMembers = [];
-                return;
-            }
-
-            const currentGrp = allGroups.find(g => g.jid === jid);
-            if (currentGrp) {
-                grpInfo.style.display = 'block';
-                $('grp-size').textContent = currentGrp.participants || 0;
-                $('grp-jid').textContent = jid;
-            }
-
-            try {
-                container.innerHTML = '<div class="muted" style="text-align:center; padding:24px 12px; font-size:0.85rem;">Memuat daftar anggota grup...</div>';
-                log(`Mengambil daftar detail peserta grup (${jid})...`);
-
-                const res = await fetch(`/groups/${encodeURIComponent(jid)}`, { headers: apiHeaders() });
-                const data = await res.json();
-
-                if (!res.ok) throw new Error(data.error || 'Gagal memuat peserta grup');
-
-                groupMembers = Array.isArray(data.participants) ? data.participants : [];
-                log(`Memuat ${groupMembers.length} anggota dari grup "${data.name || ''}".`, 'ok');
-                
-                // Pilih semua anggota secara default
-                groupMembers.forEach(m => selectedMembers.add(m.id));
-                renderMembers();
-            } catch (err) {
-                log('Gagal memuat anggota: ' + err.message, 'err');
-                container.innerHTML = '<div style="color:var(--bad); text-align:center; padding:18px 12px; font-size:0.85rem;">❌ Gagal memuat anggota: ' + escapeHtml(err.message) + '</div>';
-            }
-        }
-
-        function renderMembers() {
-            const container = $('members-container');
-            const search = ($('member-search').value || '').trim().toLowerCase();
-
-            if (!groupMembers || groupMembers.length === 0) {
-                container.innerHTML = '<div class="muted" style="text-align:center; padding:18px 12px; font-size:0.85rem;">Tidak ada anggota ditemukan di grup ini.</div>';
-                updateSelectedCount();
-                return;
-            }
-
-            const filtered = groupMembers.filter(m => {
-                if (!search) return true;
-                const phone = (m.id || '').split('@')[0];
-                return phone.includes(search);
-            });
-
-            if (filtered.length === 0) {
-                container.innerHTML = '<div class="muted" style="text-align:center; padding:18px 12px; font-size:0.85rem;">Tidak ada nomor yang cocok dengan pencarian.</div>';
-                updateSelectedCount();
-                return;
-            }
-
-            let html = '';
-            filtered.forEach(m => {
-                const phone = (m.id || '').split('@')[0];
-                const isChecked = selectedMembers.has(m.id) ? 'checked' : '';
-                let adminTag = '';
-                if (m.admin === 'admin' || m.admin === 'superadmin') {
-                    adminTag = `<span class="tag-badge tag-admin">${m.admin}</span>`;
-                }
-
-                html += `
-                    <label class="member-item">
-                        <div class="member-left">
-                            <input type="checkbox" value="${escapeHtml(m.id)}" ${isChecked} ${isSending ? 'disabled' : ''} onchange="toggleMember('${escapeHtml(m.id)}', this.checked)">
-                            <span class="member-phone">${escapeHtml(phone)}</span>
-                        </div>
-                        <div>${adminTag}</div>
-                    </label>
-                `;
-            });
-
-            container.innerHTML = html;
-            updateSelectedCount();
-        }
-
-        function toggleMember(id, checked) {
-            if (checked) selectedMembers.add(id);
-            else selectedMembers.delete(id);
-            updateSelectedCount();
-        }
-
-        function selectFilter(mode) {
-            if (isSending) return;
-            if (mode === 'all') {
-                groupMembers.forEach(m => selectedMembers.add(m.id));
-            } else if (mode === 'none') {
-                selectedMembers.clear();
-            } else if (mode === 'members') {
-                selectedMembers.clear();
-                groupMembers.filter(m => !m.admin).forEach(m => selectedMembers.add(m.id));
-            } else if (mode === 'admins') {
-                selectedMembers.clear();
-                groupMembers.filter(m => m.admin).forEach(m => selectedMembers.add(m.id));
-            }
-            renderMembers();
-        }
-
-        function updateSelectedCount() {
-            $('selected-stat').textContent = `${selectedMembers.size} dari ${groupMembers.length} dipilih`;
-        }
-
-        // ── State broadcast server-side ────────────────────────────────────────────
-        let activeJobId = null;
-        let pollTimer   = null;
-        let lastLogIdx  = 0;
-
-        function setBroadcastRunning(running) {
-            isSending = running;
-            $('btn-start').style.display = running ? 'none' : 'inline-block';
-            $('btn-stop').style.display  = running ? 'inline-block' : 'none';
-            $('group-select').disabled   = running;
-            $('message-input').disabled  = running;
-            $('image-url').disabled      = running;
-            $('delay-sec').disabled      = running;
-            renderMembers();
-        }
-
-        // ── Mulai Broadcast — server-side loop ─────────────────────────────────────
-        // Browser hanya mengirim SATU request ke /send-bulk. Server yang mengurus
-        // loop dan delay via setInterval. Broadcast tetap berjalan walau tab ditutup.
-        async function startBroadcast() {
-            const msg      = $('message-input').value.trim();
-            const img      = $('image-url').value.trim();
-            const delaySec = Math.max(3, parseInt($('delay-sec').value, 10) || 6);
-            const targets  = Array.from(selectedMembers);
-
-            if (!msg && !img) {
-                alert('Pesan teks atau tautan gambar harus diisi!');
-                $('message-input').focus();
-                return;
-            }
-            if (targets.length === 0) {
-                alert('Pilih minimal 1 anggota penerima!');
-                return;
-            }
-
-            const confirmMsg =
-                `Kirim pesan broadcast ke ${targets.length} nomor terpilih?\n\n` +
-                `Jeda per pesan : ${delaySec} detik\n` +
-                `Perkiraan selesai: ~${Math.ceil((targets.length * delaySec) / 60)} menit\n\n` +
-                `✅ Broadcast berjalan di SERVER — aman ditinggal / tab boleh ditutup.`;
-            if (!confirm(confirmMsg)) return;
-
-            setBroadcastRunning(true);
-            activeJobId = null;
-            lastLogIdx  = 0;
-
-            log(`🚀 Menyerahkan job broadcast ke server (${targets.length} nomor, jeda ${delaySec}d)...`, 'warn');
-
-            try {
-                const res  = await fetch('/send-bulk', {
-                    method : 'POST',
-                    headers: apiHeaders(),
-                    body   : JSON.stringify({ targets, message: msg, url: img || undefined, delaySec }),
-                });
-                const data = await res.json().catch(() => ({}));
-
-                if (!res.ok) {
-                    log('Gagal memulai broadcast: ' + (data.error || res.statusText), 'err');
-                    setBroadcastRunning(false);
-                    return;
-                }
-
-                activeJobId = data.jobId;
-                log(`✅ Server menerima job! ID: ${activeJobId}`, 'ok');
-                log(`📦 ${data.total} target · jeda ${data.delaySec}d · ~${data.estimasiMenitSelesai} menit`, 'ok');
-                log('ℹ️ Kamu boleh menutup atau meminimalkan tab ini — pengiriman tetap berjalan di server.', 'info');
-
-                // Polling status tiap 3 detik
-                pollTimer = setInterval(pollJobStatus, 3000);
-
-            } catch (err) {
-                log('Error memulai broadcast: ' + err.message, 'err');
-                setBroadcastRunning(false);
-            }
-        }
-
-        // ── Polling status job ─────────────────────────────────────────────────────
-        async function pollJobStatus() {
-            if (!activeJobId) return;
-            try {
-                const res  = await fetch(`/send-bulk/status/${activeJobId}`, { headers: apiHeaders() });
-                const data = await res.json().catch(() => null);
-                if (!data) return;
-
-                // Update progress bar UI
-                $('progress-fill').style.width = data.pct + '%';
-                $('progress-text').textContent  = `${data.sent + data.failed} / ${data.total} (${data.pct}%)`;
-
-                // Tampilkan log baru (hanya entri sejak poll terakhir)
-                const newEntries = data.log.slice(lastLogIdx);
-                lastLogIdx += newEntries.length;
-                for (const entry of newEntries) {
-                    const type = entry.status === 'ok' ? 'ok'
-                               : entry.status === 'err' ? 'err'
-                               : entry.status === 'done' ? 'warn' : 'info';
-                    log(entry.msg, type);
-                }
-
-                if (data.done) {
-                    clearInterval(pollTimer);
-                    pollTimer   = null;
-                    activeJobId = null;
-                    setBroadcastRunning(false);
-
-                    const label = data.stopped ? '⏹️ Broadcast dihentikan' : '🎉 Broadcast selesai';
-                    log(`${label}! Total: ${data.sent} berhasil, ${data.failed} gagal.`, 'ok');
-                    $('progress-fill').style.width = '100%';
-                    $('progress-text').textContent  = `${data.total} / ${data.total} (100%)`;
-                }
-            } catch (err) {
-                // Gangguan jaringan sementara — jangan hentikan polling
-                log('Cek status gagal (akan dicoba lagi): ' + err.message, 'warn');
-            }
-        }
-
-        // ── Hentikan Broadcast ─────────────────────────────────────────────────────
-        async function stopBroadcast() {
-            if (!isSending) return;
-            if (!confirm('Apakah Anda yakin ingin menghentikan pengiriman broadcast sekarang?')) return;
-            log('Mengirim sinyal berhenti ke server...', 'warn');
-            if (activeJobId) {
-                try {
-                    const res  = await fetch(`/send-bulk/stop/${activeJobId}`, {
-                        method : 'POST',
-                        headers: apiHeaders(),
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    log(data.msg || 'Sinyal berhenti terkirim.', 'warn');
-                } catch (err) {
-                    log('Gagal mengirim sinyal berhenti: ' + err.message, 'err');
-                }
-            }
-            // Polling tetap berjalan — ia yang mendeteksi job.done = true
-        }
-
-        // Inisialisasi awal saat halaman dibuka
-        window.addEventListener('DOMContentLoaded', async () => {
-            updatePreview();
-            await checkStatus();
-            await fetchGroups(false);
+/* ─── Grup & Anggota ──────────────────────────────────────────────────────── */
+function muatGrup() {
+    var sel = document.getElementById('sel-grup');
+    apiFetch('/groups').then(function(r) { return r.json(); }).then(function(data) {
+        var grup = Array.isArray(data) ? data : (data.groups || []);
+        grup.sort(function(a, b) { return (b.size || 0) - (a.size || 0); });
+        sel.innerHTML = '<option value="">— pilih grup —</option>';
+        grup.forEach(function(g) {
+            var opt = document.createElement('option');
+            opt.value = g.jid;
+            opt.textContent = (g.name || g.jid) + ' (' + (g.size || '?') + ' anggota)';
+            sel.appendChild(opt);
         });
-    </script>
+    }).catch(function(e) {
+        sel.innerHTML = '<option value="">Gagal memuat: ' + e.message + '</option>';
+    });
+}
+
+function muatAnggota() {
+    var jid = document.getElementById('sel-grup').value;
+    var box = document.getElementById('member-list');
+    anggotaCache = [];
+    hitungDipilih();
+    toggleToolbar(false);
+    if (!jid) {
+        box.innerHTML = '<div class="bc-empty"><span class="ic-empty">👥</span>Pilih grup terlebih dahulu.</div>';
+        return;
+    }
+    box.innerHTML = '<div class="bc-empty"><span class="spinner" style="width:20px;height:20px;margin-bottom:8px;display:block;margin-inline:auto;"></span>Mengambil anggota...</div>';
+    apiFetch('/groups/' + encodeURIComponent(jid)).then(function(r) { return r.json(); }).then(function(data) {
+        anggotaCache = (data.participants || []).map(function(p) { return { jid: p.id, admin: p.admin || null }; });
+        renderAnggota(anggotaCache);
+        toggleToolbar(anggotaCache.length > 0);
+    }).catch(function(e) {
+        box.innerHTML = '<div class="bc-empty" style="color:var(--bad);">Gagal: ' + e.message + '</div>';
+    });
+}
+
+function renderAnggota(list) {
+    var box = document.getElementById('member-list');
+    if (!list.length) { box.innerHTML = '<div class="bc-empty"><span class="ic-empty">👥</span>Tidak ada anggota.</div>'; return; }
+    box.innerHTML = '';
+    list.forEach(function(m) {
+        var nomor = m.jid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+        var label = document.createElement('label');
+        label.className = 'member-item';
+        label.innerHTML =
+            '<input type="checkbox" value="' + escHTML(m.jid) + '" checked onchange="hitungDipilih()">' +
+            '<div class="mi-info"><div class="mi-nm">+' + escHTML(nomor) + '</div><div class="mi-jid">' + escHTML(m.jid) + '</div></div>' +
+            (m.admin ? '<span class="badge-admin">' + (m.admin === 'superadmin' ? '👑 ' : '🔑 ') + m.admin + '</span>' : '');
+        box.appendChild(label);
+    });
+    hitungDipilih();
+}
+
+function pilihSemua(pilih) {
+    document.querySelectorAll('#member-list input[type=checkbox]').forEach(function(cb) { cb.checked = pilih; });
+    hitungDipilih();
+}
+
+function hitungDipilih() {
+    var n = document.querySelectorAll('#member-list input[type=checkbox]:checked').length;
+    document.getElementById('hitungan').textContent = n + ' dipilih';
+    document.getElementById('btn-kirim').disabled = (n === 0 || !document.getElementById('sel-grup').value);
+    hitungEta(n);
+}
+
+function hitungEta(n) {
+    var detik = Number(document.getElementById('jeda-detik').value) || 5;
+    var label = document.getElementById('eta-label');
+    if (!n) { label.textContent = ''; return; }
+    var total = n * detik;
+    label.textContent = '\u2248 ETA ' + formatDurasi(total) + ' untuk ' + n + ' penerima';
+}
+
+function toggleToolbar(aktif) {
+    document.getElementById('btn-pilih-semua').disabled = !aktif;
+    document.getElementById('btn-batal-semua').disabled = !aktif;
+}
+
+/* ─── Util format ──────────────────────────────────────────────────────────── */
+function formatDurasi(detik) {
+    if (detik < 60) return detik + ' detik';
+    if (detik < 3600) return Math.ceil(detik / 60) + ' menit';
+    var jam = Math.floor(detik / 3600);
+    var mnt = Math.ceil((detik % 3600) / 60);
+    return jam + ' jam' + (mnt ? ' ' + mnt + ' mnt' : '');
+}
+
+/* ─── Kirim ───────────────────────────────────────────────────────────────── */
+function kirim() {
+    var pesan = document.getElementById('pesan').value.trim();
+    var jids = Array.from(document.querySelectorAll('#member-list input[type=checkbox]:checked')).map(function(cb) { return cb.value; });
+    var jedaDetik = Math.min(300, Math.max(1, Number(document.getElementById('jeda-detik').value) || 5));
+    var hasilEl = document.getElementById('bc-hasil');
+    var btn = document.getElementById('btn-kirim');
+
+    hasilEl.style.display = 'none';
+    hasilEl.className = 'bc-hasil';
+    if (!pesan) return tampilHasil('err', '\u26a0\ufe0f Pesan tidak boleh kosong.');
+    if (!jids.length) return tampilHasil('err', '\u26a0\ufe0f Pilih minimal satu anggota.');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-top-color:#fff;margin-right:6px;"></span> Mengirim\u2026';
+
+    apiFetch('/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({ message: pesan, jids: jids, delayMs: jedaDetik * 1000 }),
+    }).then(function(r) {
+        return r.json().then(function(d) { return { ok: r.ok, data: d }; });
+    }).then(function(res) {
+        if (!res.ok) {
+            tampilHasil('err', '\u274c ' + (res.data.error || 'Gagal.'));
+        } else {
+            var eta = res.data.etaSec || 0;
+            var etaStr = formatDurasi(eta);
+            var ditolak = res.data.rejected && res.data.rejected.length
+                ? '<br><span class="tiny" style="color:var(--ink-soft);">' + res.data.rejected.length + ' JID dilewati (bukan individual).</span>' : '';
+            tampilHasil('ok',
+                '\u2705 <strong>' + res.data.queued + ' pesan</strong> masuk antrean. Jeda ' + jedaDetik +
+                's/pesan, ETA &plusmn;<strong>' + etaStr + '</strong>.' + ditolak +
+                '<br><span class="tiny" style="color:var(--ink-soft);">Pantau di tab <strong>Progres &amp; Antrean</strong>.</span>'
+            );
+            document.getElementById('pesan').value = '';
+            muatAntreanSilent();
+        }
+    }).catch(function(e) {
+        tampilHasil('err', '\u274c ' + e.message);
+    }).finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-bullhorn"></i>&nbsp; Kirim Broadcast';
+        hitungDipilih();
+    });
+}
+
+function tampilHasil(tipe, html) {
+    var el = document.getElementById('bc-hasil');
+    el.className = 'bc-hasil ' + tipe;
+    el.innerHTML = html;
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ─── Antrean / Progres ───────────────────────────────────────────────────── */
+function muatAntrean() {
+    document.getElementById('refresh-label').textContent = 'Memuat\u2026';
+
+    // Ambil dua endpoint sekaligus: status broadcast + antrean lokal
+    Promise.all([
+        apiFetch('/broadcast/status').then(function(r) { return r.json(); }),
+        apiFetch('/antrean/lokal').then(function(r) { return r.json(); }),
+    ]).then(function(results) {
+        var bcSt  = results[0];
+        var data  = results[1];
+        var sekarang = new Date().toLocaleTimeString('id-ID');
+        document.getElementById('refresh-label').textContent = 'Diperbarui ' + sekarang;
+
+        renderStatusBot(data);
+        renderBroadcastProgress(bcSt, data);
+        renderAntreanBox(data);
+        renderDibuangBox(data);
+        renderResumeBanner(bcSt);
+        updateBadgeAntrean(data, bcSt);
+
+    }).catch(function(e) {
+        document.getElementById('refresh-label').textContent = 'Gagal: ' + e.message;
+    });
+}
+
+function muatAntreanSilent() {
+    Promise.all([
+        apiFetch('/broadcast/status').then(function(r) { return r.json(); }).catch(function() { return null; }),
+        apiFetch('/antrean/lokal').then(function(r) { return r.json(); }).catch(function() { return null; }),
+    ]).then(function(results) {
+        var bcSt = results[0];
+        var data = results[1];
+        if (data) updateBadgeAntrean(data, bcSt);
+    });
+}
+
+function renderStatusBot(data) {
+    var barEl = document.getElementById('bot-status-bar');
+    var txtEl = document.getElementById('bot-status-text');
+    barEl.style.display = 'flex';
+    if (data.siap) {
+        barEl.className = 'bot-status ok';
+        txtEl.textContent = 'Bot tersambung \u2014 antrean berjalan';
+    } else {
+        barEl.className = 'bot-status err';
+        txtEl.textContent = '\u26a0\ufe0f ' + (data.sebab || 'Bot belum tersambung \u2014 antrean tertahan');
+    }
+}
+
+function renderBroadcastProgress(bcSt, data) {
+    var progCard = document.getElementById('progres-card');
+    var btnBatal = document.getElementById('btn-batal-bc');
+    bcStatusCache = bcSt;
+
+    if (!bcSt || !bcSt.id) {
+        progCard.style.display = 'none';
+        return;
+    }
+
+    progCard.style.display = 'block';
+    var total     = bcSt.total || 0;
+    var terkirim  = bcSt.terkirim || 0;
+    var gagal     = bcSt.gagal || 0;
+    var tertunda  = bcSt.tertunda || 0;
+    var pct       = bcSt.pct || 0;
+    var etaSec    = Math.round((bcSt.etaMs || 0) / 1000);
+
+    document.getElementById('pb-terkirim').textContent = terkirim;
+    document.getElementById('pb-total').textContent    = total;
+    document.getElementById('pb-tertunda').textContent = tertunda;
+    document.getElementById('pb-gagal').textContent    = gagal;
+    document.getElementById('pb-pct').textContent      = pct + '%';
+    document.getElementById('pb-fill').style.width     = pct + '%';
+
+    var etaTxt = '';
+    if (bcSt.selesai) {
+        etaTxt = bcSt.dibatalkan ? '\u26d4 Broadcast dibatalkan.' : '\u2705 Semua pesan telah diproses!';
+        btnBatal.style.display = 'none';
+    } else if (etaSec > 0) {
+        etaTxt = 'Estimasi selesai: \u00b1' + formatDurasi(etaSec) + ' lagi';
+        btnBatal.style.display = '';
+    } else {
+        btnBatal.style.display = '';
+    }
+    document.getElementById('pb-eta-text').textContent = etaTxt;
+
+    var pesanPrev = bcSt.pesan || '';
+    document.getElementById('pb-pesan-preview').textContent = pesanPrev ? '\u201c' + pesanPrev + (pesanPrev.length >= 80 ? '\u2026' : '') + '\u201d' : '';
+}
+
+function renderResumeBanner(bcSt) {
+    var banner = document.getElementById('bc-resume-banner');
+    var info   = document.getElementById('bc-resume-info');
+    // Tampilkan banner hanya kalau ada broadcast aktif yang punya terkirim (artinya sudah berjalan sebelumnya)
+    if (bcSt && bcSt.aktif && bcSt.terkirim > 0 && bcSt.tertunda > 0) {
+        info.textContent = bcSt.terkirim + ' sudah terkirim, ' + bcSt.tertunda + ' masih dalam antrean.';
+        banner.style.display = 'block';
+    } else {
+        banner.style.display = 'none';
+    }
+}
+
+function renderAntreanBox(data) {
+    var items = data.items || [];
+    var tertunda = data.tertunda || 0;
+    var box = document.getElementById('antrean-box');
+    var btnHapusSemua = document.getElementById('btn-hapus-semua');
+
+    if (!tertunda && !items.length) {
+        box.innerHTML = '<div class="bc-empty"><span class="ic-empty">\u2705</span>Antrean kosong.</div>';
+        btnHapusSemua.style.display = 'none';
+        return;
+    }
+
+    btnHapusSemua.style.display = '';
+    var maxTampil = 100;
+    // Tampilkan SEMUA angka terang-terangan di header
+    var infoTeks = tertunda <= maxTampil
+        ? 'Total <strong>' + tertunda + ' pesan</strong> dalam antrean.'
+        : 'Menampilkan <strong>' + Math.min(items.length, maxTampil) + '</strong> teratas dari total <strong>' + tertunda + ' pesan</strong> dalam antrean.';
+    var html = '<div style="font-size:.8rem;color:var(--ink-soft);margin-bottom:8px;padding:0 2px;">' + infoTeks + '</div>';
+    html += '<div class="antrean-list">';
+    items.slice(0, maxTampil).forEach(function(it) {
+        var nomor = String(it.jid || '').replace(/@s\.whatsapp\.net|@c\.us|@lid/g, '');
+        var pesan = String(it.message || '').slice(0, 60) + (String(it.message || '').length > 60 ? '\u2026' : '');
+        html += '<div class="antrean-item">' +
+            '<span class="ai-jid">+' + escHTML(nomor) + '</span>' +
+            '<span class="ai-msg">' + escHTML(pesan) + '</span>' +
+            '<button class="btn ghost small ai-hapus" onclick="hapusSatu(\'' + escHTML(it.id) + '\')" title="Hapus">\u2715</button>' +
+            '</div>';
+    });
+    html += '</div>';
+    box.innerHTML = html;
+}
+
+function renderDibuangBox(data) {
+    var dibuang = data.dibuang || [];
+    var dibuangTotal = data.dibuangTotal || dibuang.length;
+    var dbox = document.getElementById('dibuang-box');
+    var btnBersihkan = document.getElementById('btn-bersihkan');
+
+    if (!dibuangTotal) {
+        dbox.innerHTML = '<div class="bc-empty"><span class="ic-empty">\ud83c\udf89</span>Tidak ada pesan yang gagal.</div>';
+        btnBersihkan.style.display = 'none';
+        return;
+    }
+
+    btnBersihkan.style.display = '';
+    // Tampilkan total dengan jelas
+    var infoTeks = dibuang.length < dibuangTotal
+        ? 'Menampilkan <strong>' + dibuang.length + '</strong> terbaru dari total <strong>' + dibuangTotal + ' gagal</strong>.'
+        : 'Total <strong>' + dibuangTotal + ' pesan gagal</strong>.';
+    var dhtml = '<div style="font-size:.8rem;color:var(--ink-soft);margin-bottom:8px;padding:0 2px;">' + infoTeks + '</div>';
+    dhtml += '<div class="antrean-list">';
+    dibuang.forEach(function(d) {
+        var nomor = String(d.jid || '').replace(/@s\.whatsapp\.net|@c\.us|@lid/g, '');
+        dhtml += '<div class="dibuang-item">' +
+            '<div class="di-info">' +
+                '<div class="di-jid">+' + escHTML(nomor) + '</div>' +
+                '<div class="di-sebab">' + escHTML(String(d.sebab || '').slice(0, 120)) + '</div>' +
+            '</div>' +
+            '<button class="btn ghost small" onclick="ulangKirim(\'' + escHTML(d.id) + '\')" title="Kirim ulang" style="flex:0 0 auto;">\u21a9</button>' +
+            '</div>';
+    });
+    dhtml += '</div>';
+    dbox.innerHTML = dhtml;
+}
+
+function updateBadgeAntrean(data, bcSt) {
+    var tertunda = data ? (data.tertunda || 0) : 0;
+    // Kalau ada broadcast aktif, badge = tertunda dalam broadcast
+    var badgeVal = tertunda;
+    if (bcSt && bcSt.aktif) badgeVal = Math.max(tertunda, bcSt.tertunda || 0);
+    var badge = document.getElementById('badge-antrean');
+    if (badgeVal > 0) {
+        badge.textContent = badgeVal;
+        badge.classList.add('vis');
+    } else {
+        badge.classList.remove('vis');
+    }
+}
+
+/* ─── Actions ─────────────────────────────────────────────────────────────── */
+function hapusSatu(id) {
+    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ hapus: id }) })
+        .then(function() { muatAntrean(); });
+}
+
+function hapusSemua() {
+    var badge = document.getElementById('badge-antrean');
+    if (!confirm('Hapus semua ' + badge.textContent + ' pesan dari antrean?')) return;
+    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ hapus_semua: true }) })
+        .then(function() { muatAntrean(); });
+}
+
+function ulangKirim(id) {
+    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ ulang: id }) })
+        .then(function() { muatAntrean(); });
+}
+
+function bersihkanCatatan() {
+    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ bersihkan_catatan: true }) })
+        .then(function() { muatAntrean(); });
+}
+
+function batalBroadcast() {
+    if (!confirm('Batalkan broadcast yang sedang berjalan? Pesan yang sudah terkirim tidak bisa ditarik.')) return;
+    var btn = document.getElementById('btn-batal-bc');
+    btn.disabled = true;
+    btn.textContent = 'Membatalkan\u2026';
+    apiFetch('/broadcast/batal', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            alert(d.pesan || 'Broadcast dibatalkan.');
+            muatAntrean();
+        })
+        .catch(function(e) { alert('Gagal: ' + e.message); })
+        .finally(function() { btn.disabled = false; btn.textContent = '\ud83d\uded1 Batalkan'; });
+}
+
+/* ─── Auto-refresh ────────────────────────────────────────────────────────── */
+function mulaiAutoRefresh() {
+    if (antreanRefTimer) clearInterval(antreanRefTimer);
+    antreanRefTimer = setInterval(function() {
+        var autoEl = document.getElementById('auto-refresh');
+        var panelAktif = document.getElementById('panel-progres').classList.contains('active');
+        if (autoEl && autoEl.checked && panelAktif) muatAntrean();
+        else muatAntreanSilent();
+    }, 5000);
+}
+
+/* ─── Util ────────────────────────────────────────────────────────────────── */
+function escHTML(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ─── Init ────────────────────────────────────────────────────────────────── */
+muatGrup();
+muatAntreanSilent();
+mulaiAutoRefresh();
+document.getElementById('jeda-detik').addEventListener('input', function() { hitungDipilih(); });
+</script>
 </body>
 </html>

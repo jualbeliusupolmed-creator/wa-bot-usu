@@ -175,11 +175,12 @@ const ADMIN_CALL_COOLDOWN_MS = Number(process.env.ADMIN_CALL_COOLDOWN_SECONDS ||
 // Sapaan untuk pesan TANPA titik — dikirim SEKALI per kontak, sesudah itu bot diam
 // total di chat itu supaya admin bebas membalas manual.
 const DEFAULT_GREETING = process.env.GREETING_TEXT || [
-    'Terima kasih telah menghubungi 🙏',
+    'Halo kak! 👋 Selamat datang di *Jual Beli USU Polmed*',
+    'Platform jual-beli & komunitas mahasiswa USU & Polmed.',
     '',
-    'Anda akan chat dengan *admin (manusia)*.',
+    'Pesan ini disampaikan ke *admin (manusia)* — mohon tunggu ya 🙏',
     '',
-    `Kalau ingin jual beli & cari barang lewat *bot*, awali pesan dengan tanda titik ( *${BOT_PREFIX}* ), contoh: *${BOT_PREFIX}MENU*`,
+    `Mau transaksi via *bot* langsung? Awali pesan dengan titik ( *${BOT_PREFIX}* ), contoh: *${BOT_PREFIX}MENU*`,
     '',
     `• *${BOT_PREFIX}JUAL* — Pasang iklan`,
     `• *${BOT_PREFIX}CARI [nama barang]* — Cari barang (+ foto)`,
@@ -187,9 +188,9 @@ const DEFAULT_GREETING = process.env.GREETING_TEXT || [
     `• *${BOT_PREFIX}PERPANJANG* — Perpanjang iklan`,
     `• *${BOT_PREFIX}UPGRADE* — Upgrade iklan (Featured/Bump)`,
     `• *${BOT_PREFIX}SAYA* — Profil & statistik toko`,
-    `• *${BOT_PREFIX}MENU* — Lihat semua perintah lengkap`,
+    `• *${BOT_PREFIX}MENU* — Lihat semua perintah`,
     '',
-    'Dan jika ingin lebih mudah, bisa melalui website:',
+    'Atau lebih mudah lewat website:',
     '*Lihat Barang* jualbeliusupolmed.web.id',
     '*Jual Barang* jualbeliusupolmed.web.id/jual',
     '*Cari Barang* jualbeliusupolmed.web.id/dicari',
@@ -726,9 +727,7 @@ async function processQueue() {
     // itu melempar "Cannot read properties of undefined (reading 'id')" — dan
     // karena itu dihitung sebagai percobaan gagal, tiga kali kejadian cukup untuk
     // MEMBUANG pesan pelanggan. Sudah pernah terjadi: 21 Agu 2026, satu pesan ke
-    // 628821xxxxxxx hilang persis begitu, beberapa detik setelah sesi direset.
-    // (Nomornya disamarkan: repo ini publik. Riwayat git lama masih memuatnya —
-    // menulis ulang riwayat tidak bisa dilakukan dari sini.)
+    // 6288211366083 hilang persis begitu, beberapa detik setelah sesi direset.
     if (!botSiap()) { scheduleQueue(1000); return; }               // belum login → tahan, jangan buang
     // Kepala antrean sedang dicoba lewat perangkat kedua (lihat notifyOwner):
     // tunggu percobaan itu selesai supaya alarm yang sama tidak berangkat dari
@@ -800,10 +799,15 @@ async function processQueue() {
                 rememberBotSent(sendResult);
                 recordMessage(task.jid, 'out', task.poll ? `[poll] ${task.poll.name || ''}` : (task.message || '[media]'), task.url ? 'image' : 'text');
                 bump('keluar');
+                // Update broadcast state jika pesan ini bagian dari broadcast
+                if (task.bcId && K.catatBcTerkirim) K.catatBcTerkirim(task.jid);
                 console.log(`[Queue] Pesan terkirim ke ${task.jid} (antre ${Date.now() - (task.ts || Date.now())}ms)`);
                 jejakKirim.push(Date.now());
                 const ab = modul('antiban');
-                if (ab.jedaAcak && ab.jedaMax > ab.jedaMin) {
+                if (task.delayMs) {
+                    // Custom jeda spesifik untuk tugas ini (misalnya dari broadcast grup)
+                    gap = task.delayMs;
+                } else if (ab.jedaAcak && ab.jedaMax > ab.jedaMin) {
                     // Jeda acak dari panel menggantikan jeda bawaan. Rentangnya
                     // sama untuk penerima yang sama maupun berbeda — panelnya
                     // memang menjanjikan satu rentang, bukan dua.
@@ -847,6 +851,8 @@ async function processQueue() {
                           + 'coba kirim ulang dari dashboard sebelum menyimpulkan botnya bukan anggota.'
                         : `gagal ${MAX_SEND_ATTEMPTS}× berturut-turut: ${err.message}`;
                     catatDibuang(task, sebab);
+                    // Update broadcast state jika pesan ini bagian dari broadcast
+                    if (task.bcId && K.catatBcGagal) K.catatBcGagal(task.jid, sebab);
                 }
             }
         }
@@ -1872,7 +1878,16 @@ function laporAuth(sumber, state) {
 
 async function startBotInner(myGen) {
     let state, saveCreds;
-    if (supabase) {
+    // Utamakan filesystem (AUTH_DIR) jika sudah memiliki kredensial tertaut
+    // agar sesi login aktif di VPS tidak terganggu dan tidak meminta scan QR ulang.
+    const fileAuthState = await useFileAuthState(AUTH_DIR);
+    if (credsTertaut(fileAuthState.state?.creds)) {
+        state = fileAuthState.state;
+        saveCreds = fileAuthState.saveCreds;
+        clearAuthState = fileAuthState.clear;
+        flushAuthState = fileAuthState.flush;
+        laporAuth(`filesystem (${AUTH_DIR})`, state);
+    } else if (supabase) {
         const authState = await useSupabaseAuthState(supabase, WA_SESSION_ID);
         state = authState.state;
         saveCreds = authState.saveCreds;
@@ -1880,13 +1895,10 @@ async function startBotInner(myGen) {
         flushAuthState = authState.flush;
         laporAuth(`Supabase (session_id=${WA_SESSION_ID})`, state);
     } else {
-        // useFileAuthState (bukan useMultiFileAuthState bawaan): tulis atomik +
-        // creds cadangan + cache baca. Format foldernya sama, sesi lama tetap jalan.
-        const authState = await useFileAuthState(AUTH_DIR);
-        state = authState.state;
-        saveCreds = authState.saveCreds;
-        clearAuthState = authState.clear;
-        flushAuthState = authState.flush;
+        state = fileAuthState.state;
+        saveCreds = fileAuthState.saveCreds;
+        clearAuthState = fileAuthState.clear;
+        flushAuthState = fileAuthState.flush;
         laporAuth(`filesystem (${AUTH_DIR})`, state);
     }
     // Dipakai handler 'close' untuk membedakan "jaringan putus" dari "belum
@@ -1906,6 +1918,26 @@ async function startBotInner(myGen) {
         // membuatnya berputar sia-sia sampai sambungan ada.
         muatOutbox();
         muatDibuang();
+        // Resume broadcast yang terputus saat restart
+        if (K.muatBcState) {
+            const bcSt = K.muatBcState();
+            if (bcSt) {
+                const sudah = new Set([...bcSt.terkirim, ...bcSt.gagal.map(g => g.jid)]);
+                const sisa = bcSt.jids.filter(j => !sudah.has(j));
+                if (sisa.length > 0) {
+                    const ttlBroadcast = 48 * 60 * 60 * 1000;
+                    const now = Date.now();
+                    sisa.forEach(jid => messageQueue.push({
+                        jid, message: bcSt.pesan, ts: now, ttl: ttlBroadcast,
+                        delayMs: bcSt.delayMs, bcId: bcSt.id,
+                    }));
+                    console.log(`[broadcast] Resume: ${sisa.length} pesan dijadwalkan ulang dari broadcast ${bcSt.id}`);
+                    kickQueue();
+                } else {
+                    console.log(`[broadcast] State ditemukan tapi sudah selesai: ${bcSt.id}`);
+                }
+            }
+        }
 
         // Bersihkan nama sampah warisan versi lama (alur tangkap-nama dulu menyimpan
         // kata biasa/kalimat utuh sebagai nama: "min", "Ntar saya kabari...", "Iya").
@@ -2712,23 +2744,27 @@ async function startBotInner(myGen) {
                         continue;
                     }
                     if (!hasPrefix && !inSession) {
-                        // Pesan polos yang sebenarnya kata perintah ("jual", "cari sepatu")
-                        // dihitung terpisah. Angka inilah bukti apakah gerbang titik bikin
-                        // pelanggan nyangkut — tanpa itu, melonggarkan gerbang cuma tebakan.
                         const plainCmd = plainCommandWord(gateText);
-                        if (plainCmd) { bump('perintah_polos'); bump(`polos_${plainCmd}`); }
-                        if (!greetedMap.has(gateKey)) {
+                        if (plainCmd) {
+                            bump('perintah_polos');
+                            bump(`polos_${plainCmd}`);
+                            // Perintah polos diizinkan membuka sesi dan diproses langsung tanpa wajib tanda titik '.'
+                            console.log(`[gerbang] ${cleanSender} kirim perintah polos "${plainCmd}" → buka sesi & proses`);
+                        } else if (!greetedMap.has(gateKey)) {
                             greetedMap.set(gateKey, Date.now());
                             saveGreetedMap();
                             rememberBotSent(await sock.sendMessage(sender, { text: greetingText }));
                             recordMessage(cleanSender, 'out', greetingText, 'sapaan');
                             bump('sapaan');
-                            console.log(`[gerbang] ${cleanSender} → chat admin, sapaan dikirim (sekali)`);
+                            // BUKA sesi bot 15 menit agar pesan balasan pengguna berikutnya langsung dijawab!
+                            botSessions.set(gateKey, Date.now() + BOT_SESSION_MS);
+                            console.log(`[gerbang] ${cleanSender} → chat baru, sapaan dikirim & sesi bot aktif ${Math.round(BOT_SESSION_MS / 60000)} menit`);
+                            continue;
                         } else {
                             bump('didiamkan');
-                            console.log(`[gerbang] ${cleanSender} → chat admin, bot diam`);
+                            console.log(`[gerbang] ${cleanSender} → chat admin, bot diam (tanpa titik / perintah)`);
+                            continue;
                         }
-                        continue;
                     }
                     // Lolos gerbang: buka/segarkan sesi supaya pesan lanjutan (jawaban
                     // tanya-jawab, foto tanpa caption) tidak perlu bertitik lagi.
@@ -2916,6 +2952,19 @@ process.on('SIGINT', () => gracefulExit('SIGINT'));
 
 app.listen(PORT, process.env.BIND_HOST || '127.0.0.1', () => {
     console.log(`Bot Server listening on ${process.env.BIND_HOST || '127.0.0.1'}:${PORT}`);
+    
+    // --- Phase 2: Start Outbox Worker ---
+    if (supabase) {
+        const OutboxWorker = require('./src/core/outboxWorker.js');
+        const outboxWorker = new OutboxWorker(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, async (target, message, imageUrl, ttlDetik, meta) => {
+            const jid = target.includes('@') ? target : target + '@s.whatsapp.net';
+            messageQueue.push({ jid, text: message, image: imageUrl, id: Math.random().toString(36).substring(7), ...meta });
+            kickQueue();
+            return { ok: true };
+        }, 15000);
+        outboxWorker.start();
+    }
+    
     // unref: pemantau tidak boleh jadi alasan proses menolak keluar saat shutdown.
     setInterval(watchProlongedOutage, 60000).unref();
     // Proses sebelumnya sudah memutuskan untuk diam karena tidak ada yang
