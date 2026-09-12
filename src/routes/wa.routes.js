@@ -330,7 +330,7 @@ module.exports = function pasangRuteWa(app, K) {
     // Mengembalikan state broadcast aktif lengkap: terkirim, gagal, sisa, ETA.
     // UI polling endpoint ini setiap 5 detik untuk tampilkan progress bar.
     app.get('/broadcast/status', requireAuth, (req, res) => {
-        const st = _bcState;
+        const st = _bcState || muatBcState(K);
         if (!st) {
             return res.json({ aktif: false });
         }
