@@ -36,7 +36,7 @@ module.exports = function pasangRuteAntrean(app, K) {
         });
     });
 
-    app.get('/antrean/lokal', requireAuth, (req, res) => {
+    app.get('/antrean/lokal', requireAuth, async (req, res) => {
         const sekarang = Date.now();
         const items = messageQueue.map((t) => ({
             id: idTugas(t),
@@ -56,15 +56,20 @@ module.exports = function pasangRuteAntrean(app, K) {
             K.dibuangList = K.dibuangList.filter((d) => (d.dibuangAt || 0) >= batasCatatan);
             simpanDibuang();
         }
+        const b1Siap = botSiap();
+        const b2Siap = await K.bot2Siap();
+        const siap = b1Siap || b2Siap;
         res.json({
             ok: true,
             // Kenapa antreannya belum berangkat — pertanyaan pertama siapa pun yang
             // melihat daftar ini, dan jawabannya tidak boleh perlu dicari di halaman lain.
-            siap: botSiap(),
+            siap,
             tersambung: socketAlive(),
             menungguPindai: K.menungguPindai,
             terkunci: K.sesiTerkunci,
-            sebab: botSiap() ? null
+            perangkatAktif: b1Siap ? 'utama' : (b2Siap ? 'cadangan' : 'none'),
+            sebab: b1Siap ? null
+                : b2Siap ? 'Menggunakan Perangkat 2 (Bot Cadangan) — Perangkat 1 (Bot Utama) belum tersambung.'
                 : K.sesiTerkunci ? 'Sesi WhatsApp terkunci — perlu dibuka dari dashboard.'
                 : K.menungguPindai ? 'Perangkat belum tertaut — QR/pairing menunggu dipindai.'
                 : 'WhatsApp belum tersambung.',

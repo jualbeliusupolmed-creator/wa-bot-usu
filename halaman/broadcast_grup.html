@@ -501,7 +501,11 @@ function renderStatusBot(data) {
     barEl.style.display = 'flex';
     if (data.siap) {
         barEl.className = 'bot-status ok';
-        txtEl.textContent = 'Bot tersambung \u2014 antrean berjalan';
+        if (data.perangkatAktif === 'cadangan') {
+            txtEl.textContent = '\u26a1 Perangkat 2 (Bot Cadangan) tersambung \u2014 antrean berjalan';
+        } else {
+            txtEl.textContent = 'Bot tersambung \u2014 antrean berjalan';
+        }
     } else {
         barEl.className = 'bot-status err';
         txtEl.textContent = '\u26a0\ufe0f ' + (data.sebab || 'Bot belum tersambung \u2014 antrean tertahan');
