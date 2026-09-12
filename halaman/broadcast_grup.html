@@ -3,42 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Broadcast Japri Anggota Grup — Bot WhatsApp</title>
+    <title>Unified WhatsApp Hub — Bot WhatsApp USU</title>
     <meta name="robots" content="noindex">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&family=Work+Sans:wght@400;500&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/assets/ui.css?v=20260822">
     <script>try{var t=localStorage.getItem('tema');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
     <script src="/assets/ui.js?v=20260822" defer></script>
     <style>
-.bc-page { max-width: 760px; margin: 0 auto; padding: 28px 0 80px; }
-.bc-header { margin-bottom: 20px; }
-.bc-header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 6px; }
-.bc-header .lede { margin-top: 0; }
+.bc-page { max-width: 860px; margin: 0 auto; padding: 20px 16px 80px; }
+.bc-header { margin-bottom: 16px; }
+.bc-header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.bc-header .lede { margin-top: 0; color: var(--ink-soft); font-size: .9rem; }
+
+/* Status Bar Persisten */
+.unified-header-card {
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: var(--radius, 12px);
+    padding: 12px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.device-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .85rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--sunk, #f8fafc);
+    border: 1px solid var(--line, #e2e8f0);
+}
+.dot-status {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.dot-status.on { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+.dot-status.off { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.2); }
+.dot-status.warn { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.2); }
 
 /* Tab navigasi */
-.bc-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+.bc-tabs { display: flex; gap: 6px; border-bottom: 2px solid var(--line, #e2e8f0); margin-bottom: 24px; overflow-x: auto; scrollbar-width: none; }
+.bc-tabs::-webkit-scrollbar { display: none; }
 .bc-tab {
-    padding: 9px 16px; font-size: .875rem; font-weight: 500; color: var(--ink-soft);
-    border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer;
-    white-space: nowrap; border-radius: var(--r-sm) var(--r-sm) 0 0; display: flex; align-items: center; gap: 6px;
-    transition: color .12s, background .12s;
+    padding: 10px 18px; font-size: .88rem; font-weight: 500; color: var(--ink-soft);
+    border: 0; border-bottom: 3px solid transparent; background: none; cursor: pointer;
+    white-space: nowrap; border-radius: var(--r-sm) var(--r-sm) 0 0; display: flex; align-items: center; gap: 8px;
+    transition: all .15s ease; margin-bottom: -2px;
 }
 .bc-tab:hover { color: var(--ink); background: var(--sunk); }
-.bc-tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+.bc-tab.active { color: var(--brand, #4f46e5); border-bottom-color: var(--brand, #4f46e5); font-weight: 700; }
 .bc-tab .badge-count {
-    font-size: .7rem; font-weight: 700; padding: 1px 6px; border-radius: 999px;
-    background: var(--brand); color: #fff; min-width: 18px; text-align: center;
+    font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+    background: var(--brand, #4f46e5); color: #fff; min-width: 18px; text-align: center;
     display: none;
 }
-.bc-tab .badge-count.vis { display: inline; }
+.bc-tab .badge-count.vis { display: inline-block; }
 
 /* Panel tab */
-.bc-panel { display: none; }
+.bc-panel { display: none; animation: fadeIn .2s ease; }
 .bc-panel.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-/* Nomor langkah */
+/* Form Components */
 .bc-step-label {
     display: flex; align-items: center; gap: 10px;
     font-family: var(--display); font-size: 1rem; font-weight: 600; color: var(--ink);
@@ -46,141 +83,123 @@
 }
 .bc-step-label .nomor {
     flex: 0 0 26px; height: 26px; border-radius: 8px;
-    background: var(--brand-tint); color: var(--brand); border: 1px solid var(--brand-line);
+    background: var(--brand-tint, #eef2ff); color: var(--brand, #4f46e5); border: 1px solid var(--brand-line, #c7d2fe);
     font-size: .8rem; font-weight: 700; display: grid; place-items: center;
 }
 
-/* Daftar anggota */
+/* Scroll Members */
 .member-scroll {
-    max-height: 300px; overflow-y: auto;
+    max-height: 280px; overflow-y: auto;
     border: 1px solid var(--line); border-radius: var(--radius);
-    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+    scrollbar-width: thin;
 }
-.member-scroll::-webkit-scrollbar { width: 6px; }
-.member-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 .member-item {
     display: flex; align-items: center; gap: 10px; padding: 10px 12px;
     border-bottom: 1px solid var(--line-soft); cursor: pointer; transition: background .1s;
 }
-.member-item:last-child { border-bottom: 0; }
 .member-item:hover { background: var(--sunk); }
 .member-item input[type=checkbox] { width: 16px; height: 16px; flex: 0 0 16px; accent-color: var(--brand); cursor: pointer; }
 .member-item .mi-info { flex: 1; min-width: 0; }
-.member-item .mi-nm  { font-size: .9rem; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.member-item .mi-jid { font-size: .75rem; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.member-item .badge-admin {
-    font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 999px;
-    background: var(--brand-tint); color: var(--brand); border: 1px solid var(--brand-line);
-    flex: 0 0 auto; white-space: nowrap;
-}
+.member-item .mi-nm { font-size: .9rem; font-weight: 500; color: var(--ink); }
+.member-item .mi-jid { font-size: .75rem; color: var(--ink-faint); }
 
-/* Toolbar */
 .bc-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .bc-toolbar .spacer { flex: 1; }
 .bc-toolbar .hitungan { font-size: .84rem; color: var(--ink-soft); }
 
-/* Hasil kirim */
 .bc-hasil { margin-top: 18px; padding: 14px 18px; border-radius: var(--radius); font-size: .9rem; line-height: 1.55; display: none; }
-.bc-hasil.ok  { background: var(--ok-t);  color: var(--ok);  border: 1px solid transparent; }
-.bc-hasil.err { background: var(--bad-t); color: var(--bad); border: 1px solid transparent; }
+.bc-hasil.ok { background: var(--ok-t, #ecfdf5); color: var(--ok, #059669); }
+.bc-hasil.err { background: var(--bad-t, #fef2f2); color: var(--bad, #dc2626); }
 
-/* Empty state */
 .bc-empty { text-align: center; padding: 32px 16px; color: var(--ink-faint); font-size: .9rem; }
-.bc-empty .ic-empty { font-size: 2rem; margin-bottom: 8px; display: block; opacity: .35; }
+.bc-empty .ic-empty { font-size: 2rem; margin-bottom: 8px; display: block; opacity: .4; }
 
-/* ── Tab Progres ── */
+/* Progress bar */
 .pbar-wrap { margin-bottom: 20px; }
 .pbar-label { display: flex; justify-content: space-between; font-size: .85rem; color: var(--ink-soft); margin-bottom: 6px; }
-.pbar-label strong { color: var(--ink); }
-.pbar-track {
-    height: 10px; background: var(--sunk); border-radius: 999px; overflow: hidden;
-    border: 1px solid var(--line);
-}
-.pbar-fill {
-    height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-2));
-    transition: width .5s ease; min-width: 0;
-}
+.pbar-track { height: 10px; background: var(--sunk); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+.pbar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), #818cf8); transition: width .4s ease; }
 
-/* Status bot */
-.bot-status { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--radius); font-size: .875rem; margin-bottom: 16px; }
-.bot-status.ok  { background: var(--ok-t);  color: var(--ok); }
-.bot-status.err { background: var(--bad-t); color: var(--bad); }
-.bot-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
-.bot-status.ok  .dot { background: var(--ok);  box-shadow: 0 0 0 3px var(--ok-t); }
-.bot-status.err .dot { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-t); }
+/* Table styling for History */
+.table-history { width: 100%; border-collapse: collapse; font-size: .875rem; margin-top: 10px; }
+.table-history th, .table-history td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); }
+.table-history th { background: var(--sunk); font-weight: 600; color: var(--ink-soft); }
 
-/* Antrean item */
-.antrean-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.antrean-item {
-    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-    border-bottom: 1px solid var(--line-soft); font-size: .875rem;
-}
-.antrean-item:last-child { border-bottom: 0; }
-.antrean-item .ai-jid { flex: 1; min-width: 0; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.antrean-item .ai-msg { flex: 2; min-width: 0; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .82rem; }
-.antrean-item .ai-hapus { flex: 0 0 auto; }
-
-/* Item dibuang */
-.dibuang-item {
-    display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px;
-    border-bottom: 1px solid var(--line-soft); font-size: .82rem;
-}
-.dibuang-item:last-child { border-bottom: 0; }
-.dibuang-item .di-info { flex: 1; min-width: 0; }
-.dibuang-item .di-jid { font-weight: 500; color: var(--ink); }
-.dibuang-item .di-sebab { color: var(--bad); margin-top: 2px; }
-
-.pbar-refresh-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
-.auto-refresh-label { font-size: .82rem; color: var(--ink-soft); }
+.status-badge { padding: 3px 9px; border-radius: 999px; font-size: .75rem; font-weight: 600; display: inline-block; }
+.status-badge.ok { background: #d1fae5; color: #065f46; }
+.status-badge.running { background: #e0e7ff; color: #3730a3; }
+.status-badge.cancelled { background: #fee2e2; color: #991b1b; }
     </style>
 </head>
 <body class="has-nav">
 
 <div class="bc-page wrap">
 
-    <!-- Header -->
+    <!-- Header & App Title -->
     <div class="bc-header">
-        <h1>📢 Broadcast Japri Anggota Grup</h1>
-        <p class="lede">Kirim pesan japri ke semua atau sebagian anggota grup WhatsApp yang dipilih.</p>
+        <h1><i class="fa-brands fa-whatsapp" style="color:#25D366;"></i> Unified WhatsApp Hub</h1>
+        <p class="lede">Pusat kendali broadcast pesan, pemantauan antrean real-time, dan status koneksi bot.</p>
     </div>
 
-    <!-- Tab navigasi -->
+    <!-- Header Status Perangkat Persisten -->
+    <div class="unified-header-card">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <div class="device-pill">
+                <span id="b1-dot" class="dot-status off"></span>
+                <strong>Bot 1 (Utama):</strong> <span id="b1-text">Memeriksa…</span>
+            </div>
+            <div class="device-pill">
+                <span id="b2-dot" class="dot-status off"></span>
+                <strong>Bot 2 (Cadangan):</strong> <span id="b2-text">Memeriksa…</span>
+            </div>
+        </div>
+        <button class="btn ghost small" onclick="gantiTab('perangkat', document.querySelectorAll('.bc-tab')[4])">
+            <i class="fa-solid fa-qrcode"></i> Kelola Perangkat / QR
+        </button>
+    </div>
+
+    <!-- Tab Navigasi Utuh -->
     <div class="bc-tabs">
-        <button class="bc-tab active" onclick="gantiTab('kirim', this)">
-            <i class="fa-solid fa-bullhorn"></i> Kirim
+        <button class="bc-tab active" onclick="gantiTab('kirim-grup', this)">
+            <i class="fa-solid fa-users"></i> Broadcast Grup
+        </button>
+        <button class="bc-tab" onclick="gantiTab('kirim-japri', this)">
+            <i class="fa-solid fa-paper-plane"></i> Broadcast Japri / Kontak
         </button>
         <button class="bc-tab" onclick="gantiTab('progres', this)">
             <i class="fa-solid fa-chart-column"></i> Progres &amp; Antrean
             <span class="badge-count" id="badge-antrean">0</span>
         </button>
+        <button class="bc-tab" onclick="gantiTab('riwayat', this)">
+            <i class="fa-solid fa-clock-rotate-left"></i> Riwayat Broadcast
+        </button>
+        <button class="bc-tab" onclick="gantiTab('perangkat', this)">
+            <i class="fa-solid fa-mobile-screen-button"></i> Status Perangkat
+        </button>
     </div>
 
-    <!-- ══ Panel: Kirim ══════════════════════════════════════════════════════ -->
-    <div class="bc-panel active" id="panel-kirim">
-
-        <!-- Banner broadcast aktif di tab Kirim -->
+    <!-- ══ TAB 1: BROADCAST GRUP ═════════════════════════════════════════════ -->
+    <div class="bc-panel active" id="panel-kirim-grup">
         <div id="bc-top-banner" style="display:none;background:var(--brand-t,#eef2ff);border:1px solid var(--brand,#6366f1);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:.875rem;">
-            <strong>⚡ Ada broadcast yang sedang berjalan / memiliki riwayat aktif.</strong><br>
+            <strong>⚡ Ada broadcast yang sedang berjalan / aktif.</strong><br>
             <span id="bc-top-info"></span>
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <button class="btn ghost small" onclick="gantiTab('progres', document.querySelectorAll('.bc-tab')[1])">📊 Lihat Progres &amp; Antrean Lengkap</button>
+                <button class="btn ghost small" onclick="gantiTab('progres', document.querySelectorAll('.bc-tab')[2])">📊 Lihat Progres &amp; Antrean Lengkap</button>
                 <button class="btn ghost small danger" onclick="batalBroadcast()" style="margin-left:auto;">🛑 Batalkan</button>
             </div>
         </div>
 
-        <!-- Langkah 1 -->
         <div class="card glass" style="margin-bottom:14px;">
-            <div class="bc-step-label"><span class="nomor">1</span> Pilih Grup</div>
-            <select id="sel-grup" onchange="muatAnggota()" style="margin-bottom:0;">
+            <div class="bc-step-label"><span class="nomor">1</span> Pilih Grup Target</div>
+            <select id="sel-grup" onchange="muatAnggota()" style="margin-bottom:0;width:100%;">
                 <option value="">— memuat daftar grup… —</option>
             </select>
         </div>
 
-        <!-- Langkah 2 -->
         <div class="card glass" style="margin-bottom:14px;">
             <div class="bc-step-label"><span class="nomor">2</span> Pilih Anggota Penerima</div>
             <div class="bc-toolbar">
-                <button class="btn ghost small" onclick="pilihSemua(true)"  id="btn-pilih-semua" disabled>Pilih Semua</button>
+                <button class="btn ghost small" onclick="pilihSemua(true)" id="btn-pilih-semua" disabled>Pilih Semua</button>
                 <button class="btn ghost small" onclick="pilihSemua(false)" id="btn-batal-semua" disabled>Batal Semua</button>
                 <span class="spacer"></span>
                 <span class="hitungan" id="hitungan">0 dipilih</span>
@@ -190,63 +209,72 @@
             </div>
         </div>
 
-        <!-- Langkah 3 -->
         <div class="card glass" style="margin-bottom:18px;">
             <div class="bc-step-label"><span class="nomor">3</span> Tulis Pesan &amp; Pengaturan Jeda</div>
-            <textarea id="pesan" rows="5" placeholder="Tulis pesan yang akan dikirim ke setiap anggota yang dipilih…" style="margin-bottom:14px;"></textarea>
+            <textarea id="pesan" rows="5" placeholder="Tulis pesan broadcast..." style="width:100%;margin-bottom:14px;"></textarea>
 
             <label for="jeda-detik" style="margin-bottom:6px;">Jeda antar pesan</label>
             <div class="row" style="align-items:center;gap:10px;flex-wrap:nowrap;">
                 <input type="number" id="jeda-detik" value="5" min="1" max="300" step="1" style="width:90px;margin-bottom:0;text-align:center;">
-                <span style="color:var(--ink-soft);font-size:.9rem;white-space:nowrap;">detik per pesan</span>
+                <span style="color:var(--ink-soft);font-size:.9rem;">detik per pesan</span>
                 <span id="eta-label" class="tiny" style="margin-left:auto;"></span>
             </div>
-            <p class="tiny" style="margin:8px 0 0;">Rekomendasi minimal 5 detik agar tidak dianggap spam.</p>
         </div>
 
         <button id="btn-kirim" onclick="kirim()" style="width:100%;padding:12px 16px;font-size:1rem;justify-content:center;" disabled>
-            <i class="fa-solid fa-bullhorn"></i>&nbsp; Kirim Broadcast
+            <i class="fa-solid fa-paper-plane"></i> Kirim Broadcast Grup
         </button>
-
         <div class="bc-hasil" id="bc-hasil"></div>
     </div>
 
-    <!-- ══ Panel: Progres & Antrean ══════════════════════════════════════════ -->
-    <div class="bc-panel" id="panel-progres">
+    <!-- ══ TAB 2: BROADCAST JAPRI MANUAL ═════════════════════════════════════ -->
+    <div class="bc-panel" id="panel-kirim-japri">
+        <div class="card glass" style="margin-bottom:16px;">
+            <div class="bc-step-label"><span class="nomor">1</span> Daftar Nomor Kontak</div>
+            <p class="tiny" style="margin-top:-6px;margin-bottom:10px;">Masukkan nomor WhatsApp (pisahkan dengan koma atau baris baru). Contoh: <code>08123456789, 08987654321</code></p>
+            <textarea id="japri-nomor" rows="4" placeholder="08123456789&#10;08987654321&#10;62811223344" style="width:100%;margin-bottom:10px;"></textarea>
+            <div style="font-size:.82rem;color:var(--ink-soft);" id="japri-hitungan">0 nomor valid terdeteksi</div>
+        </div>
 
-        <!-- Kontrol refresh -->
-        <div class="pbar-refresh-row">
-            <button class="btn ghost small" onclick="muatAntrean()"><i class="fa-solid fa-spinner"></i> Refresh</button>
+        <div class="card glass" style="margin-bottom:18px;">
+            <div class="bc-step-label"><span class="nomor">2</span> Pesan &amp; Jeda Pengiriman</div>
+            <textarea id="japri-pesan" rows="5" placeholder="Tulis pesan japri..." style="width:100%;margin-bottom:14px;"></textarea>
+
+            <label for="japri-jeda" style="margin-bottom:6px;">Jeda antar pesan</label>
+            <div class="row" style="align-items:center;gap:10px;">
+                <input type="number" id="japri-jeda" value="5" min="1" max="300" style="width:90px;margin-bottom:0;text-align:center;">
+                <span style="color:var(--ink-soft);font-size:.9rem;">detik per pesan</span>
+            </div>
+        </div>
+
+        <button id="btn-kirim-japri" onclick="kirimJapriManual()" style="width:100%;padding:12px 16px;font-size:1rem;justify-content:center;">
+            <i class="fa-solid fa-paper-plane"></i> Kirim Broadcast Japri
+        </button>
+        <div class="bc-hasil" id="japri-hasil"></div>
+    </div>
+
+    <!-- ══ TAB 3: PROGRES & ANTREAN ══════════════════════════════════════════ -->
+    <div class="bc-panel" id="panel-progres">
+        <div class="pbar-refresh-row" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <button class="btn ghost small" onclick="muatAntrean()"><i class="fa-solid fa-arrows-rotate"></i> Refresh Now</button>
             <label class="auto-refresh-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:0;">
-                <input type="checkbox" id="auto-refresh" checked style="width:auto;margin-bottom:0;">
-                Auto-refresh tiap 5 detik
+                <input type="checkbox" id="auto-refresh" checked style="width:auto;margin-bottom:0;"> Auto-refresh (5s)
             </label>
             <span class="tiny" id="refresh-label" style="margin-left:auto;"></span>
         </div>
 
-        <!-- Status bot -->
-        <div id="bot-status-bar" class="bot-status ok" style="display:none;">
+        <!-- Status bot bar -->
+        <div id="bot-status-bar" class="bot-status ok" style="display:none;padding:10px 14px;border-radius:var(--radius);font-size:.875rem;margin-bottom:16px;">
             <span class="dot"></span>
             <span id="bot-status-text">Memeriksa…</span>
         </div>
 
-        <!-- Banner broadcast tertunda dari sebelumnya (resume) -->
-        <div id="bc-resume-banner" style="display:none;background:var(--warn-t,#fef3cd);border:1px solid var(--warn,#f59e0b);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:.875rem;">
-            <strong>⚡ Ada broadcast tertunda dari sesi sebelumnya.</strong><br>
-            <span id="bc-resume-info"></span>
-            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-                <span class="tiny" style="color:var(--ink-soft);">Broadcast dilanjutkan otomatis. Pantau progres di bawah.</span>
-                <button class="btn ghost small danger" onclick="batalBroadcast()" style="margin-left:auto;">🛑 Batalkan</button>
-            </div>
-        </div>
-
-        <!-- Progress bar broadcast aktif -->
+        <!-- Progres Card -->
         <div class="card glass pbar-wrap" id="progres-card" style="display:none;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
-                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">📊</span> Progres Broadcast</div>
+                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">📊</span> Progres Broadcast Aktif</div>
                 <button class="btn ghost small danger" onclick="batalBroadcast()" id="btn-batal-bc" style="display:none;">🛑 Batalkan</button>
             </div>
-            <!-- Angka eksplisit semua -->
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px;">
                 <div style="text-align:center;padding:10px;background:var(--sunk);border-radius:var(--radius);">
                     <div style="font-size:1.5rem;font-weight:700;color:var(--brand);" id="pb-terkirim">0</div>
@@ -254,11 +282,11 @@
                 </div>
                 <div style="text-align:center;padding:10px;background:var(--sunk);border-radius:var(--radius);">
                     <div style="font-size:1.5rem;font-weight:700;color:var(--ok);" id="pb-total">0</div>
-                    <div style="font-size:.75rem;color:var(--ink-soft);">Total</div>
+                    <div style="font-size:.75rem;color:var(--ink-soft);">Total Target</div>
                 </div>
                 <div style="text-align:center;padding:10px;background:var(--sunk);border-radius:var(--radius);">
                     <div style="font-size:1.5rem;font-weight:700;color:var(--ink-soft);" id="pb-tertunda">0</div>
-                    <div style="font-size:.75rem;color:var(--ink-soft);">Dalam antrean</div>
+                    <div style="font-size:.75rem;color:var(--ink-soft);">Dalam Antrean</div>
                 </div>
                 <div style="text-align:center;padding:10px;background:var(--sunk);border-radius:var(--radius);">
                     <div style="font-size:1.5rem;font-weight:700;color:var(--bad);" id="pb-gagal">0</div>
@@ -273,29 +301,65 @@
             <p class="tiny" style="margin:8px 0 0;color:var(--ink-faint);" id="pb-pesan-preview"></p>
         </div>
 
-        <!-- Antrean tertunda (live dari messageQueue) -->
         <div class="card glass" style="margin-bottom:14px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
-                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">⏳</span> Antrean Tertunda</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;">
+                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">⏳</span> Antrean Pesan Aktif</div>
                 <button class="btn ghost small danger" id="btn-hapus-semua" onclick="hapusSemua()" style="display:none;">🗑 Hapus Semua</button>
             </div>
             <div id="antrean-box"><div class="bc-empty"><span class="ic-empty">✅</span>Antrean kosong.</div></div>
         </div>
 
-        <!-- Pesan dibuang -->
         <div class="card glass">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
-                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">❌</span> Pesan Gagal / Dibuang</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;">
+                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">❌</span> Log Pesan Gagal</div>
                 <button class="btn ghost small" id="btn-bersihkan" onclick="bersihkanCatatan()" style="display:none;">🧹 Bersihkan</button>
             </div>
             <div id="dibuang-box"><div class="bc-empty"><span class="ic-empty">🎉</span>Tidak ada pesan yang gagal.</div></div>
         </div>
     </div>
 
+    <!-- ══ TAB 4: RIWAYAT BROADCAST ═════════════════════════════════════════ -->
+    <div class="bc-panel" id="panel-riwayat">
+        <div class="card glass">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div class="bc-step-label" style="margin-bottom:0;"><span class="nomor">📜</span> Riwayat Siaran Terdahulu</div>
+                <button class="btn ghost small" onclick="muatRiwayat()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+            </div>
+            <div id="riwayat-box">
+                <div class="bc-empty"><span class="ic-empty">⏳</span>Memuat riwayat broadcast...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ TAB 5: KONEKSI PERANGKAT ═════════════════════════════════════════ -->
+    <div class="bc-panel" id="panel-perangkat">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
+            <!-- Perangkat 1 -->
+            <div class="card glass">
+                <h3><i class="fa-solid fa-mobile"></i> Perangkat 1 (Utama)</h3>
+                <p class="tiny" style="color:var(--ink-soft);margin-bottom:14px;">WhatsApp Bot Utama yang menangani balasan & broadcast.</p>
+                <div id="dev1-status-box" style="padding:12px;background:var(--sunk);border-radius:var(--radius);margin-bottom:14px;">
+                    Memeriksa status Perangkat 1…
+                </div>
+                <button class="btn ghost small" onclick="mintaQR(1)" style="width:100%;"><i class="fa-solid fa-qrcode"></i> Tampilkan QR Login Bot 1</button>
+            </div>
+
+            <!-- Perangkat 2 -->
+            <div class="card glass">
+                <h3><i class="fa-solid fa-mobile-button"></i> Perangkat 2 (Cadangan)</h3>
+                <p class="tiny" style="color:var(--ink-soft);margin-bottom:14px;">Bot Cadangan yang mengambil alih antrean jika Bot 1 offline.</p>
+                <div id="dev2-status-box" style="padding:12px;background:var(--sunk);border-radius:var(--radius);margin-bottom:14px;">
+                    Memeriksa status Perangkat 2…
+                </div>
+                <button class="btn ghost small" onclick="mintaQR(2)" style="width:100%;"><i class="fa-solid fa-qrcode"></i> Tampilkan QR Login Bot 2</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
-/* ─── Auth ────────────────────────────────────────────────────────────────── */
+/* ─── Auth & Fetch ────────────────────────────────────────────────────────── */
 function ambilToken() {
     return localStorage.getItem('panel_token') || sessionStorage.getItem('panel_token') || '';
 }
@@ -311,36 +375,68 @@ function apiFetch(url, opts) {
     });
 }
 
-/* ─── Tab ─────────────────────────────────────────────────────────────────── */
+/* ─── Tab Navigasi ────────────────────────────────────────────────────────── */
 function gantiTab(nama, elTab) {
     document.querySelectorAll('.bc-tab').forEach(function(t) { t.classList.remove('active'); });
     document.querySelectorAll('.bc-panel').forEach(function(p) { p.classList.remove('active'); });
-    elTab.classList.add('active');
-    document.getElementById('panel-' + nama).classList.add('active');
+    if (elTab) elTab.classList.add('active');
+    else {
+        var tabs = document.querySelectorAll('.bc-tab');
+        if (nama === 'kirim-grup') tabs[0].classList.add('active');
+        if (nama === 'kirim-japri') tabs[1].classList.add('active');
+        if (nama === 'progres') tabs[2].classList.add('active');
+        if (nama === 'riwayat') tabs[3].classList.add('active');
+        if (nama === 'perangkat') tabs[4].classList.add('active');
+    }
+    var targetPanel = document.getElementById('panel-' + nama);
+    if (targetPanel) targetPanel.classList.add('active');
+
     if (nama === 'progres') muatAntrean();
+    if (nama === 'riwayat') muatRiwayat();
+    if (nama === 'perangkat') muatStatusPerangkat();
 }
 
-/* ─── State ───────────────────────────────────────────────────────────────── */
-var anggotaCache = [];
-var antreanRefTimer = null;
-var bcStatusCache = null;  // cache terakhir dari /broadcast/status
+/* ─── Global Refresh & Header Status ───────────────────────────────────────── */
+function cekkoneksiGlobal() {
+    apiFetch('/antrean/lokal').then(function(r){ return r.json(); }).then(function(d){
+        var b1Dot = document.getElementById('b1-dot');
+        var b1Txt = document.getElementById('b1-text');
+        var b2Dot = document.getElementById('b2-dot');
+        var b2Txt = document.getElementById('b2-text');
 
-/* ─── Grup & Anggota ──────────────────────────────────────────────────────── */
+        if (d.perangkatAktif === 'utama' || d.b1Siap) {
+            b1Dot.className = 'dot-status on';
+            b1Txt.textContent = 'Online (Aktif)';
+        } else {
+            b1Dot.className = 'dot-status off';
+            b1Txt.textContent = 'Offline';
+        }
+
+        if (d.perangkatAktif === 'cadangan' || d.b2Siap) {
+            b2Dot.className = 'dot-status on';
+            b2Txt.textContent = 'Online ' + (d.perangkatAktif === 'cadangan' ? '(Sedang Menggantikan Bot 1)' : '(Ready)');
+        } else {
+            b2Dot.className = 'dot-status off';
+            b2Txt.textContent = 'Offline';
+        }
+    }).catch(function(){});
+}
+
+/* ─── Grup & Member Logic ─────────────────────────────────────────────────── */
+var anggotaCache = [];
 function muatGrup() {
     var sel = document.getElementById('sel-grup');
     apiFetch('/groups').then(function(r) { return r.json(); }).then(function(data) {
         var grup = Array.isArray(data) ? data : (data.groups || []);
         grup.sort(function(a, b) { return (b.size || 0) - (a.size || 0); });
-        sel.innerHTML = '<option value="">— pilih grup —</option>';
+        sel.innerHTML = '<option value="">— pilih grup target —</option>';
         grup.forEach(function(g) {
             var opt = document.createElement('option');
             opt.value = g.jid;
             opt.textContent = (g.name || g.jid) + ' (' + (g.size || '?') + ' anggota)';
             sel.appendChild(opt);
         });
-    }).catch(function(e) {
-        sel.innerHTML = '<option value="">Gagal memuat: ' + e.message + '</option>';
-    });
+    }).catch(function(e) { sel.innerHTML = '<option value="">Gagal memuat: ' + e.message + '</option>'; });
 }
 
 function muatAnggota() {
@@ -349,23 +445,18 @@ function muatAnggota() {
     anggotaCache = [];
     hitungDipilih();
     toggleToolbar(false);
-    if (!jid) {
-        box.innerHTML = '<div class="bc-empty"><span class="ic-empty">👥</span>Pilih grup terlebih dahulu.</div>';
-        return;
-    }
-    box.innerHTML = '<div class="bc-empty"><span class="spinner" style="width:20px;height:20px;margin-bottom:8px;display:block;margin-inline:auto;"></span>Mengambil anggota...</div>';
+    if (!jid) { box.innerHTML = '<div class="bc-empty"><span class="ic-empty">👥</span>Pilih grup terlebih dahulu.</div>'; return; }
+    box.innerHTML = '<div class="bc-empty">Mengambil anggota grup...</div>';
     apiFetch('/groups/' + encodeURIComponent(jid)).then(function(r) { return r.json(); }).then(function(data) {
         anggotaCache = (data.participants || []).map(function(p) { return { jid: p.id, admin: p.admin || null }; });
         renderAnggota(anggotaCache);
         toggleToolbar(anggotaCache.length > 0);
-    }).catch(function(e) {
-        box.innerHTML = '<div class="bc-empty" style="color:var(--bad);">Gagal: ' + e.message + '</div>';
-    });
+    }).catch(function(e) { box.innerHTML = '<div class="bc-empty" style="color:var(--bad);">Gagal: ' + e.message + '</div>'; });
 }
 
 function renderAnggota(list) {
     var box = document.getElementById('member-list');
-    if (!list.length) { box.innerHTML = '<div class="bc-empty"><span class="ic-empty">👥</span>Tidak ada anggota.</div>'; return; }
+    if (!list.length) { box.innerHTML = '<div class="bc-empty">Tidak ada anggota.</div>'; return; }
     box.innerHTML = '';
     list.forEach(function(m) {
         var nomor = m.jid.replace('@s.whatsapp.net', '').replace('@c.us', '');
@@ -396,8 +487,7 @@ function hitungEta(n) {
     var detik = Number(document.getElementById('jeda-detik').value) || 5;
     var label = document.getElementById('eta-label');
     if (!n) { label.textContent = ''; return; }
-    var total = n * detik;
-    label.textContent = '\u2248 ETA ' + formatDurasi(total) + ' untuk ' + n + ' penerima';
+    label.textContent = '≈ ETA ' + formatDurasi(n * detik) + ' untuk ' + n + ' penerima';
 }
 
 function toggleToolbar(aktif) {
@@ -405,7 +495,6 @@ function toggleToolbar(aktif) {
     document.getElementById('btn-batal-semua').disabled = !aktif;
 }
 
-/* ─── Util format ──────────────────────────────────────────────────────────── */
 function formatDurasi(detik) {
     if (detik < 60) return detik + ' detik';
     if (detik < 3600) return Math.ceil(detik / 60) + ' menit';
@@ -414,81 +503,88 @@ function formatDurasi(detik) {
     return jam + ' jam' + (mnt ? ' ' + mnt + ' mnt' : '');
 }
 
-/* ─── Kirim ───────────────────────────────────────────────────────────────── */
+/* ─── Kirim Broadcast Grup ────────────────────────────────────────────────── */
 function kirim() {
     var pesan = document.getElementById('pesan').value.trim();
     var jids = Array.from(document.querySelectorAll('#member-list input[type=checkbox]:checked')).map(function(cb) { return cb.value; });
     var jedaDetik = Math.min(300, Math.max(1, Number(document.getElementById('jeda-detik').value) || 5));
-    var hasilEl = document.getElementById('bc-hasil');
     var btn = document.getElementById('btn-kirim');
 
-    hasilEl.style.display = 'none';
-    hasilEl.className = 'bc-hasil';
-    if (!pesan) return tampilHasil('err', '\u26a0\ufe0f Pesan tidak boleh kosong.');
-    if (!jids.length) return tampilHasil('err', '\u26a0\ufe0f Pilih minimal satu anggota.');
+    if (!pesan) return tampilHasil('bc-hasil', 'err', '⚠️ Pesan tidak boleh kosong.');
+    if (!jids.length) return tampilHasil('bc-hasil', 'err', '⚠️ Pilih minimal 1 anggota.');
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-top-color:#fff;margin-right:6px;"></span> Mengirim\u2026';
-
     apiFetch('/broadcast', {
         method: 'POST',
         body: JSON.stringify({ message: pesan, jids: jids, delayMs: jedaDetik * 1000 }),
-    }).then(function(r) {
-        return r.json().then(function(d) { return { ok: r.ok, data: d }; });
-    }).then(function(res) {
-        if (!res.ok) {
-            tampilHasil('err', '\u274c ' + (res.data.error || 'Gagal.'));
-        } else {
-            var eta = res.data.etaSec || 0;
-            var etaStr = formatDurasi(eta);
-            var ditolak = res.data.rejected && res.data.rejected.length
-                ? '<br><span class="tiny" style="color:var(--ink-soft);">' + res.data.rejected.length + ' JID dilewati (bukan individual).</span>' : '';
-            tampilHasil('ok',
-                '\u2705 <strong>' + res.data.queued + ' pesan</strong> masuk antrean. Jeda ' + jedaDetik +
-                's/pesan, ETA &plusmn;<strong>' + etaStr + '</strong>.' + ditolak +
-                '<br><span class="tiny" style="color:var(--ink-soft);">Pantau di tab <strong>Progres &amp; Antrean</strong>.</span>'
-            );
-            document.getElementById('pesan').value = '';
-            muatAntreanSilent();
-        }
+    }).then(function(r) { return r.json(); }).then(function(res) {
+        tampilHasil('bc-hasil', 'ok', '✅ <strong>' + (res.queued || jids.length) + ' pesan</strong> masuk antrean broadcast!');
+        document.getElementById('pesan').value = '';
+        muatAntreanSilent();
     }).catch(function(e) {
-        tampilHasil('err', '\u274c ' + e.message);
-    }).finally(function() {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-bullhorn"></i>&nbsp; Kirim Broadcast';
-        hitungDipilih();
-    });
+        tampilHasil('bc-hasil', 'err', '❌ ' + e.message);
+    }).finally(function() { btn.disabled = false; });
 }
 
-function tampilHasil(tipe, html) {
-    var el = document.getElementById('bc-hasil');
+/* ─── Kirim Japri Manual ─────────────────────────────────────────────────── */
+function parseNomorJapri() {
+    var raw = document.getElementById('japri-nomor').value;
+    var list = raw.split(/[\n,;]+/).map(function(s){ return s.replace(/[^\d]/g, ''); }).filter(Boolean);
+    var jids = list.map(function(n) {
+        if (n.startsWith('0')) n = '62' + n.slice(1);
+        return n + '@s.whatsapp.net';
+    });
+    document.getElementById('japri-hitungan').textContent = jids.length + ' nomor valid terdeteksi';
+    return jids;
+}
+document.getElementById('japri-nomor')?.addEventListener('input', parseNomorJapri);
+
+function kirimJapriManual() {
+    var jids = parseNomorJapri();
+    var pesan = document.getElementById('japri-pesan').value.trim();
+    var jedaDetik = Number(document.getElementById('japri-jeda').value) || 5;
+    var btn = document.getElementById('btn-kirim-japri');
+
+    if (!jids.length) return tampilHasil('japri-hasil', 'err', '⚠️ Masukkan minimal satu nomor tujuan.');
+    if (!pesan) return tampilHasil('japri-hasil', 'err', '⚠️ Pesan tidak boleh kosong.');
+
+    btn.disabled = true;
+    apiFetch('/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({ message: pesan, jids: jids, delayMs: jedaDetik * 1000 }),
+    }).then(function(r) { return r.json(); }).then(function(res) {
+        tampilHasil('japri-hasil', 'ok', '✅ <strong>' + jids.length + ' pesan japri</strong> berhasil diantrekan!');
+        document.getElementById('japri-pesan').value = '';
+        document.getElementById('japri-nomor').value = '';
+        muatAntreanSilent();
+    }).catch(function(e) {
+        tampilHasil('japri-hasil', 'err', '❌ ' + e.message);
+    }).finally(function() { btn.disabled = false; });
+}
+
+function tampilHasil(id, tipe, html) {
+    var el = document.getElementById(id);
+    if (!el) return;
     el.className = 'bc-hasil ' + tipe;
     el.innerHTML = html;
     el.style.display = 'block';
-    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-/* ─── Antrean / Progres ───────────────────────────────────────────────────── */
+/* ─── Progres & Antrean ───────────────────────────────────────────────────── */
 function muatAntrean() {
-    document.getElementById('refresh-label').textContent = 'Memuat\u2026';
-
-    // Ambil dua endpoint sekaligus: status broadcast + antrean lokal
+    document.getElementById('refresh-label').textContent = 'Memuat…';
     Promise.all([
         apiFetch('/broadcast/status').then(function(r) { return r.json(); }),
         apiFetch('/antrean/lokal').then(function(r) { return r.json(); }),
     ]).then(function(results) {
-        var bcSt  = results[0];
-        var data  = results[1];
-        var sekarang = new Date().toLocaleTimeString('id-ID');
-        document.getElementById('refresh-label').textContent = 'Diperbarui ' + sekarang;
-
+        var bcSt = results[0];
+        var data = results[1];
+        document.getElementById('refresh-label').textContent = 'Diperbarui ' + new Date().toLocaleTimeString('id-ID');
         renderStatusBot(data);
-        renderBroadcastProgress(bcSt, data);
+        renderBroadcastProgress(bcSt);
         renderAntreanBox(data);
         renderDibuangBox(data);
-        renderResumeBanner(bcSt);
         updateBadgeAntrean(data, bcSt);
-
     }).catch(function(e) {
         document.getElementById('refresh-label').textContent = 'Gagal: ' + e.message;
     });
@@ -511,7 +607,7 @@ function renderTopBanner(bcSt) {
     var topInfo   = document.getElementById('bc-top-info');
     if (!topBanner || !topInfo) return;
     if (bcSt && bcSt.id && (bcSt.terkirim > 0 || bcSt.tertunda > 0)) {
-        topInfo.textContent = (bcSt.terkirim || 0) + ' terkirim dari total ' + (bcSt.total || 0) + ' pesan (' + (bcSt.tertunda || 0) + ' masih dalam antrean).';
+        topInfo.textContent = (bcSt.terkirim || 0) + ' terkirim dari total ' + (bcSt.total || 0) + ' pesan (' + (bcSt.tertunda || 0) + ' dalam antrean).';
         topBanner.style.display = 'block';
     } else {
         topBanner.style.display = 'none';
@@ -524,98 +620,37 @@ function renderStatusBot(data) {
     barEl.style.display = 'flex';
     if (data.siap) {
         barEl.className = 'bot-status ok';
-        if (data.perangkatAktif === 'cadangan') {
-            txtEl.textContent = '\u26a1 Perangkat 2 (Bot Cadangan) tersambung \u2014 antrean berjalan';
-        } else {
-            txtEl.textContent = 'Bot tersambung \u2014 antrean berjalan';
-        }
+        txtEl.textContent = data.perangkatAktif === 'cadangan' ? '⚡ Bot 2 (Cadangan) tersambung — antrean berjalan' : 'Bot 1 tersambung — antrean berjalan';
     } else {
         barEl.className = 'bot-status err';
-        txtEl.textContent = '\u26a0\ufe0f ' + (data.sebab || 'Bot belum tersambung \u2014 antrean tertahan');
+        txtEl.textContent = '⚠️ ' + (data.sebab || 'Bot offline — antrean tertahan');
     }
 }
 
-function renderBroadcastProgress(bcSt, data) {
+function renderBroadcastProgress(bcSt) {
     var progCard = document.getElementById('progres-card');
     var btnBatal = document.getElementById('btn-batal-bc');
-    bcStatusCache = bcSt;
-
-    if (!bcSt || !bcSt.id) {
-        progCard.style.display = 'none';
-        return;
-    }
-
+    if (!bcSt || !bcSt.id) { progCard.style.display = 'none'; return; }
     progCard.style.display = 'block';
-    var total     = bcSt.total || 0;
-    var terkirim  = bcSt.terkirim || 0;
-    var gagal     = bcSt.gagal || 0;
-    var tertunda  = bcSt.tertunda || 0;
-    var pct       = bcSt.pct || 0;
-    var etaSec    = Math.round((bcSt.etaMs || 0) / 1000);
-
-    document.getElementById('pb-terkirim').textContent = terkirim;
-    document.getElementById('pb-total').textContent    = total;
-    document.getElementById('pb-tertunda').textContent = tertunda;
-    document.getElementById('pb-gagal').textContent    = gagal;
-    document.getElementById('pb-pct').textContent      = pct + '%';
-    document.getElementById('pb-fill').style.width     = pct + '%';
-
-    var etaTxt = '';
-    if (bcSt.selesai) {
-        etaTxt = bcSt.dibatalkan ? '\u26d4 Broadcast dibatalkan.' : '\u2705 Semua pesan telah diproses!';
-        btnBatal.style.display = 'none';
-    } else if (etaSec > 0) {
-        etaTxt = 'Estimasi selesai: \u00b1' + formatDurasi(etaSec) + ' lagi';
-        btnBatal.style.display = '';
-    } else {
-        btnBatal.style.display = '';
-    }
-    document.getElementById('pb-eta-text').textContent = etaTxt;
-
-    var pesanPrev = bcSt.pesan || '';
-    document.getElementById('pb-pesan-preview').textContent = pesanPrev ? '\u201c' + pesanPrev + (pesanPrev.length >= 80 ? '\u2026' : '') + '\u201d' : '';
-}
-
-function renderResumeBanner(bcSt) {
-    var banner = document.getElementById('bc-resume-banner');
-    var info   = document.getElementById('bc-resume-info');
-    // Tampilkan banner hanya kalau ada broadcast aktif yang punya terkirim (artinya sudah berjalan sebelumnya)
-    if (bcSt && bcSt.aktif && bcSt.terkirim > 0 && bcSt.tertunda > 0) {
-        info.textContent = bcSt.terkirim + ' sudah terkirim, ' + bcSt.tertunda + ' masih dalam antrean.';
-        banner.style.display = 'block';
-    } else {
-        banner.style.display = 'none';
-    }
+    document.getElementById('pb-terkirim').textContent = bcSt.terkirim || 0;
+    document.getElementById('pb-total').textContent    = bcSt.total || 0;
+    document.getElementById('pb-tertunda').textContent = bcSt.tertunda || 0;
+    document.getElementById('pb-gagal').textContent    = bcSt.gagal || 0;
+    document.getElementById('pb-pct').textContent      = (bcSt.pct || 0) + '%';
+    document.getElementById('pb-fill').style.width     = (bcSt.pct || 0) + '%';
+    btnBatal.style.display = bcSt.selesai ? 'none' : 'block';
 }
 
 function renderAntreanBox(data) {
     var items = data.items || [];
-    var tertunda = data.tertunda || 0;
     var box = document.getElementById('antrean-box');
     var btnHapusSemua = document.getElementById('btn-hapus-semua');
-
-    if (!tertunda && !items.length) {
-        box.innerHTML = '<div class="bc-empty"><span class="ic-empty">\u2705</span>Antrean kosong.</div>';
-        btnHapusSemua.style.display = 'none';
-        return;
-    }
-
+    if (!items.length) { box.innerHTML = '<div class="bc-empty">Antrean kosong.</div>'; btnHapusSemua.style.display = 'none'; return; }
     btnHapusSemua.style.display = '';
-    var maxTampil = 100;
-    // Tampilkan SEMUA angka terang-terangan di header
-    var infoTeks = tertunda <= maxTampil
-        ? 'Total <strong>' + tertunda + ' pesan</strong> dalam antrean.'
-        : 'Menampilkan <strong>' + Math.min(items.length, maxTampil) + '</strong> teratas dari total <strong>' + tertunda + ' pesan</strong> dalam antrean.';
-    var html = '<div style="font-size:.8rem;color:var(--ink-soft);margin-bottom:8px;padding:0 2px;">' + infoTeks + '</div>';
-    html += '<div class="antrean-list">';
-    items.slice(0, maxTampil).forEach(function(it) {
-        var nomor = String(it.jid || '').replace(/@s\.whatsapp\.net|@c\.us|@lid/g, '');
-        var pesan = String(it.message || '').slice(0, 60) + (String(it.message || '').length > 60 ? '\u2026' : '');
-        html += '<div class="antrean-item">' +
-            '<span class="ai-jid">+' + escHTML(nomor) + '</span>' +
-            '<span class="ai-msg">' + escHTML(pesan) + '</span>' +
-            '<button class="btn ghost small ai-hapus" onclick="hapusSatu(\'' + escHTML(it.id) + '\')" title="Hapus">\u2715</button>' +
-            '</div>';
+    var html = '<div class="antrean-list">';
+    items.slice(0, 50).forEach(function(it) {
+        var nomor = String(it.jid || '').replace(/@s\.whatsapp\.net|@c\.us/g, '');
+        html += '<div class="antrean-item"><span class="ai-jid">+' + escHTML(nomor) + '</span><span class="ai-msg">' + escHTML((it.message||'').slice(0,60)) + '</span></div>';
     });
     html += '</div>';
     box.innerHTML = html;
@@ -623,110 +658,94 @@ function renderAntreanBox(data) {
 
 function renderDibuangBox(data) {
     var dibuang = data.dibuang || [];
-    var dibuangTotal = data.dibuangTotal || dibuang.length;
     var dbox = document.getElementById('dibuang-box');
-    var btnBersihkan = document.getElementById('btn-bersihkan');
-
-    if (!dibuangTotal) {
-        dbox.innerHTML = '<div class="bc-empty"><span class="ic-empty">\ud83c\udf89</span>Tidak ada pesan yang gagal.</div>';
-        btnBersihkan.style.display = 'none';
-        return;
-    }
-
-    btnBersihkan.style.display = '';
-    // Tampilkan total dengan jelas
-    var infoTeks = dibuang.length < dibuangTotal
-        ? 'Menampilkan <strong>' + dibuang.length + '</strong> terbaru dari total <strong>' + dibuangTotal + ' gagal</strong>.'
-        : 'Total <strong>' + dibuangTotal + ' pesan gagal</strong>.';
-    var dhtml = '<div style="font-size:.8rem;color:var(--ink-soft);margin-bottom:8px;padding:0 2px;">' + infoTeks + '</div>';
-    dhtml += '<div class="antrean-list">';
+    if (!dibuang.length) { dbox.innerHTML = '<div class="bc-empty">Tidak ada pesan gagal.</div>'; return; }
+    var html = '<div class="antrean-list">';
     dibuang.forEach(function(d) {
-        var nomor = String(d.jid || '').replace(/@s\.whatsapp\.net|@c\.us|@lid/g, '');
-        dhtml += '<div class="dibuang-item">' +
-            '<div class="di-info">' +
-                '<div class="di-jid">+' + escHTML(nomor) + '</div>' +
-                '<div class="di-sebab">' + escHTML(String(d.sebab || '').slice(0, 120)) + '</div>' +
-            '</div>' +
-            '<button class="btn ghost small" onclick="ulangKirim(\'' + escHTML(d.id) + '\')" title="Kirim ulang" style="flex:0 0 auto;">\u21a9</button>' +
-            '</div>';
+        html += '<div class="dibuang-item"><div class="di-info"><div class="di-jid">' + escHTML(d.jid) + '</div><div class="di-sebab">' + escHTML(d.sebab || '') + '</div></div></div>';
     });
-    dhtml += '</div>';
-    dbox.innerHTML = dhtml;
+    html += '</div>';
+    dbox.innerHTML = html;
 }
 
 function updateBadgeAntrean(data, bcSt) {
-    var tertunda = data ? (data.tertunda || 0) : 0;
-    // Kalau ada broadcast aktif, badge = tertunda dalam broadcast
-    var badgeVal = tertunda;
-    if (bcSt && bcSt.aktif) badgeVal = Math.max(tertunda, bcSt.tertunda || 0);
+    var val = data ? (data.tertunda || 0) : 0;
     var badge = document.getElementById('badge-antrean');
-    if (badgeVal > 0) {
-        badge.textContent = badgeVal;
-        badge.classList.add('vis');
-    } else {
-        badge.classList.remove('vis');
-    }
+    if (val > 0) { badge.textContent = val; badge.classList.add('vis'); }
+    else { badge.classList.remove('vis'); }
+}
+
+/* ─── Riwayat Broadcast ──────────────────────────────────────────────────── */
+function muatRiwayat() {
+    var box = document.getElementById('riwayat-box');
+    box.innerHTML = '<div class="bc-empty">Memuat data riwayat…</div>';
+    apiFetch('/broadcast/riwayat-lengkap').then(function(r){ return r.json(); }).then(function(d){
+        var list = d.riwayat || [];
+        if (!list.length) { box.innerHTML = '<div class="bc-empty">Belum ada riwayat broadcast.</div>'; return; }
+        var html = '<table class="table-history"><thead><tr><th>ID</th><th>Tgl / Waktu</th><th>Pesan</th><th>Progress</th><th>Status</th></tr></thead><tbody>';
+        list.forEach(function(r) {
+            var stClass = r.status === 'Selesai' ? 'ok' : (r.status === 'Berjalan' ? 'running' : 'cancelled');
+            var tgl = new Date(r.createdAt).toLocaleString('id-ID');
+            html += '<tr>' +
+                '<td><code>' + escHTML(r.id) + '</code></td>' +
+                '<td>' + escHTML(tgl) + '</td>' +
+                '<td>' + escHTML((r.pesan || '').slice(0, 40)) + '…</td>' +
+                '<td>' + r.terkirim + ' / ' + r.total + ' terkirim</td>' +
+                '<td><span class="status-badge ' + stClass + '">' + escHTML(r.status) + '</span></td>' +
+                '</tr>';
+        });
+        html += '</tbody></table>';
+        box.innerHTML = html;
+    }).catch(function(e){ box.innerHTML = '<div class="bc-empty" style="color:var(--bad);">Gagal muat riwayat: ' + e.message + '</div>'; });
+}
+
+/* ─── Status Perangkat & QR ──────────────────────────────────────────────── */
+function muatStatusPerangkat() {
+    apiFetch('/antrean/lokal').then(function(r){ return r.json(); }).then(function(d){
+        document.getElementById('dev1-status-box').innerHTML = d.b1Siap ? '<strong style="color:var(--ok);">🟢 Perangkat 1 Tersambung & Aktif</strong>' : '<span style="color:var(--bad);">🔴 Perangkat 1 Offline</span>';
+        document.getElementById('dev2-status-box').innerHTML = d.b2Siap ? '<strong style="color:var(--ok);">🟢 Perangkat 2 (Cadangan) Tersambung</strong>' : '<span style="color:var(--bad);">🔴 Perangkat 2 Offline</span>';
+    });
+}
+
+function mintaQR(dev) {
+    var url = dev === 2 ? '/perangkat2/qr' : '/qr';
+    var boxId = dev === 2 ? 'dev2-status-box' : 'dev1-status-box';
+    var box = document.getElementById(boxId);
+    box.innerHTML = 'Memuat Kode QR…';
+    apiFetch(url).then(function(r){ return r.json(); }).then(function(d){
+        if (d.qr && String(d.qr).startsWith('data:image')) {
+            box.innerHTML = '<div style="text-align:center;"><p class="tiny">Scan QR di WhatsApp HP Anda:</p><img src="' + d.qr + '" width="220" height="220" style="border-radius:8px;border:1px solid var(--line);"><p class="tiny" style="margin-top:6px;">Update otomatis...</p></div>';
+        } else if (d.connected) {
+            box.innerHTML = '<strong style="color:var(--ok);">🟢 Perangkat ' + dev + ' Sudah Tersambung!</strong>';
+        } else {
+            box.innerHTML = 'Kondisi: ' + (d.message || d.status || 'Menunggu socket...');
+        }
+    }).catch(function(e){ box.innerHTML = 'Gagal: ' + e.message; });
 }
 
 /* ─── Actions ─────────────────────────────────────────────────────────────── */
-function hapusSatu(id) {
-    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ hapus: id }) })
-        .then(function() { muatAntrean(); });
-}
-
 function hapusSemua() {
-    var badge = document.getElementById('badge-antrean');
-    if (!confirm('Hapus semua ' + badge.textContent + ' pesan dari antrean?')) return;
-    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ hapus_semua: true }) })
-        .then(function() { muatAntrean(); });
+    if (!confirm('Hapus semua antrean?')) return;
+    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ hapus_semua: true }) }).then(function(){ muatAntrean(); });
 }
-
-function ulangKirim(id) {
-    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ ulang: id }) })
-        .then(function() { muatAntrean(); });
-}
-
 function bersihkanCatatan() {
-    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ bersihkan_catatan: true }) })
-        .then(function() { muatAntrean(); });
+    apiFetch('/antrean/lokal', { method: 'POST', body: JSON.stringify({ bersihkan_catatan: true }) }).then(function(){ muatAntrean(); });
 }
-
 function batalBroadcast() {
-    if (!confirm('Batalkan broadcast yang sedang berjalan? Pesan yang sudah terkirim tidak bisa ditarik.')) return;
-    var btn = document.getElementById('btn-batal-bc');
-    btn.disabled = true;
-    btn.textContent = 'Membatalkan\u2026';
-    apiFetch('/broadcast/batal', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            alert(d.pesan || 'Broadcast dibatalkan.');
-            muatAntrean();
-        })
-        .catch(function(e) { alert('Gagal: ' + e.message); })
-        .finally(function() { btn.disabled = false; btn.textContent = '\ud83d\uded1 Batalkan'; });
+    if (!confirm('Batalkan broadcast yang berjalan?')) return;
+    apiFetch('/broadcast/batal', { method: 'POST' }).then(function(r){ return r.json(); }).then(function(d){ alert(d.pesan || 'Broadcast dibatalkan.'); muatAntrean(); });
 }
 
-/* ─── Auto-refresh ────────────────────────────────────────────────────────── */
-function mulaiAutoRefresh() {
-    if (antreanRefTimer) clearInterval(antreanRefTimer);
-    antreanRefTimer = setInterval(function() {
-        var autoEl = document.getElementById('auto-refresh');
-        var panelAktif = document.getElementById('panel-progres').classList.contains('active');
-        if (autoEl && autoEl.checked && panelAktif) muatAntrean();
-        else muatAntreanSilent();
-    }, 5000);
-}
-
-/* ─── Util ────────────────────────────────────────────────────────────────── */
 function escHTML(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 /* ─── Init ────────────────────────────────────────────────────────────────── */
 muatGrup();
+cekkoneksiGlobal();
 muatAntreanSilent();
-mulaiAutoRefresh();
-document.getElementById('jeda-detik').addEventListener('input', function() { hitungDipilih(); });
+setInterval(function(){ cekkoneksiGlobal(); }, 10000);
+document.getElementById('jeda-detik')?.addEventListener('input', function() { hitungDipilih(); });
 </script>
 </body>
 </html>

@@ -419,6 +419,25 @@ module.exports = function pasangRuteWa(app, K) {
         });
     });
 
+    // ── Broadcast: Riwayat Lengkap ───────────────────────────────────────────────
+    app.get('/broadcast/riwayat-lengkap', requireAuth, (req, res) => {
+        const list = [];
+        const st = _bcState || muatBcState(K);
+        if (st && st.id) {
+            list.push({
+                id: st.id,
+                pesan: st.pesan || '',
+                total: st.jids ? st.jids.length : 0,
+                terkirim: st.terkirim ? st.terkirim.length : 0,
+                gagal: st.gagal ? st.gagal.length : 0,
+                status: st.dibatalkan ? 'Dibatalkan' : (st.selesai ? 'Selesai' : 'Berjalan'),
+                createdAt: st.createdAt || st.mulaiAt || Date.now(),
+                selesaiAt: st.selesaiAt || null
+            });
+        }
+        res.json({ ok: true, riwayat: list });
+    });
+
     // ── Profile Bot endpoint ──────────────────────────────────────────────────────
     app.get('/profile', requireAuth, (req, res) => {
         res.json({
