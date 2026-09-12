@@ -1938,7 +1938,9 @@ async function startBotInner(myGen) {
         muatOutbox();
         muatDibuang();
         // Resume broadcast yang terputus saat restart
-        if (K.muatBcState) {
+        if (K.resumeBroadcastState) {
+            K.resumeBroadcastState();
+        } else if (K.muatBcState) {
             const bcSt = K.muatBcState();
             if (bcSt) {
                 const sudah = new Set([...bcSt.terkirim, ...bcSt.gagal.map(g => g.jid)]);
@@ -1946,10 +1948,15 @@ async function startBotInner(myGen) {
                 if (sisa.length > 0) {
                     const ttlBroadcast = 48 * 60 * 60 * 1000;
                     const now = Date.now();
-                    sisa.forEach(jid => messageQueue.push({
-                        jid, message: bcSt.pesan, ts: now, ttl: ttlBroadcast,
-                        delayMs: bcSt.delayMs, bcId: bcSt.id,
-                    }));
+                    const diantrekan = new Set(messageQueue.map(t => t.jid));
+                    sisa.forEach(jid => {
+                        if (!diantrekan.has(jid)) {
+                            messageQueue.push({
+                                jid, message: bcSt.pesan, ts: now, ttl: ttlBroadcast,
+                                delayMs: bcSt.delayMs, bcId: bcSt.id,
+                            });
+                        }
+                    });
                     console.log(`[broadcast] Resume: ${sisa.length} pesan dijadwalkan ulang dari broadcast ${bcSt.id}`);
                     kickQueue();
                 } else {

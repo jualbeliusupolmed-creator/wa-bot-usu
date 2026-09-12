@@ -106,6 +106,36 @@ module.exports = function pasangRuteWa(app, K) {
     };
     K.bcStateAktif = () => _bcState && !_bcState.selesai ? _bcState : null;
 
+    // Masukkan sisa antrean broadcast ke messageQueue agar tampil di /antrean/lokal
+    function resumeBroadcastState() {
+        const st = muatBcState(K);
+        if (st && !st.selesai) {
+            const sudah = new Set([...(st.terkirim || []), ...(st.gagal || []).map(g => g.jid)]);
+            const sisa = (st.jids || []).filter(j => !sudah.has(j));
+            if (sisa.length > 0) {
+                const ttlBroadcast = 48 * 60 * 60 * 1000;
+                const now = Date.now();
+                const diantrekan = new Set((K.messageQueue || []).map(t => t.jid));
+                let count = 0;
+                sisa.forEach(jid => {
+                    if (!diantrekan.has(jid)) {
+                        K.messageQueue.push({
+                            jid, message: st.pesan, ts: now, ttl: ttlBroadcast,
+                            delayMs: st.delayMs, bcId: st.id,
+                        });
+                        count++;
+                    }
+                });
+                if (count > 0) {
+                    console.log(`[broadcast] Resume: ${count} pesan dijadwalkan ulang ke messageQueue dari broadcast ${st.id}`);
+                    if (K.kickQueue) K.kickQueue();
+                }
+            }
+        }
+    }
+    K.resumeBroadcastState = resumeBroadcastState;
+    resumeBroadcastState();
+
     const { requireAuth, requireAuthPage, requireRelink, requirePemulihan } = K;
     // Yang stabil diambil sekali di sini; yang berubah sepanjang bot hidup
     // TIDAK — itu dibaca lewat K.<nama> supaya selalu nilai terbaru.
