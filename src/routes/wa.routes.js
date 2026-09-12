@@ -56,7 +56,7 @@ function muatBcState(K) {
         const f = bcStateFile(K);
         if (!fs.existsSync(f)) return null;
         const raw = JSON.parse(fs.readFileSync(f, 'utf8'));
-        if (!raw || !raw.id || raw.selesai) return null;
+        if (!raw || !raw.id) return null;
         _bcState = raw;
         return raw;
     } catch (_) { return null; }

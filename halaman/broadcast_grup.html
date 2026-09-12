@@ -158,6 +158,16 @@
     <!-- ══ Panel: Kirim ══════════════════════════════════════════════════════ -->
     <div class="bc-panel active" id="panel-kirim">
 
+        <!-- Banner broadcast aktif di tab Kirim -->
+        <div id="bc-top-banner" style="display:none;background:var(--brand-t,#eef2ff);border:1px solid var(--brand,#6366f1);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:.875rem;">
+            <strong>⚡ Ada broadcast yang sedang berjalan / memiliki riwayat aktif.</strong><br>
+            <span id="bc-top-info"></span>
+            <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <button class="btn ghost small" onclick="gantiTab('progres', document.querySelectorAll('.bc-tab')[1])">📊 Lihat Progres &amp; Antrean Lengkap</button>
+                <button class="btn ghost small danger" onclick="batalBroadcast()" style="margin-left:auto;">🛑 Batalkan</button>
+            </div>
+        </div>
+
         <!-- Langkah 1 -->
         <div class="card glass" style="margin-bottom:14px;">
             <div class="bc-step-label"><span class="nomor">1</span> Pilih Grup</div>
@@ -492,7 +502,20 @@ function muatAntreanSilent() {
         var bcSt = results[0];
         var data = results[1];
         if (data) updateBadgeAntrean(data, bcSt);
+        if (bcSt) renderTopBanner(bcSt);
     });
+}
+
+function renderTopBanner(bcSt) {
+    var topBanner = document.getElementById('bc-top-banner');
+    var topInfo   = document.getElementById('bc-top-info');
+    if (!topBanner || !topInfo) return;
+    if (bcSt && bcSt.id && (bcSt.terkirim > 0 || bcSt.tertunda > 0)) {
+        topInfo.textContent = (bcSt.terkirim || 0) + ' terkirim dari total ' + (bcSt.total || 0) + ' pesan (' + (bcSt.tertunda || 0) + ' masih dalam antrean).';
+        topBanner.style.display = 'block';
+    } else {
+        topBanner.style.display = 'none';
+    }
 }
 
 function renderStatusBot(data) {
