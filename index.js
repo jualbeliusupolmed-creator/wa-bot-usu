@@ -2677,3 +2677,11 @@ require('./src/routes/panel.routes')(app, K);
 require('./src/routes/antrean.routes')(app, K);
 require('./src/routes/sesi.routes')(app, K);
 require('./src/routes/wa.routes')(app, K);
+
+// --- AUTO TRIGGER INSTAGRAM PUBLISH ---
+// Berjalan di belakang layar untuk Vercel (Hobby plan tidak bisa cron 2 menit)
+setInterval(() => {
+    fetch('https://www.jualbeliusupolmed.web.id/api/webhook/trigger-ig', {
+        method: 'POST'
+    }).catch(e => console.error('[IG Trigger] Gagal hit webhook:', e?.message));
+}, 2 * 60 * 1000);
